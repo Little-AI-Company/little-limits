@@ -1,0 +1,133 @@
+# Validation
+
+This file records observed results, not intended behavior. Update the tested revision and relevant checks when the implementation changes.
+
+## Initial implementation baseline
+
+Verified October 9, 2026 on Apple silicon with macOS 27.0.1 (26A434), Apple Swift 6.4, and no external Swift package dependencies. These results describe the initial implementation before its first Git commit. Later changes require a new verification record; the digest below identifies this historical baseline.
+
+Tested code-and-test source SHA-256:
+
+```text
+69c17b4ff0f92aaddf75ace1eaeb7f62afebdf560a7b8800a668debe45f28921
+```
+
+The digest covers `Package.swift` and all 19 Swift files in `Sources` and `Tests`, sorted by relative path. For each file the digest input is its relative UTF-8 path, a NUL byte, its contents, and a NUL byte. The digest was unchanged before and after final tests, Release build, and packaging.
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test` | Passed: 21 tests, zero failures. 13 XCTest tests (8 Console parser, 5 Codex subprocess) and 8 Swift Testing contracts. Final cached debug build completed in 0.31 seconds. |
+| `swift test --filter codexExecutableUsesNativeBundleOrNPMBinaryWithFinderEnvironment` | Passed: 1 focused Finder-path resolver test before the final full run. |
+| `swift build -c release` | Passed without warnings. Clean Release build completed in 14.36 seconds. |
+| `scripts/package_app.sh` | Passed. Created `dist/AI Usage Stats.app` and `dist/AI-Usage-Stats-0.1.0.zip`; cached Release build completed in 0.29 seconds. |
+| `plutil -lint "dist/AI Usage Stats.app/Contents/Info.plist"` and `plutil -p` | Passed. Version 0.1.0, build 1, `com.parkerrex.ai-usage-stats`, executable `AIUsageStats`, macOS minimum 14.0, `LSUIElement = true`. |
+| `codesign --verify --deep --strict --verbose=2 "dist/AI Usage Stats.app"` | Passed on the final moved bundle and bundled helper. |
+| `codesign -d --verbose=2 "dist/AI Usage Stats.app"` | Reports an ad hoc signature and no TeamIdentifier. No Developer ID or notarization claim. |
+| `lipo -archs` for `Contents/MacOS/AIUsageStats` and `Contents/MacOS/UsageCapture` | Both report `arm64`. Universal compilation and Intel runtime were not tested. |
+| Per-file `git diff --no-index --check /dev/null` | Passed for 36 untracked text files. Binary assets skipped. No staging changes; an empty ordinary Git diff was not used as evidence. |
+| Local Markdown link targets | Passed for 7 project documents. External provider references are recorded in the research reports. |
+
+Initial local archive SHA-256:
+
+```text
+ad143c95bb7511404031fee7d81e729b153cacce25a8cf9a3d30887b4252ffda
+```
+
+The tests use synthetic data and fake CLI subprocesses. They verify field semantics, profile isolation, original Claude status-line preservation, settings symlinks, dated manual records, Console organization binding, currency conversion, missing fields, expired grants, malformed responses, Finder-path native CLI discovery, and subprocess timeouts and cleanup. They do not read real credentials or make account requests.
+
+An additional synthetic invocation of the packaged `UsageCapture` preserved identical stdin and stdout and the original command's exit status 7, stored quota fields, omitted conversation metadata, and created a mode-0600 capture file in a disposable directory. Only disposable configuration and synthetic payloads were used.
+
+## Liquid Glass redesign
+
+Verified October 9, 2026 on the same Apple silicon Mac with macOS 27.0.1, macOS SDK 27.0, and Swift 6.4. The runtime target remains macOS 14+. Building the glass controls requires a macOS 26+ SDK; older supported systems use the plain native path. Older runtime execution was not tested.
+
+Final redesign code-and-test source SHA-256:
+
+```text
+92fe1be979bb15eded7a8e99dd66ad7a7dafa4debe283cf31ac52f71806e3965
+```
+
+The same digest method described above now covers 22 files: `Package.swift` and 21 Swift files in `Sources` and `Tests`. The source digest was unchanged through the final test, Release build, and package checks. It identifies the tested source snapshot before publication.
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test` | Passed: 21 tests, zero failures. 13 XCTest and 8 Swift Testing tests; cached debug rebuild 2.02 seconds. |
+| `swift build -c release` | Passed without warnings; cached build 4.22 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build 0.28 seconds. Produced the local app and ZIP. |
+| `codesign --verify --deep --strict --verbose=2 "dist/AI Usage Stats.app"` | Passed on the final moved bundle and embedded helper. Local ad hoc signature. |
+| `plutil -lint "dist/AI Usage Stats.app/Contents/Info.plist"` | Passed. Packaging retained version 0.1.0/build 1 and the macOS 14 runtime target. |
+| `lipo -archs` for both bundled executables | Both report `arm64`. |
+| `xcrun --sdk macosx --show-sdk-version` and `swift --version` | SDK 27.0 and Apple Swift 6.4. |
+
+Final redesign local ZIP SHA-256:
+
+```text
+572e81d0924e3a4197c3bbfba66a05d47538c537705b571fb5f872a2208ab479
+```
+
+### Native observations
+
+- Both demo accounts' main quota values, credit balances, and earned-reset expiry fit in the 440 × 540 panel without scrolling. The earlier 440 × 610 design required scrolling to finish the same two-account view.
+- Light and dark validation-window captures show aligned values and readable account, credit, and reset rows. Details exposes exact dates and source records. Accounts, provider-specific Codex actions, the manual form, and Command-comma Settings were inspected. All manual form fields were reachable by scrolling.
+- The app-only Reduce Transparency flag removed the glass command surface while preserving readable data. This tested the fallback path, not a global system preference change or execution on older macOS.
+- Tab moved from Actions to the first Details control; Space expanded it; Tab reached its dashboard action; Shift-Tab returned to Details. The same Details control retained focus while a countdown changed from `2h` to `1h 58m` across a minute update.
+- After the demo aged beyond five minutes, the reset grant's short date and countdown remained readable with Stale on a second line. Both accounts' main values still fit without scrolling.
+- Expanded details initially allowed focus to move to a lower account offscreen. The final focus-reveal patch was checked in the running app: tabbing to Codex Details scrolled it into view, with the normalized scrollbar value moving from 0 to 0.05128.
+- The real empty state was readable at 440 × 250. Connect Claude showed Name, the default `~/.claude` folder, and Choose Folder. Cancel created no profile and made no configuration writes.
+- The actual status-item presentation was inspected as an accessibility popover. The public [menu-bar screenshot](../assets/screenshots/menu-bar.png) shows both demo accounts and the glass controls in the running native popover with the system's light appearance. All data in the capture is fictional. The app's dark launch flag controls validation windows; it is not evidence of a dark system popover.
+
+The light/dark, stale, and minute-focus checks began on an earlier redesign snapshot; the final change added native focus reveal without changing layout or data updates. The focus-reveal and actual-popover checks used the frozen final source. [Design captures](../assets/design/) and the [critique](design/critique.md) retain that evidence.
+
+No VoiceOver session, global Reduce Transparency/Increase Contrast/Reduce Motion transition, quantitative contrast measurement, older-macOS runtime, Intel runtime, or live signed-in billing read was verified. Escape dismissal was not established by the available post-dismiss accessibility response. No new app-overhead or notarization claim is made.
+
+## Initial native checks
+
+Native inspection used the packaged app's actual menu-bar popover, its normal empty state, and a disposable Claude configuration without user credentials. The popover initially showed its header at scroll position zero. Manual balance `12invalid` was rejected; `15.25` saved successfully while retaining the Purchased category. An unsaved account name survived refresh and a Console error update.
+
+The official Console sign-in page loaded with Google and email controls. A signed-out direct read returned 403 and used the provider-page fallback; its bounded 20-second operation returned a readable error and re-enabled Read, Open Sign In, and Disconnect. No provider sign-in was performed and no live credit balance was fetched.
+
+The disposable profile was removed through the native interface, and its original Claude settings were restored exactly. These native checks preceded the last controller-retirement and CLI-discovery changes; those final changes were compiled and tested on the source digest above. Controller release and live provider login remain runtime limits.
+
+No live account balance, minimum-macOS runtime, Intel runtime, app-overhead measurement, Developer ID signature, notarization, or public distribution verification is claimed.
+
+## Provider schema verification
+
+On October 9, 2026, installed `codex-cli 0.160.0` was verified without authentication or account requests using an empty private profile:
+
+```sh
+schema_directory=$(mktemp -d)
+mkdir -m 700 "$schema_directory/home"
+env -u CODEX_ACCESS_TOKEN -u CODEX_API_KEY -u OPENAI_API_KEY \
+  CODEX_HOME="$schema_directory/home" codex app-server generate-json-schema \
+  --out "$schema_directory/schema"
+```
+
+Result: exit 0 using an empty private home. The generated account-rate-limit schema includes nullable account identity and limit maps, an authoritative integer reset-credit count, and optional credit details with Unix-second grant and expiry fields. This establishes schema compatibility with that installed CLI, not live account availability. See [the research record](research/codex.md).
+
+The final Finder-path resolver selects the native executable at `/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex` on this machine. With an empty temporary `HOME` and `CODEX_HOME` and `PATH=/usr/bin:/bin:/usr/sbin:/sbin`, its `--version` command returned `codex-cli 0.162.0-alpha.2` and `app-server generate-json-schema --out <temporary-directory>` exited 0. The generated response retained usage, limit-map, and reset-credit properties. No authentication or account request was used. An earlier Node wrapper failed under that Finder path; the resolver now chooses the native binary and has a focused test for both bundle and official npm installations.
+
+## Required checks
+
+| Outcome | Check |
+| --- | --- |
+| Type-safe Swift 6 build | `swift build -c release` |
+| Core behavior | `swift test`, with the actual pass count |
+| Local native bundle | `scripts/package_app.sh` and bundle inspection |
+| Metadata | `plutil -lint "dist/AI Usage Stats.app/Contents/Info.plist"`; inspect executable, bundle ID, minimum OS, and `LSUIElement` |
+| Local signature | `codesign --verify --deep --strict --verbose=2 "dist/AI Usage Stats.app"` |
+| Executable architecture | `lipo -archs "dist/AI Usage Stats.app/Contents/MacOS/AIUsageStats"` and the bundled `UsageCapture` helper |
+| Menu-bar behavior | Open the packaged app and exercise panel open/dismiss, setup, refresh, failure state, and Quit |
+| Provider isolation | Verify separate configuration directories retain separate labels, credentials, and readings |
+| Data semantics | Verify percentages, dynamic durations, reset times, credit units, expiry, null fields, and stale timestamps |
+
+Tests should cover meaningful contracts. Redacted fixtures do not establish live provider availability. An account refresh does not establish billing access. A successful signature check does not establish Developer ID signing or notarization.
+
+## Remaining limits
+
+- Claude status-line rate-limit fields depend on the installed Claude Code version and payload. A profile needs a new captured reading before automatic data can appear.
+- Codex app-server fields depend on CLI version and plan. Use returned durations and preserve unavailable values.
+- Codex credit units, earned limit-reset counts, and monetary API prepaid credits are different data.
+- Documented public APIs did not establish remaining API prepaid balances or all grant-expiry details. The experimental Claude Console path uses private billing endpoints. Manual entries remain dated and explicitly labelled.
+- The experimental Claude Console connection reads private browser-facing billing endpoints. Typed parser tests do not establish live availability, successful sign-in, correct account membership, or a stable provider contract.
+- Claude accounts use separate existing configuration directories. Codex profiles use separate app-owned `CODEX_HOME` directories; changing the default CLI login is outside monitoring scope.
+- Local ad hoc packaging is available. Public signing, notarization, release hosting, and updates are not configured.
