@@ -296,3 +296,24 @@ The added behavior fixture binds an unverified legacy profile to its first verif
 Native demo checks visually inspected distinct Claude email headings, the full longer email in the overview, and the explicit unavailable-email state after scrolling. Accounts showed email-first rows with provider and saved alias beneath. The longer sidebar email truncated in the middle while its full value remained available in accessibility/help and the selected account description. Clicking the longer-email row and pressing Down selected the unavailable-email row correctly. These checks used fictional demo data in the packaged validation window. The final build adds a shared display formatter for nil, empty, or whitespace-only email values without changing saved profile data. A final normal-mode demo launch exposed the actual accessibility popover; visual inspection confirmed the email beneath the Claude header and preserved alias in the native layout. No public screenshots or real account values were saved.
 
 The final packaged executable SHA-256 is `ad67e601c73e6dfe89e51bea4a20bbb4b6b465c1ccdfdaed6cf3dd9fd0c7314b`. The app was returned to normal real-account mode; a sanitized check confirmed saved profiles include verified Claude email metadata. Final real-mode native automation timed out after five seconds, so no additional real-mode visual inspection is claimed. Multiple live account binding, real Console billing, live renewal, VoiceOver, minimum-macOS runtime, Intel runtime, Developer ID signing, and notarization remain unverified.
+
+### Recovery after sign-in persistence and Keychain cleanup failure
+
+Review of `609033129a1b6a368f357a2ac3cde2a1bd7e1032` found that failed account-file persistence could suppress a second failure while removing a newly saved Keychain grant. The correction writes an empty, private UUID marker before saving a grant with no previous credential. Failed deletion preserves that identifier for retry after a successful configuration load or when preparing the next sign-in, including after restart. Background cleanup failures keep the marker and leave otherwise valid accounts available; interactive retry reports the cleanup error. Cleanup skips active sign-ins, ignores directories and symlinks, and preserves grants associated with committed, verified OAuth profiles. A legacy capture row alone does not establish that association. Existing-profile credential restoration failures are explicit and direct the user to reconnect. No credential contents enter the marker or account file.
+
+The final 24-file source digest is:
+
+```text
+01e0aa0452e63e41094cb481a40b406ce6fbaae30ec8c1510aad2dc5d4e18782
+```
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test` | Passed: 35 tests, zero failures, comprising 13 XCTest and 22 Swift Testing tests; build 132.58 seconds. |
+| `swift build -c release` | Passed; 201.65 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build 14.03 seconds. |
+| Packaged plist lint, deep strict signature verification, executable architecture, and `git diff --check` | Passed; both executables remain local ad hoc signed arm64 binaries. |
+
+The new synthetic fixture forces account persistence and Keychain deletion to fail together, verifies a mode-0600 marker containing no credential data, and recreates the service to verify that blocked background cleanup leaves a committed account available. Interactive retry reports the same cleanup failure; a later load removes only the orphan grant. Repeated cleanup preserves the exact committed credential. UUID-named directories and symlinks remain untouched. Actual Keychain failure and live sign-in were not induced. The UI source is unchanged from the inspected email build. The new packaged app was launched in normal real-account mode; the prior native automation limit remains, and no additional visual check is claimed.
+
+The packaged executable SHA-256 is `7b1ede2703a30017e86fae608be2d1b23218de14e0bf0105fbc0a0ab75babfd3`.

@@ -93,6 +93,31 @@ struct ConfigurationStorage: Sendable {
     let directory: URL
 
     private var fileURL: URL { directory.appendingPathComponent("accounts.json") }
+    private var credentialCleanupDirectory: URL { directory.appendingPathComponent("PendingClaudeCredentials", isDirectory: true) }
+
+    func markClaudeCredentialForCleanup(accountID: UUID) throws {
+        try UsagePaths.writePrivate(Data(), to: credentialCleanupDirectory.appendingPathComponent(accountID.uuidString))
+    }
+
+    func pendingClaudeCredentialAccountIDs() throws -> [UUID] {
+        guard FileManager.default.fileExists(atPath: credentialCleanupDirectory.path) else { return [] }
+        return try FileManager.default.contentsOfDirectory(at: credentialCleanupDirectory,
+            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+            .filter { try isClaudeCredentialCleanupMarker($0) }
+            .compactMap { UUID(uuidString: $0.lastPathComponent) }
+    }
+
+    func removeClaudeCredentialCleanupMarker(accountID: UUID) throws {
+        let marker = credentialCleanupDirectory.appendingPathComponent(accountID.uuidString)
+        if FileManager.default.fileExists(atPath: marker.path), try isClaudeCredentialCleanupMarker(marker) {
+            try FileManager.default.removeItem(at: marker)
+        }
+    }
+
+    private func isClaudeCredentialCleanupMarker(_ url: URL) throws -> Bool {
+        let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+        return values.isRegularFile == true && values.isSymbolicLink != true && values.fileSize == 0
+    }
 
     func load() throws -> StoredConfiguration {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return StoredConfiguration() }

@@ -228,6 +228,63 @@ import Testing
     #expect(fixture.credentials.count == 0)
 }
 
+@Test func failedNewClaudeSignInRetainsDurableCredentialCleanupUntilRetry() async throws {
+    let fixture = try OAuthFixture(steps: [.response(tokenResponse), .response(profileResponse), .response(profileResponse), .response(usageResponse),
+                                         .response(tokenResponse), .response(otherProfileResponse)])
+    defer { fixture.removeDirectory() }
+    let committed = try await fixture.connect()
+    let committedCredentials = try fixture.credentials.read(accountID: committed.id, allowInteraction: false)
+    let request = try await fixture.service.prepareClaudeSignIn()
+    let accountsURL = fixture.directory.appendingPathComponent("accounts.json")
+    let originalConfiguration = try Data(contentsOf: accountsURL)
+    try FileManager.default.removeItem(at: accountsURL)
+    try FileManager.default.createDirectory(at: accountsURL, withIntermediateDirectories: false)
+    fixture.credentials.failNextRemoval()
+    do {
+        _ = try await fixture.service.completeClaudeSignIn(requestID: request.id, callbackURL: callback(request))
+        Issue.record("Sign-in must fail when account persistence and credential cleanup both fail.")
+    } catch {
+        #expect(error.localizedDescription.contains("Cleanup will retry"))
+    }
+    #expect(fixture.credentials.count == 2)
+    let storage = ConfigurationStorage(directory: fixture.directory)
+    let pendingIDs = try storage.pendingClaudeCredentialAccountIDs()
+    #expect(pendingIDs.count == 1)
+    let marker = fixture.directory.appendingPathComponent("PendingClaudeCredentials").appendingPathComponent(try #require(pendingIDs.first).uuidString)
+    #expect(try Data(contentsOf: marker).isEmpty)
+    let permissions = try FileManager.default.attributesOfItem(atPath: marker.path)[.posixPermissions] as? NSNumber
+    #expect(permissions?.intValue == 0o600)
+    try FileManager.default.removeItem(at: accountsURL)
+    try UsagePaths.writePrivate(originalConfiguration, to: accountsURL)
+    // A fresh service proves cleanup does not depend on the failed request's memory.
+    let restarted = UsageService(directory: fixture.directory, claudeClient: ClaudeOAuthClient(transport: fixture.transport), claudeCredentials: fixture.credentials)
+    fixture.credentials.failNextRemoval()
+    #expect(try await restarted.load() == [committed])
+    #expect(fixture.credentials.count == 2)
+    #expect(try storage.pendingClaudeCredentialAccountIDs() == pendingIDs)
+    fixture.credentials.failNextRemoval()
+    await #expect(throws: UsageError.self) { try await restarted.prepareClaudeSignIn() }
+    #expect(try storage.pendingClaudeCredentialAccountIDs() == pendingIDs)
+    #expect(try await restarted.load() == [committed])
+    #expect(fixture.credentials.count == 1)
+    #expect(try storage.pendingClaudeCredentialAccountIDs().isEmpty)
+    #expect(try await restarted.load() == [committed])
+    #expect(try fixture.credentials.read(accountID: committed.id, allowInteraction: false) == committedCredentials)
+    let cleanupDirectory = fixture.directory.appendingPathComponent("PendingClaudeCredentials")
+    let unrelatedDirectoryID = UUID()
+    let unrelatedDirectory = cleanupDirectory.appendingPathComponent(unrelatedDirectoryID.uuidString)
+    try FileManager.default.createDirectory(at: unrelatedDirectory, withIntermediateDirectories: false)
+    let unrelatedLinkID = UUID()
+    let unrelatedLink = cleanupDirectory.appendingPathComponent(unrelatedLinkID.uuidString)
+    try FileManager.default.createSymbolicLink(at: unrelatedLink, withDestinationURL: accountsURL)
+    #expect(try storage.pendingClaudeCredentialAccountIDs().isEmpty)
+    try storage.removeClaudeCredentialCleanupMarker(accountID: unrelatedDirectoryID)
+    try storage.removeClaudeCredentialCleanupMarker(accountID: unrelatedLinkID)
+    #expect(FileManager.default.fileExists(atPath: unrelatedDirectory.path))
+    #expect(try FileManager.default.destinationOfSymbolicLink(atPath: unrelatedLink.path) == accountsURL.path)
+    #expect(try Data(contentsOf: accountsURL) == originalConfiguration)
+}
+
 @Test func bindingLegacyIdentityIsolatesConsoleDataAndRequiresManualBalanceConfirmation() async throws {
     let fixture = try OAuthFixture(steps: [.response(tokenResponse), .response(profileResponse), .response(profileResponse), .response(usageResponse),
                                          .response(tokenResponse), .response(profileResponse), .response(profileResponse), .response(usageResponse)])
@@ -337,10 +394,20 @@ private struct OAuthFixture {
 private final class MemoryClaudeCredentials: ClaudeCredentialStore, @unchecked Sendable {
     private let lock = NSLock()
     private var values: [UUID: ClaudeCredentials] = [:]
+    private var removalFailures = 0
     var count: Int { lock.withLock { values.count } }
     func read(accountID: UUID, allowInteraction: Bool) throws -> ClaudeCredentials? { lock.withLock { values[accountID] } }
     func save(_ credentials: ClaudeCredentials, accountID: UUID, allowInteraction: Bool) throws { lock.withLock { values[accountID] = credentials } }
-    func remove(accountID: UUID, allowInteraction: Bool) throws { _ = lock.withLock { values.removeValue(forKey: accountID) } }
+    func failNextRemoval() { lock.withLock { removalFailures += 1 } }
+    func remove(accountID: UUID, allowInteraction: Bool) throws {
+        try lock.withLock {
+            if removalFailures > 0 {
+                removalFailures -= 1
+                throw UsageError.providerFailure("Fixture credential removal failed.")
+            }
+            values.removeValue(forKey: accountID)
+        }
+    }
 }
 
 private actor OAuthTransport: ClaudeHTTPTransport {

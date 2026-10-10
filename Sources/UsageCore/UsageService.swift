@@ -43,6 +43,7 @@ public actor UsageService {
 
     public func prepareClaudeSignIn(existingProfileID: UUID? = nil, label: String? = nil) throws -> ClaudeAuthorizationRequest {
         try ensureLoaded()
+        try retryClaudeCredentialCleanup(allowInteraction: true)
         if let existingProfileID {
             guard configuration.profiles.contains(where: { $0.id == existingProfileID && $0.provider == .claude }) else {
                 throw UsageError.invalidConfiguration("Select a Claude account to connect again.")
@@ -101,6 +102,8 @@ public actor UsageService {
                                      providerEmail: providerProfile.account.email)
         let credentials = try token.credentials(identity: identity)
         let previousCredentials = try claudeCredentials.read(accountID: profile.id, allowInteraction: true)
+        // Keep the generated identifier durable before writing an otherwise unlisted grant.
+        if previousCredentials == nil { try storage.markClaudeCredentialForCleanup(accountID: profile.id) }
         try claudeCredentials.save(credentials, accountID: profile.id, allowInteraction: true)
         var updated = configuration
         if let index = updated.profiles.firstIndex(where: { $0.id == profile.id }) { updated.profiles[index] = profile }
@@ -119,8 +122,17 @@ public actor UsageService {
         }
         do { try storage.save(updated) }
         catch {
-            if let previousCredentials { try? claudeCredentials.save(previousCredentials, accountID: profile.id, allowInteraction: true) }
-            else { try? claudeCredentials.remove(accountID: profile.id, allowInteraction: true) }
+            do {
+                if let previousCredentials { try claudeCredentials.save(previousCredentials, accountID: profile.id, allowInteraction: true) }
+                else {
+                    try claudeCredentials.remove(accountID: profile.id, allowInteraction: true)
+                    try storage.removeClaudeCredentialCleanupMarker(accountID: profile.id)
+                }
+            } catch {
+                throw UsageError.authenticationRequired(previousCredentials == nil
+                    ? "The account could not be saved and its sign-in could not be removed. Cleanup will retry when accounts load or you choose Add Claude Account."
+                    : "The account could not be saved and its previous sign-in could not be restored. Reconnect this account.")
+            }
             throw UsageError.providerFailure("Claude sign-in completed, but the account could not be saved. Connect again.")
         }
         configuration = updated
@@ -147,10 +159,30 @@ public actor UsageService {
 
     public func load() throws -> [AccountProfile] {
         try ensureLoaded()
+        do { try retryClaudeCredentialCleanup(allowInteraction: false) }
+        catch {
+            // Keep recovery markers for interactive retry without hiding otherwise valid accounts.
+        }
         for profile in configuration.profiles where profile.source == .claudeOAuth {
             retireClaudeCapture(accountID: profile.id)
         }
         return configuration.profiles
+    }
+
+    private func retryClaudeCredentialCleanup(allowInteraction: Bool) throws {
+        for id in try storage.pendingClaudeCredentialAccountIDs() {
+            guard !claudeAuthorizations.values.contains(where: { $0.profileID == id }) else { continue }
+            do {
+                if !configuration.profiles.contains(where: {
+                    $0.id == id && $0.provider == .claude && $0.source == .claudeOAuth && $0.providerAccountID != nil
+                }) {
+                    try claudeCredentials.remove(accountID: id, allowInteraction: allowInteraction)
+                }
+                try storage.removeClaudeCredentialCleanupMarker(accountID: id)
+            } catch {
+                throw UsageError.authenticationRequired("An incomplete Claude sign-in still needs cleanup. Make Keychain and account storage available, then retry Add Claude Account.")
+            }
+        }
     }
 
     private func retireClaudeCapture(accountID: UUID) {
