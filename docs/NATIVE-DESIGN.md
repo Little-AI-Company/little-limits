@@ -1,10 +1,16 @@
 # Native design
 
-AI Usage Stats is an AppKit menu bar utility. A status item opens a focused account panel; native windows handle account setup and settings. `LSUIElement` keeps ordinary use out of the Dock.
+AI Usage Stats is an AppKit menu bar utility. A status item opens a standard native menu when no accounts are connected, and a focused account overview once accounts exist. Native windows handle account setup and settings. `LSUIElement` keeps ordinary use out of the Dock.
+
+## First run
+
+Use an actual `NSMenu` with direct Add Claude Account… and Add Codex Account… commands, followed by Accounts…, Settings…, and Quit. AppKit owns its appearance, keyboard selection, sizing, and dismissal. Explain Claude Code configuration and Codex CLI sign-in in the corresponding setup dialog, rather than a technical paragraph in the menu.
+
+Do not show a title banner, disabled Refresh control, generic Actions dropdown, empty dashboard, or refresh footer. A load failure has its own error and retry commands; it is not treated as a fresh account list. After removing the last account, the next ordinary click returns to this menu.
 
 ## Account panel
 
-The populated panel is 440 × 540 points; the empty state is 440 × 250. Plain account sections use compact aligned rows with monospaced values. Percentages explicitly show capacity left. Reset countdowns sit beside each quota; credit amounts retain their currency or unit and known expiry.
+The populated overview is 440 points wide and fits its content up to a maximum height of 540 points. Direct native Refresh, Accounts…, Settings…, and Quit controls precede compact aligned account rows. Percentages explicitly show capacity left. Reset countdowns sit beside each quota; credit amounts retain their currency or unit and known expiry.
 
 Keep subscription quota, API money, Codex credit units, and earned reset counts separate. Missing values remain unavailable. Manual amounts retain a visible Manual label. Preserve old readings with their stale or sign-in state when a refresh fails.
 
@@ -12,15 +18,15 @@ A visible Details control exposes exact time-zone-aware dates, observation sourc
 
 The default view makes the two demo accounts' main readings visible together. Scrolling accommodates more accounts and expanded details. Account sections and controls retain their identity during countdown updates; only the displayed values change. Keyboard focus on Details or its dashboard action scrolls that control into view when expansion places it below the viewport. Validate focus and scroll behavior in the running app instead of inferring it from the source.
 
-Use semantic AppKit colors, modest text weights, and separators. No decorative cards, pills, gray subtitles above sections, or continuous animations. The empty state explains account setup and contains no fictional readings. Demo mode is explicitly labelled and used for public captures.
+Use semantic AppKit colors, modest text weights, and separators. No decorative cards, pills, gray subtitles above sections, or continuous animations. Demo mode is explicitly labelled and used for public captures.
 
-## Liquid Glass and system appearance
+## System controls and appearance
 
-`NSPopover` owns the panel presentation. On macOS 26 and later, one native `NSGlassEffectView` with the regular style contains the functional Refresh and Actions controls. Account readings use an ordinary content surface. No tinted glass, interactive effects, repeated glass account containers, or custom blur animations are added.
+`NSMenu` owns the first-run command surface, and `NSPopover` owns the populated overview's presentation and material. Use standard AppKit controls and their system appearance. Do not add custom glass control enclosures, popover backgrounds, gradients, or blur animations.
 
-On macOS 14 and 15, the command group uses standard native controls. Reduce Transparency and Increase Contrast also select the plain surface on newer systems. The group observes accessibility display-option changes. The app-only `--reduce-transparency` and `--increase-contrast` launch flags exercise this fallback without changing system settings; they do not establish that a real preference transition was tested.
+System components handle Reduce Transparency, Increase Contrast, and Reduce Motion. The app-only `--increase-contrast` launch flag selects a high-contrast appearance without changing system settings; it does not establish that a real preference transition was tested.
 
-The runtime target remains macOS 14+, but compilation requires a macOS 26+ SDK that declares the glass APIs, such as Xcode 26+. An availability guard preserves the older runtime path; it does not make the APIs compile with an older SDK. The redesign was built with the macOS 27 SDK and Swift 6.4. Older runtime execution remains unverified.
+The runtime target remains macOS 14+. Building requires Swift 6; the current verification environment uses the macOS 27 SDK and Swift 6.4. Older runtime execution remains unverified.
 
 Use current intrinsic Mac control sizes and Auto Layout. System components supply ordinary interaction and Reduce Motion behavior; the app adds no custom spatial animation. Appearance and accessibility results belong in [VALIDATION.md](VALIDATION.md).
 
@@ -34,14 +40,14 @@ The experimental Claude Console connection uses a separate browser window for of
 
 ## Interaction and accessibility
 
-Keep the popover anchored to the status item, dismiss it outside or with Escape, and close it before opening account or settings windows. Test reopening after the app becomes inactive and placement near screen edges. Preserve keyboard focus and scroll position during timer and refresh updates.
+Test first-run commands through an ordinary status-item click, including arrow-key/Return selection, Escape and outside-click dismissal, provider-dialog cancellation, and account loading failure. Keep the populated popover anchored to the status item and close it before opening account or settings windows. Test reopening after the app becomes inactive and placement near screen edges. Preserve keyboard focus and scroll position during timer and refresh updates.
 
 Symbol-only controls need accessible names and tooltips. Details must have a readable title and expose its account and expanded state. Quotas, units, dates, unavailable readings, and errors need text equivalents. Standard controls must remain reachable by keyboard; source labels alone do not establish VoiceOver behavior.
 
-Inspect light and dark appearances, Reduce Transparency, Increase Contrast, Reduce Motion, long names, empty/error states, disclosure, and keyboard traversal. Record which checks actually ran. A window-mode capture or successful build does not prove menu-bar behavior or measured contrast.
+Inspect light and dark appearances, Reduce Transparency, Increase Contrast, Reduce Motion, long names, empty/error states, disclosure, and keyboard traversal. Record which checks actually ran. `--show-panel` follows the same state selection as ordinary use. `--show-window` is explicitly labeled a validation window; it is not evidence of the real first-run surface. A window-mode capture or successful build does not prove menu-bar behavior or measured contrast.
 
 ## Design references
 
-The [initial critique](design/critique.md) identifies the original overflow, timestamp repetition, alignment, disclosure, editor hierarchy, and focus risks. [Apple guidance](design/apple-guidance.md) records the October 9, 2026 source review and verified SDK availability.
+The [initial critique](design/critique.md) identifies the original overflow, timestamp repetition, alignment, disclosure, editor hierarchy, and focus risks. The [first-run flyout review](design/flyout-review.md) records why the subsequent empty dashboard was replaced with a native menu. [Apple guidance](design/apple-guidance.md) records the October 9, 2026 source review and verified SDK availability.
 
-Primary references: [Popovers](https://developer.apple.com/design/human-interface-guidelines/popovers), [Materials](https://developer.apple.com/design/human-interface-guidelines/materials), [Menus](https://developer.apple.com/design/human-interface-guidelines/menus), [Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility), [Adopting Liquid Glass](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass), and [NSGlassEffectView](https://developer.apple.com/documentation/appkit/nsglasseffectview).
+Primary references: [Popovers](https://developer.apple.com/design/human-interface-guidelines/popovers), [Materials](https://developer.apple.com/design/human-interface-guidelines/materials), [Menus](https://developer.apple.com/design/human-interface-guidelines/menus), [Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility), and [Adopting Liquid Glass](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass).

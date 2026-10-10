@@ -4,7 +4,7 @@ Claude and Codex usage, reset countdowns, and API credits in your menu bar. Keep
 
 **Native AppKit · macOS 14+ runtime · Swift 6 · No external Swift dependencies**
 
-Aligned account rows keep quotas and balances easy to compare. Details shows exact dates and sources. On macOS 26+, the Refresh and Actions controls use native Liquid Glass, with a plain fallback for Reduce Transparency and Increase Contrast.
+With no accounts, clicking the menu bar item opens a standard macOS menu with direct account setup commands. After setup, aligned account rows keep quotas and balances easy to compare. Details shows exact dates and sources; Refresh, Accounts, Settings, and Quit are directly accessible through native controls.
 
 ## What it reads
 
@@ -19,13 +19,13 @@ Subscription limits, API money, and Codex credit units stay separate. Missing re
 
 ## Screenshot
 
-<a href="assets/screenshots/menu-bar.png"><img src="assets/screenshots/menu-bar.png" alt="AI Usage Stats menu bar panel showing demo Claude and Codex accounts" width="520"></a>
+<a href="assets/screenshots/usage-overview.png"><img src="assets/screenshots/usage-overview.png" alt="AI Usage Stats menu bar panel showing demo Claude and Codex accounts" width="520"></a>
 
 Demo data in the running native app.
 
 ## Build and install
 
-The app targets macOS 14 or later. Building requires Swift 6 and the macOS 26 or later SDK, such as Xcode 26+. Verification used the macOS 27 SDK and Swift 6.4; macOS 14 runtime remains untested. The app uses installed Claude Code and Codex CLIs for their account connections.
+The app targets macOS 14 or later. Building requires Swift 6. Verification used the macOS 27 SDK and Swift 6.4; macOS 14 runtime remains untested. The app uses installed Claude Code and Codex CLIs for their account connections.
 
 ```sh
 git clone https://github.com/ParkerRex/ai-usage-stats.git
@@ -40,7 +40,7 @@ Packaging produces an ad hoc signed app and ZIP for local use. Public downloads 
 
 ## Connect accounts
 
-Choose **Actions → Accounts** in the menu bar panel. Select an account in the sidebar to edit its name, connection, or manual balances.
+On first run, click the menu bar item and choose **Add Claude Account…** or **Add Codex Account…**. The setup dialog explains the selected connection source and prerequisites. Choose **Accounts…** to manage existing accounts, then select an account in the sidebar to edit its name, connection, or manual balances.
 
 - **Claude:** choose **Add Account → Connect Claude** and select an existing Claude Code configuration directory. Each account needs its own `CLAUDE_CONFIG_DIR`. The app installs a quota-capture status line and preserves the previous command. Its helper is copied to Application Support, so moving the app does not break that command. Usage appears after a new Claude response.
 - **Claude API credits:** select the Claude account, choose **Connect API Credits**, sign in to the official Console, and choose the organization. Purchased balances and promotional grants are separate from Claude subscription quota.
