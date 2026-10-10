@@ -317,3 +317,28 @@ The final 24-file source digest is:
 The new synthetic fixture forces account persistence and Keychain deletion to fail together, verifies a mode-0600 marker containing no credential data, and recreates the service to verify that blocked background cleanup leaves a committed account available. Interactive retry reports the same cleanup failure; a later load removes only the orphan grant. Repeated cleanup preserves the exact committed credential. UUID-named directories and symlinks remain untouched. Actual Keychain failure and live sign-in were not induced. The UI source is unchanged from the inspected email build. The new packaged app was launched in normal real-account mode; the prior native automation limit remains, and no additional visual check is claimed.
 
 The packaged executable SHA-256 is `7b1ede2703a30017e86fae608be2d1b23218de14e0bf0105fbc0a0ab75babfd3`.
+
+### Preserve capture recovery before removing a migrated account
+
+Review of `a2f78278c1f8fe405339c43f9a0a8fe11d243dd6` identified an account-removal path that discarded a modified legacy wrapper's recovery record while its capture command remained active. The existing migration fixture was expanded before the production change. On that baseline, changing another status-line field while retaining the installed capture command, migrating to OAuth, and then removing the account deleted the profile, grant, and restoration record without stopping the command. The focused run failed one test with six assertion issues, including the missing removal error and lost profile, credential, and recovery record. The cause was the unchecked `ClaudeCaptureInstallation.remove` call in `UsageService.removeAccount`.
+
+Removal now uses the existing checked retirement operation before deleting credentials or profile data. If the edited wrapper still runs the helper, removal reports the required repair steps and keeps the profile, grant, wrapper edits, and restoration record. Repairing the wrapper permits subsequent removal. User replacements remain untouched.
+
+The final 24-file source digest is:
+
+```text
+8b3557bef2b4f0d4299ec85400a1c7d433a82bcd63d414e632584e49ae7ee51a
+```
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test --filter claudeMigrationRetiresOnlyItsOwnedCaptureAndPreservesEditsAndCleanupRecovery` on baseline production code with the added assertions | Failed as expected: one test, six assertion issues; build 56.57 seconds. |
+| Same focused command after the correction | Passed: one test, zero failures; build 38.12 seconds. |
+| `swift test` | Passed: 35 tests, zero failures, comprising 13 XCTest and 22 Swift Testing tests; cached build 5.12 seconds. |
+| `swift build -c release` | Passed; 102.80 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build 2.98 seconds. |
+| Packaged plist lint, deep strict signature verification, executable architecture, and `git diff --check` | Passed; both executables remain local ad hoc signed arm64 binaries. |
+
+No real account was removed or reconnected. The email UI source is unchanged from the inspected build, and the existing native automation and runtime coverage limits still apply.
+
+The packaged executable SHA-256 is `2bd4ed41976a66788cb2b9b89f127a40dbef85fefc436dd2c4b8e22b0dd1b53e`. The final packaged app was returned to normal real-account mode.

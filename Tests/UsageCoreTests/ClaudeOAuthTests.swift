@@ -104,6 +104,15 @@ import Testing
         }
         if ["padding", "invalid"].contains(variant) {
             #expect(await fixture.service.snapshot(for: profile.id)?.detail?.contains("old Claude Code connection") == true)
+            if variant == "padding" {
+                let credentials = try fixture.credentials.read(accountID: profile.id, allowInteraction: false)
+                await #expect(throws: UsageError.self) { try await fixture.service.removeAccount(id: profile.id) }
+                let retained = try ConfigurationStorage(directory: fixture.directory).load()
+                #expect(retained.profiles.contains(profile))
+                #expect(retained.captureInstallations[profile.id.uuidString] != nil)
+                #expect(try fixture.credentials.read(accountID: profile.id, allowInteraction: false) == credentials)
+                #expect(try JSONDecoder().decode(Settings.self, from: Data(contentsOf: settingsURL)) == edited)
+            }
             // Repairing the saved wrapper allows idempotent maintenance to finish, without a new login.
             let statusLine = try JSONDecoder().decode(Settings.StatusLine.self, from: installation.installedStatusLine)
             try UsagePaths.writePrivate(JSONEncoder().encode(Settings(statusLine: statusLine, theme: "dark")), to: settingsURL)
@@ -112,6 +121,9 @@ import Testing
             #expect(try JSONDecoder().decode(Settings.self, from: Data(contentsOf: settingsURL)) == original)
             #expect(fixture.credentials.count == 1)
         }
+        try await fixture.service.removeAccount(id: profile.id)
+        #expect(try await fixture.service.load().isEmpty)
+        #expect(fixture.credentials.count == 0)
     }
 }
 

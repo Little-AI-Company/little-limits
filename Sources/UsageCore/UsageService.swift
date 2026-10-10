@@ -298,7 +298,9 @@ public actor UsageService {
         let ownsClaudeCredentials = configuration.profiles.first(where: { $0.id == id })?.source == .claudeOAuth
         let savedCredentials = ownsClaudeCredentials ? try claudeCredentials.read(accountID: id, allowInteraction: true) : nil
         if let installation = configuration.captureInstallations[id.uuidString] {
-            try ClaudeCaptureInstallation.remove(installation)
+            guard try ClaudeCaptureInstallation.retire(installation) else {
+                throw UsageError.invalidConfiguration("The account was not removed because its old Claude Code status line still runs the capture helper. Restore or replace that command in Claude Code settings, then try again.")
+            }
         }
         if ownsClaudeCredentials {
             try claudeCredentials.remove(accountID: id, allowInteraction: true)
