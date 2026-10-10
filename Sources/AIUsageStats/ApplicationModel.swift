@@ -20,6 +20,8 @@ final class ApplicationModel {
     var onConsoleRefresh: (() -> Void)?
     private var refreshTask: Task<Void, Never>?
     private var refreshRequested = false
+    private var claudeAuthorizationID: UUID?
+    var isSigningInClaude: Bool { claudeAuthorizationID != nil }
 
     init(isDemo: Bool) { self.isDemo = isDemo }
 
@@ -117,6 +119,46 @@ final class ApplicationModel {
             self?.isChangingAccounts = false
             self?.onChange?()
         }
+    }
+
+    func prepareClaudeSignIn(existingProfileID: UUID?, label: String) async throws -> ClaudeAuthorizationRequest {
+        guard !isDemo, !isChangingAccounts, !isRefreshing else {
+            throw UsageError.providerFailure("Wait for the current account operation to finish, then try again.")
+        }
+        isChangingAccounts = true
+        onChange?()
+        do {
+            let request = try await service.prepareClaudeSignIn(existingProfileID: existingProfileID, label: label)
+            claudeAuthorizationID = request.id
+            onChange?()
+            return request
+        } catch {
+            isChangingAccounts = false
+            onChange?()
+            throw error
+        }
+    }
+
+    func completeClaudeSignIn(requestID: UUID, callbackURL: URL) async throws -> AccountProfile {
+        defer {
+            if claudeAuthorizationID == requestID {
+                claudeAuthorizationID = nil
+                isChangingAccounts = false
+                onChange?()
+            }
+        }
+        let profile = try await service.completeClaudeSignIn(requestID: requestID, callbackURL: callbackURL)
+        await load()
+        completedAccountChanges += 1
+        return profile
+    }
+
+    func cancelClaudeSignIn(id: UUID) async {
+        await service.cancelClaudeSignIn(id: id)
+        guard claudeAuthorizationID == id else { return }
+        claudeAuthorizationID = nil
+        isChangingAccounts = false
+        onChange?()
     }
 
     func removeAccount(_ id: UUID) {

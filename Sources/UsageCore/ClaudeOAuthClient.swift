@@ -1,0 +1,367 @@
+import Foundation
+import CryptoKit
+import Security
+import LocalAuthentication
+
+public struct ClaudeAuthorizationRequest: Sendable {
+    public let id: UUID
+    public let authorizationURL: URL
+    public let redirectURL: URL
+    public let expiresAt: Date
+}
+
+struct ClaudeAuthorization: Sendable {
+    static let clientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+    static let redirectURL = URL(string: "http://localhost:54545/callback")!
+    let request: ClaudeAuthorizationRequest
+    let state: String
+    let verifier: String
+
+    init(now: Date = Date()) throws {
+        state = try Self.randomString()
+        verifier = try Self.randomString()
+        let challenge = Data(SHA256.hash(data: Data(verifier.utf8))).base64URLString
+        var components = URLComponents(string: "https://claude.ai/oauth/authorize")!
+        components.queryItems = [
+            URLQueryItem(name: "code", value: "true"),
+            URLQueryItem(name: "response_type", value: "code"),
+            URLQueryItem(name: "client_id", value: Self.clientID),
+            URLQueryItem(name: "redirect_uri", value: Self.redirectURL.absoluteString),
+            URLQueryItem(name: "scope", value: "user:profile"),
+            URLQueryItem(name: "code_challenge", value: challenge),
+            URLQueryItem(name: "code_challenge_method", value: "S256"),
+            URLQueryItem(name: "state", value: state)
+        ]
+        request = ClaudeAuthorizationRequest(id: UUID(), authorizationURL: components.url!,
+                                            redirectURL: Self.redirectURL, expiresAt: now.addingTimeInterval(300))
+    }
+
+    func code(from callback: URL, now: Date = Date()) throws -> String {
+        guard now < request.expiresAt,
+              let components = URLComponents(url: callback, resolvingAgainstBaseURL: false),
+              components.scheme == "http", components.host == "localhost", components.port == 54545,
+              components.path == "/callback", components.user == nil, components.password == nil,
+              components.fragment == nil else {
+            throw UsageError.authenticationRequired("Claude sign-in expired or returned an unexpected callback. Connect again.")
+        }
+        let items = components.queryItems ?? []
+        guard items.filter({ $0.name == "code" }).count == 1,
+              items.filter({ $0.name == "state" }).count <= 1,
+              !items.contains(where: { $0.name == "error" }),
+              let returnedCode = items.first(where: { $0.name == "code" })?.value, !returnedCode.isEmpty else {
+            throw UsageError.authenticationRequired("Claude sign-in was not completed. Connect again.")
+        }
+        let parts = returnedCode.split(separator: "#", omittingEmptySubsequences: false)
+        let returnedState = items.first(where: { $0.name == "state" })?.value ?? (parts.count == 2 ? String(parts[1]) : nil)
+        guard returnedState == state, parts.count <= 2, !parts[0].isEmpty,
+              parts.count != 2 || parts[1] == state else {
+            throw UsageError.authenticationRequired("Claude sign-in did not match this connection. Connect again.")
+        }
+        return String(parts[0])
+    }
+
+    private static func randomString() throws -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else {
+            throw UsageError.providerFailure("Could not prepare secure Claude sign-in. Try again.")
+        }
+        return Data(bytes).base64URLString
+    }
+}
+
+private extension Data {
+    var base64URLString: String {
+        base64EncodedString().replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
+    }
+}
+
+struct ClaudeCredentials: Codable, Sendable, Equatable {
+    let accessToken: String
+    let refreshToken: String?
+    let expiresAt: Date
+    let identity: String
+    var refreshPending = false
+}
+
+protocol ClaudeCredentialStore: Sendable {
+    func read(accountID: UUID, allowInteraction: Bool) throws -> ClaudeCredentials?
+    func save(_ credentials: ClaudeCredentials, accountID: UUID, allowInteraction: Bool) throws
+    func remove(accountID: UUID, allowInteraction: Bool) throws
+}
+
+struct ClaudeKeychainStore: ClaudeCredentialStore {
+    private let service = "AI Usage Stats Claude OAuth"
+
+    private func query(accountID: UUID, allowInteraction: Bool) -> [String: Any] {
+        var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                    kSecAttrService as String: service,
+                                    kSecAttrAccount as String: accountID.uuidString]
+        if !allowInteraction {
+            let context = LAContext()
+            context.interactionNotAllowed = true
+            query[kSecUseAuthenticationContext as String] = context
+        }
+        return query
+    }
+
+    func read(accountID: UUID, allowInteraction: Bool) throws -> ClaudeCredentials? {
+        var query = query(accountID: accountID, allowInteraction: allowInteraction)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = result as? Data else {
+            throw UsageError.authenticationRequired("Claude credentials are unavailable in Keychain. Connect this account again.")
+        }
+        do { return try JSONDecoder().decode(ClaudeCredentials.self, from: data) }
+        catch { throw UsageError.authenticationRequired("Saved Claude credentials are incomplete. Connect this account again.") }
+    }
+
+    func save(_ credentials: ClaudeCredentials, accountID: UUID, allowInteraction: Bool) throws {
+        let data = try JSONEncoder().encode(credentials)
+        let query = query(accountID: accountID, allowInteraction: allowInteraction)
+        let changes = [kSecValueData as String: data]
+        var status = SecItemUpdate(query as CFDictionary, changes as CFDictionary)
+        if status == errSecItemNotFound {
+            var entry = query
+            entry[kSecValueData as String] = data
+            entry[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            status = SecItemAdd(entry as CFDictionary, nil)
+        }
+        guard status == errSecSuccess else {
+            throw UsageError.authenticationRequired("Could not save Claude credentials in Keychain. Connect this account again.")
+        }
+    }
+
+    func remove(accountID: UUID, allowInteraction: Bool) throws {
+        let status = SecItemDelete(query(accountID: accountID, allowInteraction: allowInteraction) as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw UsageError.providerFailure("Could not remove this account's Claude credentials from Keychain.")
+        }
+    }
+}
+
+struct ClaudeHTTPResponse: Sendable {
+    let status: Int
+    let contentType: String?
+    let body: Data
+}
+
+protocol ClaudeHTTPTransport: Sendable {
+    func send(_ request: URLRequest) async throws -> ClaudeHTTPResponse
+}
+
+private final class ClaudeRedirectPolicy: NSObject, URLSessionTaskDelegate, Sendable {
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void) {
+        completionHandler(nil)
+    }
+}
+
+struct ClaudeURLSessionTransport: ClaudeHTTPTransport {
+    func send(_ request: URLRequest) async throws -> ClaudeHTTPResponse {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 15
+        configuration.timeoutIntervalForResource = 20
+        configuration.httpCookieStorage = nil
+        configuration.urlCache = nil
+        let session = URLSession(configuration: configuration, delegate: ClaudeRedirectPolicy(), delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+        do {
+            let (bytes, response) = try await session.bytes(for: request)
+            guard let response = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+            var body = Data()
+            for try await byte in bytes {
+                guard body.count < 1_048_576 else { throw URLError(.dataLengthExceedsMaximum) }
+                body.append(byte)
+            }
+            return ClaudeHTTPResponse(status: response.statusCode, contentType: response.value(forHTTPHeaderField: "Content-Type"), body: body)
+        } catch is CancellationError { throw CancellationError() }
+        catch { throw UsageError.providerFailure("Claude could not be reached. Check your connection, then try again.") }
+    }
+}
+
+struct ClaudeProviderProfile: Decodable, Sendable {
+    struct Account: Decodable, Sendable {
+        let uuid: UUID
+        let email: String?
+        private enum CodingKeys: String, CodingKey { case uuid, email, email_address }
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            uuid = try values.decode(UUID.self, forKey: .uuid)
+            email = try values.decodeIfPresent(String.self, forKey: .email)
+                ?? values.decodeIfPresent(String.self, forKey: .email_address)
+        }
+    }
+    struct Organization: Decodable, Sendable { let uuid: UUID }
+    let account: Account
+    let organization: Organization
+    var identity: String { account.uuid.uuidString + "/" + organization.uuid.uuidString }
+}
+
+struct ClaudeTokenResponse: Decodable, Sendable {
+    let access_token: String
+    let refresh_token: String?
+    let expires_in: Double
+    let scope: String?
+    let token_type: String?
+
+    func credentials(identity: String, previousRefreshToken: String? = nil, now: Date = Date()) throws -> ClaudeCredentials {
+        guard !access_token.isEmpty, expires_in.isFinite, expires_in > 0,
+              token_type == nil || token_type?.lowercased() == "bearer",
+              scope == nil || Set(scope!.split(separator: " ")) == ["user:profile"] else {
+            throw UsageError.authenticationRequired("Claude did not accept the requested read-only access. This experimental connection is unavailable.")
+        }
+        return ClaudeCredentials(accessToken: access_token, refreshToken: refresh_token ?? previousRefreshToken,
+                                 expiresAt: now.addingTimeInterval(expires_in), identity: identity)
+    }
+}
+
+struct ClaudeUsageResponse: Decodable, Sendable {
+    struct Window: Decodable, Sendable {
+        let utilization: Double?
+        let resets_at: String?
+        enum CodingKeys: String, CodingKey { case utilization, resets_at }
+    }
+    struct Limit: Decodable, Sendable {
+        struct Scope: Decodable, Sendable {
+            struct Model: Decodable, Sendable { let id: String?; let display_name: String? }
+            let model: Model?
+        }
+        let kind: String
+        let group: String?
+        let percent: Double?
+        let resets_at: String?
+        let is_active: Bool?
+        let scope: Scope?
+    }
+    let windows: [(String, Window)]
+    let limits: [Limit]
+
+    init(from decoder: Decoder) throws {
+        struct Key: CodingKey {
+            let stringValue: String
+            let intValue: Int? = nil
+            init(stringValue: String) { self.stringValue = stringValue }
+            init?(intValue: Int) { return nil }
+        }
+        let values = try decoder.container(keyedBy: Key.self)
+        windows = try values.allKeys.filter { $0.stringValue == "five_hour" || $0.stringValue == "seven_day" || $0.stringValue.hasPrefix("seven_day_") }
+            .sorted { $0.stringValue < $1.stringValue }
+            .compactMap { key in
+                if key.stringValue != "five_hour", key.stringValue != "seven_day" {
+                    // Named quota windows have quota fields, unlike seven_day_breakdown metadata.
+                    guard let fields = try? values.superDecoder(forKey: key).container(keyedBy: Window.CodingKeys.self),
+                          fields.contains(.utilization) || fields.contains(.resets_at) else { return nil }
+                }
+                return try values.decodeIfPresent(Window.self, forKey: key).map { (key.stringValue, $0) }
+            }
+        limits = try values.decodeIfPresent([Limit].self, forKey: Key(stringValue: "limits")) ?? []
+    }
+
+    func snapshot(profileID: UUID, observedAt: Date = Date()) throws -> AccountSnapshot {
+        func reset(_ text: String?) throws -> Date? {
+            guard let text else { return nil }
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = formatter.date(from: text) { return date }
+            formatter.formatOptions = [.withInternetDateTime]
+            guard let date = formatter.date(from: text) else { throw UsageError.providerFailure("Claude returned an invalid quota reset time.") }
+            return date
+        }
+        func percent(_ value: Double?) throws -> Double? {
+            guard let value else { return nil }
+            guard value.isFinite, (0...100).contains(value) else { throw UsageError.providerFailure("Claude returned an invalid quota percentage.") }
+            return value
+        }
+        var result = try windows.map { id, window in
+            let title = id == "five_hour" ? "5 hours" : id == "seven_day" ? "7 days" : "7 days (" + id.dropFirst("seven_day_".count).replacingOccurrences(of: "_", with: " ") + ")"
+            return UsageWindow(id: id, title: title, utilizationPercent: try percent(window.utilization), resetsAt: try reset(window.resets_at))
+        }
+        for (index, limit) in limits.enumerated() {
+            let model = limit.scope?.model?.display_name ?? limit.scope?.model?.id
+            let canonicalID: String?
+            if model == nil, ["five_hour", "session"].contains(limit.kind) { canonicalID = "five_hour" }
+            else if model == nil, ["seven_day", "weekly", "weekly_all"].contains(limit.kind) { canonicalID = "seven_day" }
+            else { canonicalID = nil }
+            if let canonicalID, result.contains(where: { $0.id == canonicalID }) { continue }
+            let windowTitle: String
+            switch limit.kind {
+            case "five_hour", "session": windowTitle = "5 hours"
+            case "seven_day", "weekly", "weekly_all", "weekly_scoped": windowTitle = "7 days"
+            default: windowTitle = limit.kind.replacingOccurrences(of: "_", with: " ")
+            }
+            let title = model.map { windowTitle + " (" + $0 + ")" } ?? windowTitle
+            result.append(UsageWindow(id: canonicalID ?? "limit_\(index)_\(limit.kind)", title: title,
+                                      utilizationPercent: try percent(limit.percent), resetsAt: try reset(limit.resets_at), isActive: limit.is_active))
+        }
+        let measured = result.contains { $0.utilizationPercent != nil }
+        let stale = result.contains { $0.resetsAt.map { $0 <= observedAt } == true }
+        return AccountSnapshot(profileID: profileID, fetchedAt: measured ? observedAt : nil, windows: result,
+                               state: measured ? (stale ? .stale : .available) : .unavailable,
+                               detail: measured ? (stale ? "A reported quota reset has passed. Check usage again." : "Read from this Claude account.")
+                               : "Claude returned no measured subscription quota. Your account may not expose these limits.")
+    }
+}
+
+struct ClaudeOAuthClient: Sendable {
+    let transport: any ClaudeHTTPTransport
+    init(transport: any ClaudeHTTPTransport = ClaudeURLSessionTransport()) { self.transport = transport }
+
+    func exchange(_ authorization: ClaudeAuthorization, code: String) async throws -> ClaudeTokenResponse {
+        try await token(body: ["grant_type": "authorization_code", "code": code,
+                               "redirect_uri": ClaudeAuthorization.redirectURL.absoluteString,
+                               "client_id": ClaudeAuthorization.clientID, "code_verifier": authorization.verifier,
+                               "state": authorization.state])
+    }
+
+    func refresh(_ refreshToken: String) async throws -> ClaudeTokenResponse {
+        try await token(body: ["grant_type": "refresh_token", "refresh_token": refreshToken,
+                               "client_id": ClaudeAuthorization.clientID])
+    }
+
+    private func token(body: [String: String]) async throws -> ClaudeTokenResponse {
+        var request = URLRequest(url: URL(string: "https://platform.claude.com/v1/oauth/token")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+        return try await decode(request, as: ClaudeTokenResponse.self, authorizationExchange: body["grant_type"] == "authorization_code")
+    }
+
+    func profile(accessToken: String) async throws -> ClaudeProviderProfile {
+        try await decode(authorizedRequest(path: "profile", accessToken: accessToken), as: ClaudeProviderProfile.self)
+    }
+
+    func usage(accessToken: String) async throws -> ClaudeUsageResponse {
+        try await decode(authorizedRequest(path: "usage", accessToken: accessToken), as: ClaudeUsageResponse.self)
+    }
+
+    private func authorizedRequest(path: String, accessToken: String) -> URLRequest {
+        var request = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/\(path)")!)
+        request.setValue("Bearer " + accessToken, forHTTPHeaderField: "Authorization")
+        request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        request.setValue("claude-code/2.1.0", forHTTPHeaderField: "User-Agent")
+        return request
+    }
+
+    private func decode<Value: Decodable>(_ request: URLRequest, as type: Value.Type, authorizationExchange: Bool = false) async throws -> Value {
+        var request = request
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let response = try await transport.send(request)
+        if authorizationExchange, [400, 401, 403].contains(response.status) {
+            throw UsageError.authenticationRequired("Claude did not accept this read-only authorization. This experimental connection may be unavailable.")
+        }
+        if [401, 403].contains(response.status) { throw UsageError.authenticationRequired("Claude access was refused. Connect this account again.") }
+        if response.status == 429 { throw UsageError.providerFailure("Claude is limiting usage checks. Wait before checking again.") }
+        guard (200...299).contains(response.status) else {
+            throw UsageError.providerFailure("Claude could not complete the account request (HTTP \(response.status)).")
+        }
+        guard response.contentType?.lowercased().contains("application/json") == true else {
+            throw UsageError.providerFailure("Claude returned an unexpected account response. Try connecting again.")
+        }
+        do { return try JSONDecoder().decode(type, from: response.body) }
+        catch { throw UsageError.providerFailure("Claude returned incomplete or invalid account data.") }
+    }
+}

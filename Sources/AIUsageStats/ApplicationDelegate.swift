@@ -14,6 +14,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private var countdownTimer: Timer?
     private var sleeping = false
     private var consoleWindows: [UUID: ClaudeConsoleWindowController] = [:]
+    private var claudeSignIn: ClaudeSignInWindowController?
     private var accountsLoaded = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -80,6 +81,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
         refreshTimer?.invalidate()
         countdownTimer?.invalidate()
         model.cancelRefresh()
+        claudeSignIn?.stop()
         consoleWindows.values.forEach { $0.pause() }
         NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
@@ -243,6 +245,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
         if accounts == nil {
             accounts = AccountsWindowController(model: model)
             accounts?.onConsoleConnection = { [weak self] id in self?.showConsoleCredits(id) }
+            accounts?.onClaudeConnection = { [weak self] id, label in self?.showClaudeSignIn(id: id, label: label) }
         }
         accounts?.render()
         accounts?.showWindow(sender)
@@ -337,6 +340,19 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
         controller.showWindow(nil)
         controller.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+    private func showClaudeSignIn(id: UUID?, label: String) {
+        if let controller = claudeSignIn, controller.window?.isVisible == true {
+            controller.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        let controller = ClaudeSignInWindowController(model: model, existingProfileID: id, label: label)
+        claudeSignIn = controller
+        controller.showWindow(nil)
+        controller.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        controller.start()
     }
     private func refreshConsoleCredits() {
         guard !sleeping, !model.isDemo else { return }

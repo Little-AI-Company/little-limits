@@ -124,12 +124,12 @@ Tests should cover meaningful contracts. Redacted fixtures do not establish live
 
 ## Remaining limits
 
-- Claude status-line rate-limit fields depend on the installed Claude Code version and payload. A profile needs a new captured reading before automatic data can appear.
+- Legacy Claude status-line profiles depend on a new supported captured reading. The experimental direct connection requests quota after its own browser sign-in. A fresh usage-only grant and current quota were verified for one account; multiple live accounts and automatic renewal remain unverified.
 - Codex app-server fields depend on CLI version and plan. Use returned durations and preserve unavailable values.
 - Codex credit units, earned limit-reset counts, and monetary API prepaid credits are different data.
 - Documented public APIs did not establish remaining API prepaid balances or all grant-expiry details. The experimental Claude Console path uses private billing endpoints. Manual entries remain dated and explicitly labelled.
 - The experimental Claude Console connection reads private browser-facing billing endpoints. Typed parser tests do not establish live availability, successful sign-in, correct account membership, or a stable provider contract.
-- Claude accounts use separate existing configuration directories. Codex profiles use separate app-owned `CODEX_HOME` directories; changing the default CLI login is outside monitoring scope.
+- New Claude subscription connections use app-owned grants in separate Keychain items. Legacy capture profiles follow their existing configuration directories. Codex profiles use separate app-owned `CODEX_HOME` directories; changing any default CLI login is outside monitoring scope.
 - Local ad hoc packaging is available. Public signing, notarization, release hosting, and updates are not configured.
 
 ## Native first-run menu, October 10, 2026
@@ -176,3 +176,51 @@ Verified October 10, 2026 on Apple silicon with macOS 27.0.1 (26A434). The sourc
 Local delivery ZIP SHA-256: `8f780d75051fee77183d646136715f683de98de6fb197517422ec96ec7e5d394`.
 
 The submitted commit is recorded in the pull request test plan. The checks above establish local arm64 packaging and launch; they add no new provider, VoiceOver, older-macOS, Intel, Developer ID, notarization, or public-release evidence.
+
+## Claude first reading diagnosis, October 10, 2026
+
+Baseline commit `2f0f54b` reproduced the reported unavailable usage after adding a Claude capture profile. The selected profile had a capture hook, but no capture file, zero usage windows, no observation timestamp, and an unavailable refresh state. A valid isolated helper fixture wrote two usage windows. The app already reloads capture files; timing alone does not explain the absent observation. The active Desktop process used an embedded stream-JSON CLI, and this check did not establish that it emits the supported status-line payload. No inference request was sent as a probe.
+
+The initial authentication diagnosis needed correction. Running `claude auth status` with `CLAUDE_CONFIG_DIR` explicitly set to the default directory selected a different hashed Keychain service and reported no login. With the selector absent, the normal CLI reported signed in. Inspection of the installed Claude Code 2.1.295 credential selector confirmed this distinction; identical filesystem paths do not establish identical credential selection.
+
+An authorized, noninteractive read of the exact default Keychain item succeeded. Its access token was expired and included the `user:profile` scope. One read-only `GET /api/oauth/usage` and one `GET /api/oauth/profile` returned HTTP 401. No refresh token was parsed, used, or written, and the existing CLI login was not changed. No local CLIProxyAPI installation or saved ProxyCLI credentials were found. These results establish an expired borrowed credential, not a successful fresh grant or signed-in quota read. Account identifiers, credentials, and provider response bodies are excluded from this record.
+
+The changed connection follows an independent browser OAuth grant with direct quota reads and explicit connection feedback. Source inspection is recorded in [Claude research](research/claude.md). The later native check accepted the requested `user:profile`-only grant and returned current quota for one account, preserving the existing capture profile UUID and alias. Multiple live account bindings and automatic renewal remain unverified. Build, fixture, and packaging evidence follows. Native observations and live account availability are separate claims.
+
+### Direct connection build and fixture evidence
+
+Verified October 10, 2026 on Apple silicon with macOS 27.0.1 (26A434). Tested baseline `2f0f54be466bda8fe319a3cdb4048a25665e4347` plus the uncommitted direct-connection changes. The digest method above covers 24 files: `Package.swift` and 23 Swift files in `Sources` and `Tests`.
+
+```text
+c565e021ffbf944483ddb8db4952b1aa69553c534f3ba6bd832ea62a3522e065
+```
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test` | Passed: 29 tests, zero failures, comprising 13 XCTest and 16 Swift Testing tests. Debug build completed in 0.34 seconds. |
+| `swift build -c release` | Passed; Release build completed in 11.84 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build completed in 0.43 seconds. Produced the local app and ZIP. |
+| `plutil -lint "dist/AI Usage Stats.app/Contents/Info.plist"` | Passed on the packaged bundle. |
+| `codesign --verify --deep --strict --verbose=2 "dist/AI Usage Stats.app"` | Passed on the packaged app and helper. Local ad hoc signing. |
+| `lipo -archs` for the bundled app and `UsageCapture` helper | Both report `arm64`. |
+| `git diff --check` and changed-document local links | Passed. |
+
+Eight new behavior tests verify requested `user:profile` scope, PKCE/state/expiry, unknown versus measured zero and inactive windows, profile identity and duplicate isolation, credential exclusion from account JSON, cancelled exchange, refresh uncertainty without replay while retaining the previous reading, removal during an in-flight quota read, and rejection of authentication, rate-limit, HTML, and redirected responses. Synthetic token responses omit optional unchanged scope metadata and exercise the private provider's response shape. The added overlap fixture verifies that metadata objects do not become quota rows, canonical windows are not duplicated by equivalent `limits` entries, unknown canonical values stay unknown, and model-scoped limits keep their weekly duration. No fixture is evidence of provider acceptance of the new grant.
+
+The final packaged app executable SHA-256 is `ea179671760bdda869e33674ff39ce817551cbae54a29d5f1107caf88e2d4d6f`.
+
+A standalone Swift 6 fixture compiled the actual callback listener and exercised real Network sockets. Invalid callback path and state returned HTTP 400 without consuming the listener; the valid state and code returned HTTP 200 and completed exactly one callback. The port could be rebound immediately afterward. These observations establish local callback behavior, not the provider's browser redirect or successful signed-in quota retrieval.
+
+### Native subscription sign-in
+
+On the same Mac, the packaged app showed the existing capture account's unavailable state and a recovery action. Check Usage retained that unavailable state without a fabricated observation timestamp. Reconnect opened the system browser and a native waiting window. The user completed the provider sign-in; the app's own `user:profile`-only grant was accepted, identity verification succeeded, and direct quota retrieval supplied a current observation. Accounts then showed Connected with quota available. The existing app profile UUID and alias were preserved.
+
+The Accounts view before reconnect was visually inspected and showed readable connection feedback without overflow. The signed-in state and quota fields were inspected in the running native app. No public screenshot or account identifiers, email, credentials, or live quota values are included here.
+
+After rebuilding with the parser correction, manual Refresh read the saved app-owned grant without reconnecting. It returned exactly three quota rows: 5 hours, 7 days, and a model-specific 7-day window. There was no breakdown metadata row or duplicate primary limit. Accounts showed a fresh observation timestamp and the verified provider email. This final check used the source digest and packaged executable above.
+
+Keyboard Tab reached Refresh; subsequent Tab and Space opened Accounts. These control checks used the packaged app's explicitly labelled `--show-window` validation host so the native automation tool could bind to it. They establish the shared native controls, not ordinary status-item anchoring.
+
+The final `--show-panel` launch used normal app mode without a validation window. Native accessibility inspection identified the actual `NSPopover`, and its screenshot was visually inspected. All three corrected quota rows fit without duplicate or metadata rows. Reset countdowns were visible; a genuinely missing reset remained unknown. API credit fields remained unavailable because the separate Console connection had not been completed. No public screenshot was saved.
+
+This establishes one live account's authorization and quota read. It does not establish multiple live account bindings, automatic grant renewal, failed provider consent, a VoiceOver session, minimum-macOS runtime, Intel runtime, or live Console billing. An initial live response also exposed duplicate quota rows and a `seven_day_breakdown` metadata object displayed as an unavailable quota. The amended parser excludes metadata objects, keeps canonical quota windows when also represented in `limits`, and retains model-scoped weekly limits. The final source digest and 29-test results above include that correction.

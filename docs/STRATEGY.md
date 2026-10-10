@@ -12,13 +12,15 @@ Unknown, unsupported, failed, and stale readings must remain recognizable. A mis
 
 ## Sources and account isolation
 
-Claude subscription readings come from Claude Code's supported status-line payload when it includes rate limits. Capture belongs to the account's Claude configuration directory. The capture helper preserves the configured status-line command and stores usage data, not the prompt or conversation. It does not query a private Claude account endpoint.
+Claude subscription connections use a separate browser OAuth grant for each app profile and request usage immediately after sign-in. The app stores its own credential in Keychain and reads private usage and profile endpoints directly. This integration is experimental. A new usage-only grant and live quota retrieval were verified for one account; multiple live accounts and automatic renewal still need verification. An account must not require a terminal conversation to produce its first reading.
 
-A Claude profile follows the current login in its configuration directory. Changing that login changes the source of its readings. Use separate configuration directories for distinct accounts.
+Bind the grant to the provider account UUID and organization UUID, independently of the editable account name. Keep refresh requests, credential storage, and readings separate for each profile. Never rotate another application's refresh token, replace its login, or change its settings as a monitoring side effect.
+
+Existing Claude Code status-line capture profiles remain supported. Capture belongs to the selected configuration directory; the helper preserves the previous command and stores quota fields rather than conversation data. Reconnecting a capture profile to the browser flow preserves its app profile identity and name. A capture profile still needs an actual status-line observation before it has usage data.
 
 Codex subscription readings come from the installed Codex CLI's app-server interface. The app creates a separate `CODEX_HOME` for each account and supplies a login command for that directory. Credentials remain under the Codex CLI's authentication ownership. Monitoring must not copy refresh credentials or replace the default CLI account.
 
-The experimental Claude Console connection reads billing data using the account's isolated browser session. Its private Console endpoints are not a supported public API. Keep purchased balances separate from individual promotional grants, retain currencies and grant expiries, and display grant scope rather than assuming every promotion is a subscription grant. Console access is separate from Claude Code subscription capture.
+The experimental Claude Console connection reads billing data using the account's isolated browser session. Its private Console endpoints are not a supported public API. Keep purchased balances separate from individual promotional grants, retain currencies and grant expiries, and display grant scope rather than assuming every promotion is a subscription grant. Console access is separate from the subscription OAuth grant and legacy status-line capture.
 
 Provider APIs do not expose every requested billing value. Manual, dated API credit entries and official billing links remain available when automatic data is unsupported. Manual data must be labelled and must not acquire a fresh timestamp merely because a refresh occurred.
 
@@ -26,7 +28,7 @@ The [research reports](research/) record source details and limits. Treat provid
 
 ## Keep the product small
 
-Use AppKit, SwiftPM, and system frameworks. Require macOS 14 and Swift 6. Keep refresh work from blocking the main actor, avoid overlapping work, and keep the closed panel inexpensive. Redraw when displayed state changes. Use no continuous animation, telemetry, updater framework, or recurring GitHub Actions. A browser session is limited to the experimental Console connection; the monitoring interface remains native.
+Use AppKit, SwiftPM, and system frameworks. Require macOS 14 and Swift 6. Keep refresh work from blocking the main actor, avoid overlapping work, and keep the closed panel inexpensive. Redraw when displayed state changes. Use no continuous animation, telemetry, updater framework, or recurring GitHub Actions. Use the system browser for the experimental subscription sign-in and an isolated browser session for Console credits. Keep account, settings, and monitoring controls native.
 
 Monitoring is read-only. Exclude model conversations, model-request probes, buying credits, changing plans, consuming earned resets, replacing a user's CLI login, and general spending analytics. Broader features require a separate product decision.
 

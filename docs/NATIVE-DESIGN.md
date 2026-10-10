@@ -4,7 +4,7 @@ AI Usage Stats is an AppKit menu bar utility. A status item opens a standard nat
 
 ## First run
 
-Use an actual `NSMenu` with direct Add Claude Account… and Add Codex Account… commands, followed by Accounts…, Settings…, and Quit. AppKit owns its appearance, keyboard selection, sizing, and dismissal. Explain Claude Code configuration and Codex CLI sign-in in the corresponding setup dialog, rather than a technical paragraph in the menu.
+Use an actual `NSMenu` with direct Add Claude Account… and Add Codex Account… commands, followed by Accounts…, Settings…, and Quit. AppKit owns its appearance, keyboard selection, sizing, and dismissal. Explain Claude browser sign-in and Codex CLI sign-in in the corresponding setup dialog, rather than a technical paragraph in the menu.
 
 Do not show a title banner, disabled Refresh control, generic Actions dropdown, empty dashboard, or refresh footer. A load failure has its own error and retry commands; it is not treated as a fresh account list. After removing the last account, the next ordinary click returns to this menu.
 

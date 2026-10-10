@@ -7,6 +7,18 @@ public actor UsageService {
     private var configuration = StoredConfiguration()
     private var loaded = false
     private var refreshes: [UUID: Task<AccountSnapshot, Never>] = [:]
+    private var refreshIdentifiers: [UUID: UUID] = [:]
+    private let claudeClient: ClaudeOAuthClient
+    private let claudeCredentials: any ClaudeCredentialStore
+    private var generations: [UUID: Int] = [:]
+    private struct PendingClaudeAuthorization {
+        let authorization: ClaudeAuthorization
+        let profileID: UUID
+        let label: String?
+        let generation: Int
+    }
+    private var claudeAuthorizations: [UUID: PendingClaudeAuthorization] = [:]
+    private var completingClaudeAuthorizations: Set<UUID> = []
     private let freshnessInterval: TimeInterval = 300
 
     public init(directory: URL = UsagePaths.applicationSupport, captureHelperURL: URL? = nil,
@@ -15,6 +27,99 @@ public actor UsageService {
         self.captureHelperURL = captureHelperURL
             ?? Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/UsageCapture")
         self.codexExecutableURL = codexExecutableURL
+        claudeClient = ClaudeOAuthClient()
+        claudeCredentials = ClaudeKeychainStore()
+    }
+
+    init(directory: URL, captureHelperURL: URL? = nil, claudeClient: ClaudeOAuthClient,
+         claudeCredentials: any ClaudeCredentialStore) {
+        storage = ConfigurationStorage(directory: directory)
+        self.captureHelperURL = captureHelperURL ?? directory.appendingPathComponent("UsageCapture")
+        codexExecutableURL = nil
+        self.claudeClient = claudeClient
+        self.claudeCredentials = claudeCredentials
+    }
+
+    public func prepareClaudeSignIn(existingProfileID: UUID? = nil, label: String? = nil) throws -> ClaudeAuthorizationRequest {
+        try ensureLoaded()
+        if let existingProfileID {
+            guard configuration.profiles.contains(where: { $0.id == existingProfileID && $0.provider == .claude }) else {
+                throw UsageError.invalidConfiguration("Select a Claude account to connect again.")
+            }
+        }
+        let profileID = existingProfileID ?? UUID()
+        let authorization = try ClaudeAuthorization()
+        let validName = try label.map(validLabel)
+        generations[profileID, default: 0] += 1
+        claudeAuthorizations[authorization.request.id] = PendingClaudeAuthorization(
+            authorization: authorization, profileID: profileID, label: validName, generation: generations[profileID, default: 0])
+        return authorization.request
+    }
+
+    public func cancelClaudeSignIn(id: UUID) {
+        guard let pending = claudeAuthorizations.removeValue(forKey: id) else { return }
+        if generations[pending.profileID, default: 0] == pending.generation {
+            generations[pending.profileID, default: 0] += 1
+        }
+    }
+
+    public func completeClaudeSignIn(requestID: UUID, callbackURL: URL) async throws -> AccountProfile {
+        guard let pending = claudeAuthorizations[requestID] else {
+            throw UsageError.authenticationRequired("Claude sign-in is no longer active. Connect again.")
+        }
+        guard completingClaudeAuthorizations.insert(requestID).inserted else {
+            throw UsageError.authenticationRequired("Claude sign-in is already being completed.")
+        }
+        defer {
+            claudeAuthorizations.removeValue(forKey: requestID)
+            completingClaudeAuthorizations.remove(requestID)
+        }
+        let code = try pending.authorization.code(from: callbackURL)
+        let token = try await claudeClient.exchange(pending.authorization, code: code)
+        // Validate the requested scopes before using the returned token for any account request.
+        _ = try token.credentials(identity: "")
+        try validateClaudeAuthorization(pending, requestID: requestID)
+        let providerProfile = try await claudeClient.profile(accessToken: token.access_token)
+        try validateClaudeAuthorization(pending, requestID: requestID)
+        let existing = configuration.profiles.first { $0.id == pending.profileID }
+        if configuration.profiles.contains(where: { $0.id != pending.profileID && $0.provider == .claude
+            && $0.providerAccountID == providerProfile.identity }) {
+            throw UsageError.invalidConfiguration("This Claude account is already listed. Select it and connect again.")
+        }
+        if let expected = existing?.providerAccountID, expected != providerProfile.identity {
+            throw UsageError.authenticationRequired("This sign-in belongs to a different Claude account or organization. Add it as a separate account.")
+        }
+        let profile = AccountProfile(id: pending.profileID, provider: .claude,
+                                     label: existing?.label ?? pending.label ?? providerProfile.account.email ?? "Claude Account",
+                                     source: .claudeOAuth, providerAccountID: providerProfile.identity,
+                                     providerEmail: providerProfile.account.email)
+        let credentials = try token.credentials(identity: providerProfile.identity)
+        let previousCredentials = try claudeCredentials.read(accountID: profile.id, allowInteraction: true)
+        try claudeCredentials.save(credentials, accountID: profile.id, allowInteraction: true)
+        var updated = configuration
+        if let index = updated.profiles.firstIndex(where: { $0.id == profile.id }) { updated.profiles[index] = profile }
+        else { updated.profiles.append(profile) }
+        // A legacy capture cannot establish the identity of this new authorization.
+        updated.snapshots.removeAll { $0.profileID == profile.id }
+        do { try storage.save(updated) }
+        catch {
+            if let previousCredentials { try? claudeCredentials.save(previousCredentials, accountID: profile.id, allowInteraction: true) }
+            else { try? claudeCredentials.remove(accountID: profile.id, allowInteraction: true) }
+            throw UsageError.providerFailure("Claude sign-in completed, but the account could not be saved. Connect again.")
+        }
+        configuration = updated
+        refreshes[profile.id]?.cancel()
+        refreshes.removeValue(forKey: profile.id)
+        refreshIdentifiers.removeValue(forKey: profile.id)
+        _ = await refreshAccount(id: profile.id)
+        return profile
+    }
+
+    private func validateClaudeAuthorization(_ pending: PendingClaudeAuthorization, requestID: UUID) throws {
+        guard claudeAuthorizations[requestID] != nil,
+              generations[pending.profileID, default: 0] == pending.generation, !Task.isCancelled else {
+            throw UsageError.authenticationRequired("Claude sign-in was cancelled or the account changed. Connect again.")
+        }
     }
 
     private func ensureLoaded() throws {
@@ -33,7 +138,9 @@ public actor UsageService {
         let saved = configuration.snapshots.first(where: { $0.profileID == accountID })
             ?? AccountSnapshot(profileID: accountID, state: .unavailable,
                                detail: profile.provider == .claude
-                               ? "Usage appears after the next Claude response in this configuration directory."
+                               ? (profile.source == .claudeOAuth
+                                  ? "Check usage to read this Claude account's current quota."
+                                  : "Reconnect this account in your browser to read usage immediately.")
                                : "Sign in to this Codex profile, then refresh.")
         let stale = saved.state == .available && (saved.fetchedAt.map { Date().timeIntervalSince($0) > freshnessInterval } == true
                                                  || saved.windows.contains { $0.resetsAt.map { $0 <= Date() } == true })
@@ -114,6 +221,11 @@ public actor UsageService {
 
     public func removeAccount(id: UUID) throws {
         try ensureLoaded()
+        generations[id, default: 0] += 1
+        refreshes[id]?.cancel()
+        if configuration.profiles.first(where: { $0.id == id })?.source == .claudeOAuth {
+            try claudeCredentials.remove(accountID: id, allowInteraction: true)
+        }
         if let installation = configuration.captureInstallations[id.uuidString] {
             try ClaudeCaptureInstallation.remove(installation)
         }
@@ -204,10 +316,16 @@ public actor UsageService {
         guard let profile = configuration.profiles.first(where: { $0.id == id }) else {
             return AccountSnapshot(profileID: id, state: .unavailable, detail: "Account profile was removed.")
         }
-        let task = Task { await self.fetch(profile) }
+        let identifier = UUID()
+        let generation = generations[id, default: 0]
+        let task = Task { await self.fetch(profile, generation: generation) }
         refreshes[id] = task
+        refreshIdentifiers[id] = identifier
         let result = await task.value
-        refreshes.removeValue(forKey: id)
+        if refreshIdentifiers[id] == identifier {
+            refreshes.removeValue(forKey: id)
+            refreshIdentifiers.removeValue(forKey: id)
+        }
         return result
     }
 
@@ -219,13 +337,15 @@ public actor UsageService {
         return results
     }
 
-    private func fetch(_ profile: AccountProfile) async -> AccountSnapshot {
+    private func fetch(_ profile: AccountProfile, generation: Int) async -> AccountSnapshot {
         var observed: AccountSnapshot
         do {
-            if profile.provider == .claude {
+            if profile.source == .claudeOAuth {
+                observed = try await fetchClaudeOAuth(profile, generation: generation)
+            } else if profile.provider == .claude {
                 let url = UsagePaths.captureURL(profileID: profile.id, directory: storage.directory)
                 guard FileManager.default.fileExists(atPath: url.path) else {
-                    throw UsageError.providerFailure("Waiting for a Claude response in this configuration directory. Refresh reads captured usage; it does not send a Claude request.")
+                    throw UsageError.providerFailure("No Claude Code reading is available. Reconnect this account in your browser to read usage immediately.")
                 }
                 let capture = try JSONDecoder().decode(ClaudeQuotaCapture.self, from: Data(contentsOf: url))
                 guard capture.profileID == profile.id else {
@@ -261,6 +381,10 @@ public actor UsageService {
                                        state: authentication ? .authenticationRequired : previous?.fetchedAt == nil ? .unavailable : .stale,
                                        detail: error.localizedDescription)
         }
+        guard generations[profile.id, default: 0] == generation else {
+            return snapshot(for: profile.id) ?? AccountSnapshot(profileID: profile.id, state: .unavailable,
+                                                              detail: "The account connection changed. Check usage again.")
+        }
         if configuration.profiles.contains(where: { $0.id == profile.id }) {
             configuration.snapshots.removeAll { $0.profileID == profile.id }
             configuration.snapshots.append(observed)
@@ -271,6 +395,52 @@ public actor UsageService {
             }
         }
         return decorate(observed, state: observed.state, detail: observed.detail)
+    }
+
+    private func fetchClaudeOAuth(_ profile: AccountProfile, generation: Int) async throws -> AccountSnapshot {
+        guard var credentials = try claudeCredentials.read(accountID: profile.id, allowInteraction: false),
+              credentials.identity == profile.providerAccountID else {
+            throw UsageError.authenticationRequired("Claude credentials are missing or belong to another account. Connect this account again.")
+        }
+        guard !credentials.refreshPending else {
+            throw UsageError.authenticationRequired("The previous Claude sign-in renewal did not finish safely. Connect this account again.")
+        }
+        if credentials.expiresAt <= Date().addingTimeInterval(60) {
+            guard let refreshToken = credentials.refreshToken, !refreshToken.isEmpty else {
+                throw UsageError.authenticationRequired("Claude access expired. Connect this account again.")
+            }
+            credentials.refreshPending = true
+            // Persist before rotation: a crash or uncertain response must never retry this refresh token.
+            try claudeCredentials.save(credentials, accountID: profile.id, allowInteraction: false)
+            let pendingCredentials = credentials
+            do {
+                let token = try await claudeClient.refresh(refreshToken)
+                credentials = try token.credentials(identity: pendingCredentials.identity, previousRefreshToken: refreshToken)
+                let identity = try await claudeClient.profile(accessToken: credentials.accessToken).identity
+                guard identity == profile.providerAccountID else {
+                    throw UsageError.authenticationRequired("Claude sign-in now belongs to another account. Connect the original account again.")
+                }
+                try validateClaudeCredentials(pendingCredentials, profileID: profile.id, generation: generation)
+                try claudeCredentials.save(credentials, accountID: profile.id, allowInteraction: false)
+            } catch {
+                throw UsageError.authenticationRequired("Claude sign-in renewal could not be confirmed. Connect this account again.")
+            }
+        }
+        let identity = try await claudeClient.profile(accessToken: credentials.accessToken).identity
+        guard identity == profile.providerAccountID else {
+            throw UsageError.authenticationRequired("Claude returned a different account or organization. Connect the original account again.")
+        }
+        let usage = try await claudeClient.usage(accessToken: credentials.accessToken)
+        try validateClaudeCredentials(credentials, profileID: profile.id, generation: generation)
+        return try usage.snapshot(profileID: profile.id)
+    }
+
+    private func validateClaudeCredentials(_ credentials: ClaudeCredentials, profileID: UUID, generation: Int) throws {
+        guard !Task.isCancelled, generations[profileID, default: 0] == generation,
+              configuration.profiles.contains(where: { $0.id == profileID && $0.source == .claudeOAuth }),
+              try claudeCredentials.read(accountID: profileID, allowInteraction: false) == credentials else {
+            throw UsageError.authenticationRequired("The Claude account connection changed during this check. Check usage again.")
+        }
     }
 
     private func decorate(_ snapshot: AccountSnapshot, state: SnapshotState, detail: String?) -> AccountSnapshot {
