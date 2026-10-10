@@ -228,6 +228,52 @@ import Testing
     #expect(fixture.credentials.count == 0)
 }
 
+@Test func bindingLegacyIdentityIsolatesConsoleDataAndRequiresManualBalanceConfirmation() async throws {
+    let fixture = try OAuthFixture(steps: [.response(tokenResponse), .response(profileResponse), .response(profileResponse), .response(usageResponse),
+                                         .response(tokenResponse), .response(profileResponse), .response(profileResponse), .response(usageResponse)])
+    defer { fixture.removeDirectory() }
+    let legacy = AccountProfile(provider: .claude, label: "Personal", source: .claudeCLI)
+    let oldAPI = CreditBalance(id: "api_balance", title: "API balance", amount: 9, source: .manual, asOf: Date(timeIntervalSince1970: 1_000))
+    let oldMonthly = CreditBalance(id: "monthly_grant", title: "Monthly grant", amount: 7, source: .manual, asOf: Date(timeIntervalSince1970: 1_000))
+    var configuration = StoredConfiguration()
+    configuration.profiles = [legacy]
+    configuration.manualCredits[legacy.id.uuidString] = [oldAPI]
+    configuration.pendingManualCredits[legacy.id.uuidString] = [oldMonthly]
+    try ConfigurationStorage(directory: fixture.directory).save(configuration)
+    let organization = "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC"
+    let response = Data(#"{"amount":2500,"currency":"USD","tranches":[{"id":"purchase","remaining_amount_minor_units":2500,"currency":"USD","expires_at":"2099-01-01T12:00:00Z"}],"promo_tranches":[]}"#.utf8)
+    try await fixture.service.setClaudeConsoleConnection(accountID: legacy.id, organizationID: organization, expectedIdentity: nil)
+    try await fixture.service.updateClaudeConsoleCredits(accountID: legacy.id, organizationID: organization, responseData: response, expectedIdentity: nil)
+    let request = try await fixture.service.prepareClaudeSignIn(existingProfileID: legacy.id)
+    let profile = try await fixture.service.completeClaudeSignIn(requestID: request.id, callbackURL: callback(request))
+    #expect(await fixture.service.consoleConnection(for: profile.id) == nil)
+    #expect(await fixture.service.manualCredits(for: profile.id).isEmpty)
+    #expect(await fixture.service.pendingManualCredits(for: profile.id).contains(oldAPI))
+    #expect(await fixture.service.pendingManualCredits(for: profile.id).contains(oldMonthly))
+    #expect(await fixture.service.snapshot(for: profile.id)?.credits.allSatisfy { $0.amount == nil } == true)
+    await #expect(throws: UsageError.self) {
+        try await fixture.service.setClaudeConsoleConnection(accountID: profile.id, organizationID: organization, expectedIdentity: nil)
+    }
+    await #expect(throws: UsageError.self) {
+        try await fixture.service.updateClaudeConsoleCredits(accountID: profile.id, organizationID: organization, responseData: response, expectedIdentity: nil)
+    }
+    try await fixture.service.setManualCredit(accountID: profile.id, credit: CreditBalance(id: "api_balance", title: "API balance", amount: 5))
+    #expect(await fixture.service.pendingManualCredits(for: profile.id) == [oldMonthly])
+    #expect(await fixture.service.snapshot(for: profile.id)?.credits.first { $0.id == "api_balance" }?.amount == 5)
+    #expect(await fixture.service.snapshot(for: profile.id)?.credits.first { $0.id == "monthly_grant" }?.amount == nil)
+    // A same-identity reconnect preserves independently confirmed financial data.
+    try await fixture.service.setClaudeConsoleConnection(accountID: profile.id, organizationID: organization, expectedIdentity: profile.providerAccountID)
+    try await fixture.service.updateClaudeConsoleCredits(accountID: profile.id, organizationID: organization, responseData: response, expectedIdentity: profile.providerAccountID)
+    let reconnect = try await fixture.service.prepareClaudeSignIn(existingProfileID: profile.id)
+    _ = try await fixture.service.completeClaudeSignIn(requestID: reconnect.id, callbackURL: callback(reconnect))
+    #expect(await fixture.service.consoleConnection(for: profile.id) != nil)
+    #expect(await fixture.service.snapshot(for: profile.id)?.credits.first { $0.id == "api_balance_USD" }?.amount == 25)
+    #expect(await fixture.service.manualCredits(for: profile.id).first?.amount == 5)
+    #expect(await fixture.service.pendingManualCredits(for: profile.id) == [oldMonthly])
+    try await fixture.service.removeAccount(id: profile.id)
+    #expect(await fixture.service.pendingManualCredits(for: profile.id).isEmpty)
+}
+
 @Test func removingClaudeAccountDuringUsageCheckCannotRestoreItsReading() async throws {
     let fixture = try OAuthFixture(steps: [.response(tokenResponse), .response(profileResponse), .response(profileResponse), .response(usageResponse),
                                          .response(profileResponse), .suspended(usageResponse)])

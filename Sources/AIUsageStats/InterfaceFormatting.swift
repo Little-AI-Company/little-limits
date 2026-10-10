@@ -2,6 +2,12 @@ import AppKit
 import UsageCore
 
 enum InterfaceFormatting {
+    static func accountEmail(_ profile: AccountProfile) -> String {
+        guard let email = profile.providerEmail?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !email.isEmpty else { return "Email unavailable" }
+        return email
+    }
+
     static func remaining(_ window: UsageWindow) -> String {
         if window.isActive == false { return "Inactive" }
         guard let used = window.utilizationPercent, used.isFinite else { return "Unavailable" }

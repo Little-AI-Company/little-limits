@@ -272,3 +272,27 @@ c9610f169d863d86d8121db14fe4b234bc5be7df6a4bbdc6ac7e054afc51c0ac
 Two additional fixtures exercise initial account-only identity and successful owned renewal with optional organization data, retained known organization, explicit account/organization conflicts, restoration of the exact grant after failed configuration persistence, and successful subsequent account removal. Renewal and removal failure handling remain fixture evidence; the real account was not removed or reconnected for these checks.
 
 The packaged executable SHA-256 is `16197873a2e73f2e3a968d568de17307509e45f3e6c54aea316c16d4b7ddab34`. The normal `--show-panel` app was relaunched. Sanitized persistence checks confirmed one unchanged profile, available state, and an observation less than five minutes old. No additional native automation claim or live organization-omission/renewal claim is made for this final parser and persistence correction.
+
+### Verified email display and legacy financial isolation
+
+Verified October 10, 2026 on the same Apple silicon Mac with macOS 27.0.1 (26A434). The 24-file source digest for this correction is:
+
+```text
+f11b59ffdca98d22db9d9427e419d44d86f71ba716ad143dfa971237fbec849f
+```
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test` | Passed: 34 tests, zero failures, comprising 13 XCTest and 21 Swift Testing tests; build 2.36 seconds. |
+| `swift build -c release` | Passed; 11.66 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build 0.30 seconds. |
+| `plutil -lint "dist/AI Usage Stats.app/Contents/Info.plist"` | Passed; metadata retains version 0.1.0, build 1, menu-bar bundle behavior, and minimum macOS 14. |
+| `codesign --verify --deep --strict --verbose=2 "dist/AI Usage Stats.app"` | Passed on the moved app and helper; local ad hoc signing. |
+| `lipo -archs` for the packaged app and capture helper | Both report `arm64`; icon resource is present. |
+| `git diff --check` | Passed. |
+
+The added behavior fixture binds an unverified legacy profile to its first verified subscription identity. Earlier Console connections and observations are cleared; earlier manual balances move to saved pending values rather than becoming the verified account's current balances. Saving one balance confirms only that category. Responses with the old captured identity are rejected. Same-identity reconnect preserves confirmed financial data, and removing the account removes pending values. Native Console controllers retire before subscription reconnect; both service and model updates check the immutable identity captured when the controller opened, including a previously unknown identity. These remain synthetic isolation and confirmation checks; no real account was reconnected or removed for this correction.
+
+Native demo checks visually inspected distinct Claude email headings, the full longer email in the overview, and the explicit unavailable-email state after scrolling. Accounts showed email-first rows with provider and saved alias beneath. The longer sidebar email truncated in the middle while its full value remained available in accessibility/help and the selected account description. Clicking the longer-email row and pressing Down selected the unavailable-email row correctly. These checks used fictional demo data in the packaged validation window. The final build adds a shared display formatter for nil, empty, or whitespace-only email values without changing saved profile data. A final normal-mode demo launch exposed the actual accessibility popover; visual inspection confirmed the email beneath the Claude header and preserved alias in the native layout. No public screenshots or real account values were saved.
+
+The final packaged executable SHA-256 is `ad67e601c73e6dfe89e51bea4a20bbb4b6b465c1ccdfdaed6cf3dd9fd0c7314b`. Multiple live account binding, real Console billing, live renewal, VoiceOver, minimum-macOS runtime, Intel runtime, Developer ID signing, and notarization remain unverified.

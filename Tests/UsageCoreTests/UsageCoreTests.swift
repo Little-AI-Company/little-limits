@@ -128,18 +128,18 @@ import Testing
     let profile = try await service.importClaudeCLI(label: "Console", configurationURL: directory.appendingPathComponent("Claude"))
     try await service.setManualCredit(accountID: profile.id, credit: CreditBalance(id: "api_balance", title: "Purchased", amount: 9))
     let organizationID = "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"
-    try await service.setClaudeConsoleConnection(accountID: profile.id, organizationID: organizationID)
+    try await service.setClaudeConsoleConnection(accountID: profile.id, organizationID: organizationID, expectedIdentity: nil)
     let response = Data(#"{"amount":2500,"currency":"USD","tranches":[{"id":"purchase-a","remaining_amount_minor_units":2500,"currency":"USD","expires_at":"2027-10-09T00:00:00Z"}],"promo_tranches":[]}"#.utf8)
-    try await service.updateClaudeConsoleCredits(accountID: profile.id, organizationID: organizationID, responseData: response)
+    try await service.updateClaudeConsoleCredits(accountID: profile.id, organizationID: organizationID, responseData: response, expectedIdentity: nil)
     let snapshot = await service.refreshAccount(id: profile.id)
     #expect(snapshot.credits.first { $0.id == "api_balance_USD" }?.amount == 25)
     #expect(snapshot.credits.first { $0.id == "api_balance_USD" }?.source == .provider)
     #expect(!snapshot.credits.contains { $0.id == "api_balance" })
     #expect(snapshot.windows.isEmpty)
     #expect(snapshot.state == .unavailable)
-    try await service.setClaudeConsoleConnection(accountID: profile.id, organizationID: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")
+    try await service.setClaudeConsoleConnection(accountID: profile.id, organizationID: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB", expectedIdentity: nil)
     await #expect(throws: UsageError.self) {
-        try await service.updateClaudeConsoleCredits(accountID: profile.id, organizationID: organizationID, responseData: response)
+        try await service.updateClaudeConsoleCredits(accountID: profile.id, organizationID: organizationID, responseData: response, expectedIdentity: nil)
     }
     #expect(await service.snapshot(for: profile.id)?.credits.first { $0.id == "api_balance" }?.amount == 9)
 }

@@ -16,7 +16,7 @@ Keep subscription quota, API money, Codex credit units, and earned reset counts 
 
 A visible Details control exposes exact time-zone-aware dates, observation sources, grant scope, original amounts, and recovery instructions. Show one concise freshness state per account rather than repeating full timestamps beside every value. Authentication failures and stale values remain visible without expanding Details.
 
-The default view makes the two demo accounts' main readings visible together. Scrolling accommodates more accounts and expanded details. Account sections and controls retain their identity during countdown updates; only the displayed values change. Keyboard focus on Details or its dashboard action scrolls that control into view when expansion places it below the viewport. Validate focus and scroll behavior in the running app instead of inferring it from the source.
+Main readings use compact rows. Demo accounts exercise distinct Claude emails, a long email, and an unavailable email alongside Codex readings. Scrolling accommodates additional accounts and expanded details. Account sections and controls retain their identity during countdown updates; only the displayed values change. Keyboard focus on Details or its dashboard action scrolls that control into view when expansion places it below the viewport. Validate focus and scroll behavior in the running app instead of inferring it from the source.
 
 Use semantic AppKit colors, modest text weights, and separators. No decorative cards, pills, gray subtitles above sections, or continuous animations. Demo mode is explicitly labelled and used for public captures.
 

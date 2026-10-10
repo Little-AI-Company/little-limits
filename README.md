@@ -42,12 +42,16 @@ Packaging produces an ad hoc signed app and ZIP for local use. Public downloads 
 
 On first run, click the menu bar item and choose **Add Claude Account…** or **Add Codex Account…**. The setup dialog explains the selected connection source and prerequisites. Choose **Accounts…** to manage existing accounts, then select an account in the sidebar to edit its name, connection, or manual balances.
 
+Claude account headings and the Accounts list show the verified sign-in email alongside the saved name. Accounts without a verified email show **Email unavailable**. Long emails retain their full value in tooltips and accessibility labels.
+
 - **Claude:** choose **Add Claude Account…**, give it a name, and complete sign-in in the browser. The app requests usage after sign-in and keeps this account separate from your everyday Claude Code login. No terminal session or model response is needed. Existing status-line capture profiles remain available; reconnect one to switch it to direct reads while preserving its name and profile identity.
 - **Claude API credits:** select the Claude account, choose **Connect API Credits**, sign in to the official Console, and choose the organization. Purchased balances and promotional grants are separate from Claude subscription quota.
 - **Codex:** choose **Add Account → Connect Codex** and complete its official CLI login. Each profile uses a separate app-owned `CODEX_HOME`. Finish one login before starting another.
 - **Manual balances:** expand **Manual balance**, select an API credit category, and enter its amount, confirmation date, and optional expiry from the billing dashboard.
 
 The experimental subscription connection stores its own OAuth grant in a separate Keychain item for each app account. It does not refresh, replace, or export your existing Claude Code credentials. Reconnecting an older capture profile restores its previous status line when the app's wrapper is unchanged. User replacements are preserved; incomplete cleanup retains its recovery record and shows an account-specific message. If sign-in or refresh fails, the connection shows the error and a recovery action. Provider-reported inactive quotas remain visible as inactive and do not affect current usage summaries.
+
+When an older profile first receives a verified identity, its earlier Console credit connection is cleared. Saved manual balances remain available in the editor for confirmation through **Save Balance**, and stay out of the current readings until confirmed. Reconnecting an already verified account preserves its confirmed balances.
 
 The Console connection keeps its login in a separate persistent WebKit store for each app account. It does not export cookies into the saved account file. Disconnecting stops automatic reads while retaining the browser login for reconnecting. Removing a Codex profile removes monitoring data and leaves the CLI login intact.
 

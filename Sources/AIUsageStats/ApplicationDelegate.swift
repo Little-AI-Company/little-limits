@@ -347,6 +347,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
             NSApp.activate(ignoringOtherApps: true)
             return
         }
+        if let id { consoleWindows.removeValue(forKey: id)?.retire() }
         let controller = ClaudeSignInWindowController(model: model, existingProfileID: id, label: label)
         claudeSignIn = controller
         controller.showWindow(nil)

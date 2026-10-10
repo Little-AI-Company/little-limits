@@ -60,6 +60,7 @@ struct StoredConfiguration: Codable, Sendable {
     var profiles: [AccountProfile] = []
     var snapshots: [AccountSnapshot] = []
     var manualCredits: [String: [CreditBalance]] = [:]
+    var pendingManualCredits: [String: [CreditBalance]] = [:]
     var captureInstallations: [String: CaptureInstallation] = [:]
     var consoleConnections: [String: String] = [:]
     var consoleObservations: [String: ConsoleCreditObservation] = [:]
@@ -67,7 +68,7 @@ struct StoredConfiguration: Codable, Sendable {
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case profiles, snapshots, manualCredits, captureInstallations, consoleConnections, consoleObservations
+        case profiles, snapshots, manualCredits, pendingManualCredits, captureInstallations, consoleConnections, consoleObservations
     }
 
     init(from decoder: Decoder) throws {
@@ -75,6 +76,7 @@ struct StoredConfiguration: Codable, Sendable {
         profiles = try values.decodeIfPresent([AccountProfile].self, forKey: .profiles) ?? []
         snapshots = try values.decodeIfPresent([AccountSnapshot].self, forKey: .snapshots) ?? []
         manualCredits = try values.decodeIfPresent([String: [CreditBalance]].self, forKey: .manualCredits) ?? [:]
+        pendingManualCredits = try values.decodeIfPresent([String: [CreditBalance]].self, forKey: .pendingManualCredits) ?? [:]
         captureInstallations = try values.decodeIfPresent([String: CaptureInstallation].self, forKey: .captureInstallations) ?? [:]
         consoleConnections = try values.decodeIfPresent([String: String].self, forKey: .consoleConnections) ?? [:]
         consoleObservations = try values.decodeIfPresent([String: ConsoleCreditObservation].self, forKey: .consoleObservations) ?? [:]

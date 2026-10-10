@@ -107,6 +107,16 @@ public actor UsageService {
         else { updated.profiles.append(profile) }
         // A legacy capture cannot establish the identity of this new authorization.
         updated.snapshots.removeAll { $0.profileID == profile.id }
+        if let existing, existing.providerAccountID == nil {
+            updated.consoleConnections.removeValue(forKey: profile.id.uuidString)
+            updated.consoleObservations.removeValue(forKey: profile.id.uuidString)
+            var pending = updated.pendingManualCredits[profile.id.uuidString] ?? []
+            for credit in updated.manualCredits.removeValue(forKey: profile.id.uuidString) ?? [] {
+                pending.removeAll { $0.id == credit.id }
+                pending.append(credit)
+            }
+            if !pending.isEmpty { updated.pendingManualCredits[profile.id.uuidString] = pending }
+        }
         do { try storage.save(updated) }
         catch {
             if let previousCredentials { try? claudeCredentials.save(previousCredentials, accountID: profile.id, allowInteraction: true) }
@@ -265,6 +275,7 @@ public actor UsageService {
         updated.profiles.removeAll { $0.id == id }
         updated.snapshots.removeAll { $0.profileID == id }
         updated.manualCredits.removeValue(forKey: id.uuidString)
+        updated.pendingManualCredits.removeValue(forKey: id.uuidString)
         updated.captureInstallations.removeValue(forKey: id.uuidString)
         updated.consoleConnections.removeValue(forKey: id.uuidString)
         updated.consoleObservations.removeValue(forKey: id.uuidString)
@@ -304,6 +315,10 @@ public actor UsageService {
         credits.removeAll { $0.id == credit.id }
         if credit.amount != nil { credits.append(manual) }
         updated.manualCredits[accountID.uuidString] = credits
+        updated.pendingManualCredits[accountID.uuidString]?.removeAll { $0.id == credit.id }
+        if updated.pendingManualCredits[accountID.uuidString]?.isEmpty == true {
+            updated.pendingManualCredits.removeValue(forKey: accountID.uuidString)
+        }
         try storage.save(updated)
         configuration = updated
     }
@@ -316,10 +331,16 @@ public actor UsageService {
         configuration.consoleConnections[accountID.uuidString]
     }
 
-    public func setClaudeConsoleConnection(accountID: UUID, organizationID: String?) throws {
+    public func pendingManualCredits(for accountID: UUID) -> [CreditBalance] {
+        configuration.pendingManualCredits[accountID.uuidString] ?? []
+    }
+
+    public func setClaudeConsoleConnection(accountID: UUID, organizationID: String?, expectedIdentity: String?) throws {
+        try Task.checkCancellation()
         try ensureLoaded()
-        guard configuration.profiles.contains(where: { $0.id == accountID && $0.provider == .claude }) else {
-            throw UsageError.invalidConfiguration("Select a Claude profile to connect Console billing.")
+        guard let profile = configuration.profiles.first(where: { $0.id == accountID && $0.provider == .claude }),
+              profile.providerAccountID == expectedIdentity else {
+            throw UsageError.authenticationRequired("This Console connection belongs to an earlier account. Connect API Credits for the current account.")
         }
         if let organizationID, UUID(uuidString: organizationID) == nil {
             throw UsageError.invalidConfiguration("The Claude Console organization identifier must be a UUID.")
@@ -334,8 +355,13 @@ public actor UsageService {
         configuration = updated
     }
 
-    public func updateClaudeConsoleCredits(accountID: UUID, organizationID: String, responseData: Data) throws {
+    public func updateClaudeConsoleCredits(accountID: UUID, organizationID: String, responseData: Data, expectedIdentity: String?) throws {
+        try Task.checkCancellation()
         try ensureLoaded()
+        guard let profile = configuration.profiles.first(where: { $0.id == accountID && $0.provider == .claude }),
+              profile.providerAccountID == expectedIdentity else {
+            throw UsageError.authenticationRequired("This Console response belongs to an earlier account. Connect API Credits for the current account.")
+        }
         guard let connectedOrganization = configuration.consoleConnections[accountID.uuidString],
               UUID(uuidString: organizationID)?.uuidString.lowercased() == connectedOrganization,
               configuration.profiles.contains(where: { $0.id == accountID && $0.provider == .claude }) else {

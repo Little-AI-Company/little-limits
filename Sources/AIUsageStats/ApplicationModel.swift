@@ -14,6 +14,7 @@ final class ApplicationModel {
     private(set) var consoleConnections: [UUID: String] = [:]
     private(set) var consoleMessages: [UUID: String] = [:]
     private(set) var manualCredits: [UUID: [CreditBalance]] = [:]
+    private(set) var pendingManualCredits: [UUID: [CreditBalance]] = [:]
     var onChange: (() -> Void)?
     var onError: ((String) -> Void)?
     var onLoginCommand: ((String, UUID) -> Void)?
@@ -38,6 +39,7 @@ final class ApplicationModel {
                 snapshots[profile.id] = await service.snapshot(for: profile.id)
                 consoleConnections[profile.id] = await service.consoleConnection(for: profile.id)
                 manualCredits[profile.id] = await service.manualCredits(for: profile.id)
+                pendingManualCredits[profile.id] = await service.pendingManualCredits(for: profile.id)
             }
             message = nil
         } catch {
@@ -148,6 +150,9 @@ final class ApplicationModel {
             }
         }
         let profile = try await service.completeClaudeSignIn(requestID: requestID, callbackURL: callbackURL)
+        if profiles.first(where: { $0.id == profile.id })?.providerAccountID == nil {
+            consoleMessages[profile.id] = nil
+        }
         await load()
         completedAccountChanges += 1
         return profile
@@ -169,15 +174,24 @@ final class ApplicationModel {
         changeAccounts { service in try await service.setManualCredit(accountID: accountID, credit: credit) }
     }
 
-    func setConsoleConnection(accountID: UUID, organizationID: String?) async throws {
-        try await service.setClaudeConsoleConnection(accountID: accountID, organizationID: organizationID)
+    func setConsoleConnection(accountID: UUID, organizationID: String?, expectedIdentity: String?) async throws {
+        try await service.setClaudeConsoleConnection(accountID: accountID, organizationID: organizationID, expectedIdentity: expectedIdentity)
+        try validateConsoleIdentity(accountID: accountID, expectedIdentity: expectedIdentity)
         consoleConnections[accountID] = organizationID
     }
 
-    func updateConsoleCredits(accountID: UUID, organizationID: String, responseData: Data) async throws {
-        try await service.updateClaudeConsoleCredits(accountID: accountID, organizationID: organizationID, responseData: responseData)
+    func updateConsoleCredits(accountID: UUID, organizationID: String, responseData: Data, expectedIdentity: String?) async throws {
+        try await service.updateClaudeConsoleCredits(accountID: accountID, organizationID: organizationID, responseData: responseData, expectedIdentity: expectedIdentity)
+        try validateConsoleIdentity(accountID: accountID, expectedIdentity: expectedIdentity)
         consoleMessages[accountID] = nil
         await load()
+    }
+
+    private func validateConsoleIdentity(accountID: UUID, expectedIdentity: String?) throws {
+        try Task.checkCancellation()
+        guard let profile = profiles.first(where: { $0.id == accountID }), profile.providerAccountID == expectedIdentity else {
+            throw UsageError.authenticationRequired("The account changed during the Console request. Connect API Credits for the current account.")
+        }
     }
 
     func recordConsoleError(accountID: UUID, message: String) {

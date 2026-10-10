@@ -14,6 +14,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private let addAccountButton = NSPopUpButton(frame: .zero, pullsDown: true)
     private let manualDisclosure = NSButton(title: "", target: nil, action: nil)
     private let manualEditor = NSStackView()
+    private let manualHelp = InterfaceControls.label("Enter the amount shown in billing. This dated record does not update automatically.")
     private let accountEditor = NSStackView()
     private let emptyState = InterfaceControls.label("Add a Claude or Codex account to view its usage.", size: 13)
     private var displayedProfiles: [AccountProfile] = []
@@ -163,7 +164,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         let balanceActions = NSStackView(views: [saveBalanceButton, clearBalanceButton])
         balanceActions.orientation = .horizontal
         balanceActions.spacing = 8
-        let manualHelp = InterfaceControls.label("Enter the amount shown in billing. This dated record does not update automatically.")
         manualEditor.orientation = .vertical
         manualEditor.alignment = .leading
         manualEditor.spacing = 12
@@ -285,18 +285,23 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         guard model.profiles.indices.contains(row) else { return nil }
         let profile = model.profiles[row]
         let cell = NSTableCellView()
-        let name = NSTextField(labelWithString: profile.label)
+        let isClaude = profile.provider == .claude
+        let name = NSTextField(labelWithString: isClaude ? InterfaceFormatting.accountEmail(profile) : profile.label)
         name.font = .systemFont(ofSize: 13, weight: .medium)
-        name.lineBreakMode = .byTruncatingTail
-        let provider = NSTextField(labelWithString: InterfaceFormatting.provider(profile.provider))
+        name.lineBreakMode = isClaude ? .byTruncatingMiddle : .byTruncatingTail
+        let providerName = InterfaceFormatting.provider(profile.provider)
+        let provider = NSTextField(labelWithString: isClaude ? "\(providerName) · \(profile.label)" : providerName)
         provider.font = .systemFont(ofSize: 11)
-        provider.textColor = .secondaryLabelColor
+        provider.lineBreakMode = .byTruncatingTail
+        let accountDescription = "\(providerName), \(profile.label)" + (isClaude ? ", \(name.stringValue)" : "")
         for label in [name, provider] {
+            label.toolTip = accountDescription
             label.translatesAutoresizingMaskIntoConstraints = false
             cell.addSubview(label)
         }
         cell.textField = name
-        cell.setAccessibilityLabel("\(profile.label), \(InterfaceFormatting.provider(profile.provider))")
+        cell.toolTip = accountDescription
+        cell.setAccessibilityLabel(accountDescription)
         NSLayoutConstraint.activate([
             name.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 12),
             name.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -12),
@@ -331,9 +336,11 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         nameField.stringValue = profile.label
         updateSelectionDescription()
         let savedManual = model.manualCredits[id] ?? []
+        let pendingManual = model.pendingManualCredits[id] ?? []
         displayedCredits = UsageService.unavailableCredits(for: profile.provider)
             .filter { $0.id == "api_balance" || $0.id == "monthly_grant" }
-            .map { fallback in savedManual.first(where: { $0.id == fallback.id }) ?? fallback }
+            .map { fallback in savedManual.first(where: { $0.id == fallback.id })
+                ?? pendingManual.first(where: { $0.id == fallback.id }) ?? fallback }
         loginButton.isEnabled = !model.isDemo && !model.isChangingAccounts && !model.isRefreshing
         manualCategory.removeAllItems()
         manualCategory.addItems(withTitles: displayedCredits.map(\.title))
@@ -366,6 +373,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         expiryDate.isEnabled = editable && hasCredit && expiryKnown.state == .on
         saveBalanceButton.isEnabled = canSave && hasCredit
         clearBalanceButton.isEnabled = canSave && hasCredit && displayedCredits[index].source == .manual
+        updateManualDescription()
     }
 
     private func updateManualFields() {
@@ -394,6 +402,18 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         expiryDate.isEnabled = available && expiryKnown.state == .on
         saveBalanceButton.isEnabled = available
         clearBalanceButton.isEnabled = available && credit.source == .manual && credit.amount != nil
+        updateManualDescription()
+    }
+
+    private func updateManualDescription() {
+        let index = manualCategory.indexOfSelectedItem
+        let needsConfirmation = displayedCredits.indices.contains(index) && selectedID.map { id in
+            (model.pendingManualCredits[id] ?? []).contains { $0.id == displayedCredits[index].id }
+                && !(model.manualCredits[id] ?? []).contains { $0.id == displayedCredits[index].id }
+        } == true
+        manualHelp.stringValue = needsConfirmation
+            ? "This saved balance came from the earlier unverified connection. Confirm it in billing, then choose Save Balance before it is shown as this account's balance."
+            : "Enter the amount shown in billing. This dated record does not update automatically."
     }
 
     func connect(_ provider: Provider) {
@@ -453,6 +473,9 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
                ? "Connect Claude Console to read credits. This connection is experimental."
                : "Claude Console is linked to this account. This connection is experimental.")
             : "View API billing or enter a dated balance manually."
+        if !(model.pendingManualCredits[id] ?? []).isEmpty {
+            creditDescription.stringValue += " Saved manual balances await confirmation. Open Manual balance to confirm before use."
+        }
     }
 
     @objc private func toggleManualEditor(_ sender: NSButton) {
