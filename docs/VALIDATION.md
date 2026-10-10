@@ -250,3 +250,25 @@ The final packaged executable SHA-256 is `643bd12c2afb4f1af9d8438a58e49b35b70c24
 Separately from fixtures, the authorized existing-profile cleanup ran on the new packaged app's first load. Hash-only checks confirmed restoration of the original status line, preservation of every non-status-line setting, removal of only the migrated profile's installation record, unchanged saved account profiles, and preservation of the shared capture helper. No saved command, settings content, credential, or account value was disclosed by those checks.
 
 Native accessibility inspection of this corrected packaged build showed the model-specific quota marked `Inactive` and `Not current`. A subsequent sanitized persisted-state check confirmed an available provider reading less than five minutes old, with one current window and two explicitly inactive windows. The current observation retained the provider's activity flags, including flags applied to canonical windows. Completing the final manual Refresh click could not be established because the native automation bridge timed out; this is recorded as an environment limit, not a completed interaction. No public account screenshot was saved.
+
+### Optional identity metadata and failed removal recovery
+
+The next review of `441eeb0ffbb041efee57cbd623daf92c3cee2b66` found that an omitted organization object could reject an otherwise valid profile, and that failed account-file persistence could leave a listed profile without its deleted Keychain grant. The corrected parser always requires the account UUID, permits account-only initial identity, cross-checks any supplied token identity, retains a previously known organization on omission, and rejects explicit conflicts. Existing composite identity strings remain valid. Explicit removal retains the exact app-owned credential in memory and restores it when subsequent configuration persistence fails; restoration failure is reported rather than ignored.
+
+The final 24-file source digest is:
+
+```text
+c9610f169d863d86d8121db14fe4b234bc5be7df6a4bbdc6ac7e054afc51c0ac
+```
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test --filter ClaudeOAuthTests` | Passed: 12 tests, zero failures; build 8.06 seconds. |
+| `swift test` | Passed: 33 tests, zero failures, comprising 13 XCTest and 20 Swift Testing tests; cached build 1.23 seconds. |
+| `swift build -c release` | Passed; 23.42 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build 1.23 seconds. |
+| Packaged plist lint, deep strict signature verification, executable architecture, and `git diff --check` | Passed; app and helper remain local ad hoc signed arm64 binaries. |
+
+Two additional fixtures exercise initial account-only identity and successful owned renewal with optional organization data, retained known organization, explicit account/organization conflicts, restoration of the exact grant after failed configuration persistence, and successful subsequent account removal. Renewal and removal failure handling remain fixture evidence; the real account was not removed or reconnected for these checks.
+
+The packaged executable SHA-256 is `16197873a2e73f2e3a968d568de17307509e45f3e6c54aea316c16d4b7ddab34`. The normal `--show-panel` app was relaunched. Sanitized persistence checks confirmed one unchanged profile, available state, and an observation less than five minutes old. No additional native automation claim or live organization-omission/renewal claim is made for this final parser and persistence correction.

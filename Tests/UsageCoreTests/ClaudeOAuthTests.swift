@@ -174,6 +174,60 @@ import Testing
     #expect(await fixture.transport.requests.count == requestCount)
 }
 
+@Test func optionalClaudeOrganizationPreservesKnownIdentityThroughSuccessfulRenewal() async throws {
+    let accountOnlyProfile = ClaudeHTTPResponse(status: 200, contentType: "application/json",
+        body: Data(#"{"account":{"uuid":"AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA","email":"example@example.com"}}"#.utf8))
+    let renewedToken = ClaudeHTTPResponse(status: 200, contentType: "application/json",
+        body: Data(#"{"access_token":"renewed-access","refresh_token":"renewed-refresh","expires_in":3600}"#.utf8))
+    for initialProfile in [accountOnlyProfile, profileResponse] {
+        let fixture = try OAuthFixture(steps: [.response(tokenResponse), .response(initialProfile), .response(accountOnlyProfile), .response(usageResponse),
+                                             .response(renewedToken), .response(accountOnlyProfile), .response(accountOnlyProfile), .response(usageResponse)])
+        defer { fixture.removeDirectory() }
+        let profile = try await fixture.connect()
+        let saved = try fixture.credentials.read(accountID: profile.id, allowInteraction: false)
+        let credentials = try #require(saved)
+        try fixture.credentials.save(ClaudeCredentials(accessToken: credentials.accessToken, refreshToken: credentials.refreshToken,
+                                                       expiresAt: .distantPast, identity: credentials.identity), accountID: profile.id, allowInteraction: false)
+        let snapshot = await fixture.service.refreshAccount(id: profile.id)
+        #expect(snapshot.state == .available)
+        let renewed = try fixture.credentials.read(accountID: profile.id, allowInteraction: false)
+        #expect(renewed?.accessToken == "renewed-access")
+        #expect(renewed?.refreshToken == "renewed-refresh")
+        #expect(renewed?.refreshPending == false)
+        #expect(renewed?.identity == profile.providerAccountID)
+        #expect(profile.providerAccountID?.contains("/") == (initialProfile.body == profileResponse.body))
+    }
+    let known = try JSONDecoder().decode(ClaudeProviderProfile.self, from: profileResponse.body)
+    let accountOnly = try JSONDecoder().decode(ClaudeProviderProfile.self, from: accountOnlyProfile.body)
+    let identity = try known.resolvedIdentity()
+    #expect(try accountOnly.resolvedIdentity(expected: identity) == identity)
+    let wrongAccount = try JSONDecoder().decode(ClaudeProviderProfile.self, from: otherProfileResponse.body)
+    #expect(throws: UsageError.self) { try wrongAccount.resolvedIdentity(expected: identity) }
+    #expect(throws: UsageError.self) { try accountOnly.resolvedIdentity(expected: identity, tokenOrganization: UUID(uuidString: "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC")!) }
+    #expect(throws: UsageError.self) { try known.resolvedIdentity(tokenAccount: UUID(uuidString: "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC")!) }
+    #expect(try accountOnly.resolvedIdentity(tokenAccount: known.account.uuid, tokenOrganization: known.organization?.uuid) == identity)
+}
+
+@Test func failedClaudeAccountRemovalRestoresItsExactOwnedGrant() async throws {
+    let fixture = try OAuthFixture(steps: [.response(tokenResponse), .response(profileResponse), .response(profileResponse), .response(usageResponse)])
+    defer { fixture.removeDirectory() }
+    let profile = try await fixture.connect()
+    let credentials = try fixture.credentials.read(accountID: profile.id, allowInteraction: false)
+    let accountsURL = fixture.directory.appendingPathComponent("accounts.json")
+    let original = try Data(contentsOf: accountsURL)
+    try FileManager.default.removeItem(at: accountsURL)
+    try FileManager.default.createDirectory(at: accountsURL, withIntermediateDirectories: false)
+    await #expect(throws: UsageError.self) { try await fixture.service.removeAccount(id: profile.id) }
+    #expect(try await fixture.service.load() == [profile])
+    #expect(try fixture.credentials.read(accountID: profile.id, allowInteraction: false) == credentials)
+    #expect(await fixture.service.snapshot(for: profile.id)?.state == .available)
+    try FileManager.default.removeItem(at: accountsURL)
+    try UsagePaths.writePrivate(original, to: accountsURL)
+    try await fixture.service.removeAccount(id: profile.id)
+    #expect(try await fixture.service.load().isEmpty)
+    #expect(fixture.credentials.count == 0)
+}
+
 @Test func removingClaudeAccountDuringUsageCheckCannotRestoreItsReading() async throws {
     let fixture = try OAuthFixture(steps: [.response(tokenResponse), .response(profileResponse), .response(profileResponse), .response(usageResponse),
                                          .response(profileResponse), .suspended(usageResponse)])

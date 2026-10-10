@@ -83,18 +83,23 @@ public actor UsageService {
         let providerProfile = try await claudeClient.profile(accessToken: token.access_token)
         try validateClaudeAuthorization(pending, requestID: requestID)
         let existing = configuration.profiles.first { $0.id == pending.profileID }
-        if configuration.profiles.contains(where: { $0.id != pending.profileID && $0.provider == .claude
-            && $0.providerAccountID == providerProfile.identity }) {
+        let identity = try providerProfile.resolvedIdentity(expected: existing?.providerAccountID,
+                                                           tokenAccount: token.account?.uuid, tokenOrganization: token.organization?.uuid)
+        let identityParts = identity.split(separator: "/")
+        if configuration.profiles.contains(where: { profile in
+            guard profile.id != pending.profileID, profile.provider == .claude,
+                  let existingIdentity = profile.providerAccountID else { return false }
+            let existingParts = existingIdentity.split(separator: "/")
+            return existingParts.first == identityParts.first
+                && (existingParts.count == 1 || identityParts.count == 1 || existingIdentity == identity)
+        }) {
             throw UsageError.invalidConfiguration("This Claude account is already listed. Select it and connect again.")
-        }
-        if let expected = existing?.providerAccountID, expected != providerProfile.identity {
-            throw UsageError.authenticationRequired("This sign-in belongs to a different Claude account or organization. Add it as a separate account.")
         }
         let profile = AccountProfile(id: pending.profileID, provider: .claude,
                                      label: existing?.label ?? pending.label ?? providerProfile.account.email ?? "Claude Account",
-                                     source: .claudeOAuth, providerAccountID: providerProfile.identity,
+                                     source: .claudeOAuth, providerAccountID: identity,
                                      providerEmail: providerProfile.account.email)
-        let credentials = try token.credentials(identity: providerProfile.identity)
+        let credentials = try token.credentials(identity: identity)
         let previousCredentials = try claudeCredentials.read(accountID: profile.id, allowInteraction: true)
         try claudeCredentials.save(credentials, accountID: profile.id, allowInteraction: true)
         var updated = configuration
@@ -248,11 +253,13 @@ public actor UsageService {
         try ensureLoaded()
         generations[id, default: 0] += 1
         refreshes[id]?.cancel()
-        if configuration.profiles.first(where: { $0.id == id })?.source == .claudeOAuth {
-            try claudeCredentials.remove(accountID: id, allowInteraction: true)
-        }
+        let ownsClaudeCredentials = configuration.profiles.first(where: { $0.id == id })?.source == .claudeOAuth
+        let savedCredentials = ownsClaudeCredentials ? try claudeCredentials.read(accountID: id, allowInteraction: true) : nil
         if let installation = configuration.captureInstallations[id.uuidString] {
             try ClaudeCaptureInstallation.remove(installation)
+        }
+        if ownsClaudeCredentials {
+            try claudeCredentials.remove(accountID: id, allowInteraction: true)
         }
         var updated = configuration
         updated.profiles.removeAll { $0.id == id }
@@ -261,7 +268,16 @@ public actor UsageService {
         updated.captureInstallations.removeValue(forKey: id.uuidString)
         updated.consoleConnections.removeValue(forKey: id.uuidString)
         updated.consoleObservations.removeValue(forKey: id.uuidString)
-        try storage.save(updated)
+        do { try storage.save(updated) }
+        catch {
+            if let savedCredentials {
+                do { try claudeCredentials.save(savedCredentials, accountID: id, allowInteraction: true) }
+                catch {
+                    throw UsageError.authenticationRequired("The account was not removed, but its sign-in could not be restored. Reconnect this account.")
+                }
+            }
+            throw UsageError.providerFailure("The account could not be removed. Its saved profile is unchanged.")
+        }
         configuration = updated
         try? FileManager.default.removeItem(at: UsagePaths.captureURL(profileID: id, directory: storage.directory))
         // Codex homes and their CLI-owned Keychain entries are retained. Removing a row must not revoke a login.
@@ -442,20 +458,17 @@ public actor UsageService {
             do {
                 let token = try await claudeClient.refresh(refreshToken)
                 credentials = try token.credentials(identity: pendingCredentials.identity, previousRefreshToken: refreshToken)
-                let identity = try await claudeClient.profile(accessToken: credentials.accessToken).identity
-                guard identity == profile.providerAccountID else {
-                    throw UsageError.authenticationRequired("Claude sign-in now belongs to another account. Connect the original account again.")
-                }
+                let providerProfile = try await claudeClient.profile(accessToken: credentials.accessToken)
+                _ = try providerProfile.resolvedIdentity(expected: profile.providerAccountID,
+                                                       tokenAccount: token.account?.uuid, tokenOrganization: token.organization?.uuid)
                 try validateClaudeCredentials(pendingCredentials, profileID: profile.id, generation: generation)
                 try claudeCredentials.save(credentials, accountID: profile.id, allowInteraction: false)
             } catch {
                 throw UsageError.authenticationRequired("Claude sign-in renewal could not be confirmed. Connect this account again.")
             }
         }
-        let identity = try await claudeClient.profile(accessToken: credentials.accessToken).identity
-        guard identity == profile.providerAccountID else {
-            throw UsageError.authenticationRequired("Claude returned a different account or organization. Connect the original account again.")
-        }
+        let providerProfile = try await claudeClient.profile(accessToken: credentials.accessToken)
+        _ = try providerProfile.resolvedIdentity(expected: profile.providerAccountID)
         let usage = try await claudeClient.usage(accessToken: credentials.accessToken)
         try validateClaudeCredentials(credentials, profileID: profile.id, generation: generation)
         return try usage.snapshot(profileID: profile.id)

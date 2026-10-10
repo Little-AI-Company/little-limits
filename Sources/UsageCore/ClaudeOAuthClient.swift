@@ -197,8 +197,29 @@ struct ClaudeProviderProfile: Decodable, Sendable {
     }
     struct Organization: Decodable, Sendable { let uuid: UUID }
     let account: Account
-    let organization: Organization
-    var identity: String { account.uuid.uuidString + "/" + organization.uuid.uuidString }
+    let organization: Organization?
+
+    func resolvedIdentity(expected: String? = nil, tokenAccount: UUID? = nil, tokenOrganization: UUID? = nil) throws -> String {
+        guard tokenAccount == nil || tokenAccount == account.uuid,
+              organization == nil || tokenOrganization == nil || organization?.uuid == tokenOrganization else {
+            throw UsageError.authenticationRequired("Claude returned conflicting account or organization details. Connect the intended account again.")
+        }
+        let reportedOrganization = organization?.uuid ?? tokenOrganization
+        if let expected {
+            let parts = expected.split(separator: "/", omittingEmptySubsequences: false)
+            guard (1...2).contains(parts.count), UUID(uuidString: String(parts[0])) == account.uuid,
+                  parts.count == 1 || UUID(uuidString: String(parts[1])) != nil else {
+                throw UsageError.authenticationRequired("This sign-in belongs to a different Claude account. Add it as a separate account.")
+            }
+            if parts.count == 2, let reportedOrganization,
+               UUID(uuidString: String(parts[1])) != reportedOrganization {
+                throw UsageError.authenticationRequired("This sign-in belongs to a different Claude organization. Add it as a separate account.")
+            }
+            // An omitted organization cannot erase a known binding; account-only bindings remain valid.
+            return expected
+        }
+        return account.uuid.uuidString + (reportedOrganization.map { "/" + $0.uuidString } ?? "")
+    }
 }
 
 struct ClaudeTokenResponse: Decodable, Sendable {
@@ -207,6 +228,8 @@ struct ClaudeTokenResponse: Decodable, Sendable {
     let expires_in: Double
     let scope: String?
     let token_type: String?
+    let account: ClaudeProviderProfile.Account?
+    let organization: ClaudeProviderProfile.Organization?
 
     func credentials(identity: String, previousRefreshToken: String? = nil, now: Date = Date()) throws -> ClaudeCredentials {
         guard !access_token.isEmpty, expires_in.isFinite, expires_in > 0,
