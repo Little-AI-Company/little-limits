@@ -131,3 +131,48 @@ Tests should cover meaningful contracts. Redacted fixtures do not establish live
 - The experimental Claude Console connection reads private browser-facing billing endpoints. Typed parser tests do not establish live availability, successful sign-in, correct account membership, or a stable provider contract.
 - Claude accounts use separate existing configuration directories. Codex profiles use separate app-owned `CODEX_HOME` directories; changing the default CLI login is outside monitoring scope.
 - Local ad hoc packaging is available. Public signing, notarization, release hosting, and updates are not configured.
+
+## Native first-run menu, October 10, 2026
+
+Tested baseline `729ce41` plus the uncommitted working diff on `fix/native-first-run-menu`. The source snapshot uses the digest method above and covers 21 files, including `Package.swift` and 20 Swift files:
+
+```text
+d16747cea5eb21c0fd8743eed582bc604966bbc796725841c44bc06386779fb8
+```
+
+| Command | Observed result |
+| --- | --- |
+| `swift test` | Passed: 21 tests, zero failures. |
+| `swift build -c release` | Passed; Release build completed in 9.04 seconds. |
+| `scripts/package_app.sh` | Passed after the validation-only menu anchor change. Produced the local app and ZIP. |
+| `plutil -lint "dist/AI Usage Stats.app/Contents/Info.plist"` | Passed. |
+| `codesign --verify --deep --strict --verbose=2 "dist/AI Usage Stats.app"` | Passed on the packaged app and helper. Local ad hoc signing remains unchanged. |
+
+The [old actual popover](../assets/design/flyout-before.png) reproduced the first-run presentation problem. The revised empty-account path uses a native menu containing Add Claude Account…, Add Codex Account…, Accounts…, Settings…, and Quit AI Usage Stats. It has no Refresh, generic Actions item, banner, technical paragraph, or footer.
+
+The same real `NSMenu` was checked in an explicitly labelled [validation host](../assets/design/flyout-menu-validation.png), because the computer-use tool could not inspect the menu-only accessory app. Arrow Down selected Claude and then Codex; Return opened the Codex dialog. Pointer selection of Claude opened the Claude dialog. Cancel left the account list empty without authentication. This validates the menu component and command routing, not ordinary status-item pointer anchoring or an ordinary first-run menu screenshot.
+
+A disposable local Claude configuration with `settings.json` containing `{}` was added solely to check the configured state. The normal `--show-panel` path produced a real [populated popover](../assets/design/flyout-configured-validation.png) with direct Refresh, Accounts, Settings, and Quit controls and no app-title banner or glass command group. The test profile was removed through the app; the account table became empty, and its temporary settings were verified restored to `{}`. User credentials and provider authentication were unchanged.
+
+The fresh [usage overview](../assets/screenshots/usage-overview.png) was captured from the actual populated native popover. It shows both fictional demo accounts' quota, credit, and reset-expiry readings, the direct controls, and a Demo footer. The previous [menu-bar capture](../assets/screenshots/menu-bar.png) remains available as historical evidence.
+
+Live sign-in, real provider balances, VoiceOver, and ordinary empty-menu pointer anchoring remain unverified. These native observations preceded the final local delivery checks below.
+
+### Local delivery checks
+
+Verified October 10, 2026 on Apple silicon with macOS 27.0.1 (26A434). The source digest remained `d16747cea5eb21c0fd8743eed582bc604966bbc796725841c44bc06386779fb8` through these checks. Upstream `main` remained at `729ce416334cb3c083573037ca90935f48e66a91`; no source rebase was needed.
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test` | Passed: 21 tests, zero failures, comprising 13 XCTest and 8 Swift Testing tests. Debug build completed in 1.13 seconds. |
+| `swift build -c release` | Passed; Release build completed in 4.79 seconds after waiting for the test build's SwiftPM lock. |
+| `scripts/package_app.sh` | Passed; cached Release build completed in 0.30 seconds. Replaced the local app and ZIP. |
+| `plutil -lint "dist/AI Usage Stats.app/Contents/Info.plist"` and `plutil -p` | Passed. Version 0.1.0/build 1, bundle ID `com.parkerrex.ai-usage-stats`, macOS minimum 14.0, and `LSUIElement = true` retained. |
+| `codesign --verify --deep --strict --verbose=2 "dist/AI Usage Stats.app"` and `codesign -d --verbose=2` | Passed on the moved bundle and helper; ad hoc signature, no TeamIdentifier. |
+| `lipo -archs "dist/AI Usage Stats.app/Contents/MacOS/AIUsageStats"` and `lipo -archs "dist/AI Usage Stats.app/Contents/MacOS/UsageCapture"` | Both report `arm64`. App icon and license are present in the bundle. |
+| `open -n "dist/AI Usage Stats.app"` | Passed after quitting the previous development instance. The replaced workspace bundle launched normally without validation or demo flags. No separate installed copy was found. |
+| `git diff --check` and review of all changed text and four new screenshots | Passed. Screenshots contain fictional demo data or a disposable local account with no credentials. |
+
+Local delivery ZIP SHA-256: `8f780d75051fee77183d646136715f683de98de6fb197517422ec96ec7e5d394`.
+
+The submitted commit is recorded in the pull request test plan. The checks above establish local arm64 packaging and launch; they add no new provider, VoiceOver, older-macOS, Intel, Developer ID, notarization, or public-release evidence.
