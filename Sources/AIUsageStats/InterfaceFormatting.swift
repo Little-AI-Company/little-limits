@@ -3,8 +3,16 @@ import UsageCore
 
 enum InterfaceFormatting {
     static func remaining(_ window: UsageWindow) -> String {
+        if window.isActive == false { return "Inactive" }
         guard let used = window.utilizationPercent, used.isFinite else { return "Unavailable" }
         return "\(Int((100 - min(100, max(0, used))).rounded()))% remaining"
+    }
+
+    static func reset(_ window: UsageWindow, now: Date = Date()) -> String {
+        if window.isActive == false {
+            return window.resetsAt.map { "Provider reported reset: \(exactDate($0))" } ?? "Provider reset time unavailable"
+        }
+        return reset(window.resetsAt, now: now)
     }
 
     static func reset(_ date: Date?, now: Date = Date()) -> String {

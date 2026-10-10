@@ -150,11 +150,11 @@ final class AccountSectionView: NSStackView {
             guard let row = quotaViews[window.id] else { continue }
             row.title.stringValue = window.title
             row.value.stringValue = InterfaceFormatting.remaining(window)
-            row.timing.stringValue = InterfaceFormatting.compactReset(window.resetsAt, now: now)
-            row.toolTip = "\(window.title): \(InterfaceFormatting.remaining(window)). \(InterfaceFormatting.reset(window.resetsAt, now: now))"
+            row.timing.stringValue = window.isActive == false ? "Not current" : InterfaceFormatting.compactReset(window.resetsAt, now: now)
+            row.toolTip = "\(window.title): \(InterfaceFormatting.remaining(window)). \(InterfaceFormatting.reset(window, now: now))"
             row.setAccessibilityLabel(row.toolTip)
             row.title.toolTip = window.title
-            row.timing.setAccessibilityLabel(InterfaceFormatting.reset(window.resetsAt, now: now))
+            row.timing.setAccessibilityLabel(InterfaceFormatting.reset(window, now: now))
         }
         for credit in credits {
             guard let row = creditViews[credit.id] else { continue }
@@ -242,7 +242,7 @@ final class AccountSectionView: NSStackView {
                 lines.append("\(profile.provider == .claude ? "Captured" : "Fetched") \(InterfaceFormatting.exactDate(date))\(isStale(snapshot, now: now) ? " · Stale" : "")")
             } else { lines.append("No quota reading yet.") }
             for window in snapshot.windows {
-                lines.append("\(window.title): \(InterfaceFormatting.reset(window.resetsAt, now: now))")
+                lines.append("\(window.title): \(window.isActive == false ? "Inactive. " : "")\(InterfaceFormatting.reset(window, now: now))")
             }
             for credit in snapshot.credits {
                 var line = "\(credit.title): \(InterfaceFormatting.credit(credit))"
@@ -265,7 +265,7 @@ final class AccountSectionView: NSStackView {
     private func isStale(_ snapshot: AccountSnapshot, now: Date) -> Bool {
         snapshot.state == .stale || snapshot.state == .authenticationRequired
             || snapshot.fetchedAt.map { now.timeIntervalSince($0) >= 300 } == true
-            || snapshot.windows.contains { $0.resetsAt.map { $0 <= now } == true }
+            || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
     }
 
     private func updateDisclosure() {

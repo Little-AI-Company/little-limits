@@ -442,7 +442,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         }
         if let snapshot {
             for window in snapshot.windows {
-                description.append("\(window.title): \(InterfaceFormatting.remaining(window)). \(InterfaceFormatting.reset(window.resetsAt)).")
+                description.append("\(window.title): \(InterfaceFormatting.remaining(window)). \(InterfaceFormatting.reset(window)).")
             }
             if let date = snapshot.fetchedAt { description.append("Last reading: \(InterfaceFormatting.exactDate(date)).") }
             else { description.append("Last reading: unavailable.") }

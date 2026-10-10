@@ -16,7 +16,9 @@ Claude subscription connections use a separate browser OAuth grant for each app 
 
 Bind the grant to the provider account UUID and organization UUID, independently of the editable account name. Keep refresh requests, credential storage, and readings separate for each profile. Never rotate another application's refresh token, replace its login, or change its settings as a monitoring side effect.
 
-Existing Claude Code status-line capture profiles remain supported. Capture belongs to the selected configuration directory; the helper preserves the previous command and stores quota fields rather than conversation data. Reconnecting a capture profile to the browser flow preserves its app profile identity and name. A capture profile still needs an actual status-line observation before it has usage data.
+Existing Claude Code status-line capture profiles remain supported. Capture belongs to the selected configuration directory; the helper preserves the previous command and stores quota fields rather than conversation data. Reconnecting a capture profile to the browser flow preserves its app profile identity and name, then retires only its unchanged capture wrapper after saving the new connection. Preserve user edits and retain restoration metadata when cleanup cannot finish. A capture profile still needs an actual status-line observation before it has usage data.
+
+Retain provider-reported inactive quotas as non-current data. Label them inactive and exclude them from current percentages, measured-reading state, and quota-reset freshness decisions. Missing activity flags retain their existing current behavior.
 
 Codex subscription readings come from the installed Codex CLI's app-server interface. The app creates a separate `CODEX_HOME` for each account and supplies a login command for that directory. Credentials remain under the Codex CLI's authentication ownership. Monitoring must not copy refresh credentials or replace the default CLI account.
 

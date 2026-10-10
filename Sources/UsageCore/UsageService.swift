@@ -19,6 +19,7 @@ public actor UsageService {
     }
     private var claudeAuthorizations: [UUID: PendingClaudeAuthorization] = [:]
     private var completingClaudeAuthorizations: Set<UUID> = []
+    private var claudeCaptureCleanupMessages: [UUID: String] = [:]
     private let freshnessInterval: TimeInterval = 300
 
     public init(directory: URL = UsagePaths.applicationSupport, captureHelperURL: URL? = nil,
@@ -108,6 +109,7 @@ public actor UsageService {
             throw UsageError.providerFailure("Claude sign-in completed, but the account could not be saved. Connect again.")
         }
         configuration = updated
+        retireClaudeCapture(accountID: profile.id)
         refreshes[profile.id]?.cancel()
         refreshes.removeValue(forKey: profile.id)
         refreshIdentifiers.removeValue(forKey: profile.id)
@@ -130,7 +132,30 @@ public actor UsageService {
 
     public func load() throws -> [AccountProfile] {
         try ensureLoaded()
+        for profile in configuration.profiles where profile.source == .claudeOAuth {
+            retireClaudeCapture(accountID: profile.id)
+        }
         return configuration.profiles
+    }
+
+    private func retireClaudeCapture(accountID: UUID) {
+        guard let installation = configuration.captureInstallations[accountID.uuidString] else {
+            claudeCaptureCleanupMessages[accountID] = nil
+            return
+        }
+        do {
+            guard try ClaudeCaptureInstallation.retire(installation) else {
+                claudeCaptureCleanupMessages[accountID] = "The old Claude Code connection's settings changed, so its command was preserved. Remove that old command in Claude Code settings; your browser connection is saved."
+                return
+            }
+            var updated = configuration
+            updated.captureInstallations.removeValue(forKey: accountID.uuidString)
+            try storage.save(updated)
+            configuration = updated
+            claudeCaptureCleanupMessages[accountID] = nil
+        } catch {
+            claudeCaptureCleanupMessages[accountID] = "Could not finish removing the old Claude Code connection. Your browser connection is saved. Reopen AI Usage Stats to retry."
+        }
     }
 
     public func snapshot(for accountID: UUID) -> AccountSnapshot? {
@@ -143,7 +168,7 @@ public actor UsageService {
                                   : "Reconnect this account in your browser to read usage immediately.")
                                : "Sign in to this Codex profile, then refresh.")
         let stale = saved.state == .available && (saved.fetchedAt.map { Date().timeIntervalSince($0) > freshnessInterval } == true
-                                                 || saved.windows.contains { $0.resetsAt.map { $0 <= Date() } == true })
+                                                 || saved.currentWindows.contains { $0.resetsAt.map { $0 <= Date() } == true })
         return decorate(saved, state: stale ? .stale : saved.state,
                         detail: stale ? "Saved usage is old or a reported reset has passed. Refresh to check again." : saved.detail)
     }
@@ -351,11 +376,12 @@ public actor UsageService {
                 guard capture.profileID == profile.id else {
                     throw UsageError.providerFailure("The captured usage belongs to another profile.")
                 }
+                let currentWindows = capture.windows.filter { $0.isActive != false }
                 let stale = Date().timeIntervalSince(capture.observedAt) > freshnessInterval
-                    || capture.windows.contains { $0.resetsAt.map { $0 <= Date() } == true }
+                    || currentWindows.contains { $0.resetsAt.map { $0 <= Date() } == true }
                 observed = AccountSnapshot(profileID: profile.id, fetchedAt: capture.observedAt,
-                                           windows: capture.windows, state: capture.windows.isEmpty ? .unavailable : stale ? .stale : .available,
-                                           detail: capture.windows.isEmpty
+                                           windows: capture.windows, state: currentWindows.isEmpty ? .unavailable : stale ? .stale : .available,
+                                           detail: currentWindows.isEmpty
                                            ? "Claude has not supplied quota data. Status-line quotas require an eligible subscription and a Claude response."
                                            : "Current login in this Claude configuration directory. Timestamp records the last quota change, not a live refresh.")
             } else {
@@ -460,8 +486,9 @@ public actor UsageService {
             credits.removeAll { $0.id == credit.id }
             credits.append(credit)
         }
+        let details = [detail, claudeCaptureCleanupMessages[snapshot.profileID]].compactMap { $0 }.joined(separator: "\n")
         return AccountSnapshot(profileID: snapshot.profileID, fetchedAt: snapshot.fetchedAt, windows: snapshot.windows,
-                               credits: credits, state: state, detail: detail)
+                               credits: credits, state: state, detail: details.isEmpty ? nil : details)
     }
 
     public static var unavailableAPICredits: [CreditBalance] {

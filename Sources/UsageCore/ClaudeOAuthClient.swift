@@ -286,7 +286,15 @@ struct ClaudeUsageResponse: Decodable, Sendable {
             if model == nil, ["five_hour", "session"].contains(limit.kind) { canonicalID = "five_hour" }
             else if model == nil, ["seven_day", "weekly", "weekly_all"].contains(limit.kind) { canonicalID = "seven_day" }
             else { canonicalID = nil }
-            if let canonicalID, result.contains(where: { $0.id == canonicalID }) { continue }
+            if let canonicalID, let index = result.firstIndex(where: { $0.id == canonicalID }) {
+                if let isActive = limit.is_active {
+                    let canonical = result[index]
+                    result[index] = UsageWindow(id: canonical.id, title: canonical.title,
+                                                utilizationPercent: canonical.utilizationPercent, resetsAt: canonical.resetsAt,
+                                                isActive: canonical.isActive == false ? false : isActive)
+                }
+                continue
+            }
             let windowTitle: String
             switch limit.kind {
             case "five_hour", "session": windowTitle = "5 hours"
@@ -297,8 +305,9 @@ struct ClaudeUsageResponse: Decodable, Sendable {
             result.append(UsageWindow(id: canonicalID ?? "limit_\(index)_\(limit.kind)", title: title,
                                       utilizationPercent: try percent(limit.percent), resetsAt: try reset(limit.resets_at), isActive: limit.is_active))
         }
-        let measured = result.contains { $0.utilizationPercent != nil }
-        let stale = result.contains { $0.resetsAt.map { $0 <= observedAt } == true }
+        let current = result.filter { $0.isActive != false }
+        let measured = current.contains { $0.utilizationPercent != nil }
+        let stale = current.contains { $0.resetsAt.map { $0 <= observedAt } == true }
         return AccountSnapshot(profileID: profileID, fetchedAt: measured ? observedAt : nil, windows: result,
                                state: measured ? (stale ? .stale : .available) : .unavailable,
                                detail: measured ? (stale ? "A reported quota reset has passed. Check usage again." : "Read from this Claude account.")

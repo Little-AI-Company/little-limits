@@ -100,4 +100,15 @@ enum ClaudeCaptureInstallation {
         }
         try UsagePaths.writePrivate(JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted, .sortedKeys]), to: url)
     }
+
+    static func retire(_ installation: CaptureInstallation) throws -> Bool {
+        try remove(installation)
+        let url = URL(fileURLWithPath: installation.configurationPath).appendingPathComponent("settings.json").resolvingSymlinksInPath()
+        guard FileManager.default.fileExists(atPath: url.path) else { return true }
+        guard let settings = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any] else {
+            throw UsageError.invalidConfiguration("Claude settings could not be checked after removing the old connection.")
+        }
+        // A changed wrapper with our command still runs the helper. Keep its restoration record.
+        return (settings["statusLine"] as? [String: Any])?["command"] as? String != installation.installedCommand
+    }
 }

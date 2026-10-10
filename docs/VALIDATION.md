@@ -224,3 +224,29 @@ Keyboard Tab reached Refresh; subsequent Tab and Space opened Accounts. These co
 The final `--show-panel` launch used normal app mode without a validation window. Native accessibility inspection identified the actual `NSPopover`, and its screenshot was visually inspected. All three corrected quota rows fit without duplicate or metadata rows. Reset countdowns were visible; a genuinely missing reset remained unknown. API credit fields remained unavailable because the separate Console connection had not been completed. No public screenshot was saved.
 
 This establishes one live account's authorization and quota read. It does not establish multiple live account bindings, automatic grant renewal, failed provider consent, a VoiceOver session, minimum-macOS runtime, Intel runtime, or live Console billing. An initial live response also exposed duplicate quota rows and a `seven_day_breakdown` metadata object displayed as an unavailable quota. The amended parser excludes metadata objects, keeps canonical quota windows when also represented in `limits`, and retains model-scoped weekly limits. The final source digest and 29-test results above include that correction.
+
+### Pull request review corrections
+
+Review of commit `ecb6b9a484a54d8ac7d36b59044363467c7b8d63` found two additional issues. Inactive provider limits were retained but still affected current percentages and reset freshness. A migrated OAuth profile also retained its obsolete status-line installation. The correction labels inactive rows as inactive, excludes them from current measurements and stale-reset decisions, and propagates activity flags from equivalent limits to canonical windows without replacing their values. It saves a valid browser grant before retiring only the migrated profile's unchanged wrapper. User replacements are preserved. Failed or incomplete cleanup retains its restoration record and reports the issue; later account loads can retry.
+
+The reviewed source, using the same 24-file digest method, is:
+
+```text
+20bd6ead7ac7e3f0f05e1e9755dc7b284a54aafb2415dd5ee9fd321b08d9a187
+```
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test --filter ClaudeOAuthTests` | Passed: 10 tests, zero failures; debug build 6.16 seconds. |
+| `swift test` | Passed: 31 tests, zero failures, comprising 13 XCTest and 18 Swift Testing tests; cached build 0.58 seconds. |
+| `swift build -c release` | Passed; 18.95 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build 0.51 seconds. |
+| Packaged plist lint, deep strict signature verification, executable architecture, and `git diff --check` | Passed; app and helper remain local ad hoc signed arm64 binaries. |
+
+The two new synthetic behavior tests cover exhausted inactive quotas with expired resets, duplicate activity flags, inactive-only responses, successful legacy command restoration, unrelated command preservation, changed wrapper fields, cleanup failures, and idempotent recovery without discarding the new grant.
+
+The final packaged executable SHA-256 is `643bd12c2afb4f1af9d8438a58e49b35b70c24fa2a82dbd4dd59a0ca5ba9888d`.
+
+Separately from fixtures, the authorized existing-profile cleanup ran on the new packaged app's first load. Hash-only checks confirmed restoration of the original status line, preservation of every non-status-line setting, removal of only the migrated profile's installation record, unchanged saved account profiles, and preservation of the shared capture helper. No saved command, settings content, credential, or account value was disclosed by those checks.
+
+Native accessibility inspection of this corrected packaged build showed the model-specific quota marked `Inactive` and `Not current`. A subsequent sanitized persisted-state check confirmed an available provider reading less than five minutes old, with one current window and two explicitly inactive windows. The current observation retained the provider's activity flags, including flags applied to canonical windows. Completing the final manual Refresh click could not be established because the native automation bridge timed out; this is recorded as an environment limit, not a completed interaction. No public account screenshot was saved.

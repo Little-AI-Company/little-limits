@@ -49,6 +49,72 @@ import Testing
     #expect(fallbackSnapshot.windows.map(\.utilizationPercent) == [0, 37, 12])
 }
 
+@Test func inactiveClaudeLimitsPreserveProviderDataWithoutChangingCurrentQuotaOrStaleness() throws {
+    let data = Data(#"{"five_hour":{"utilization":20,"resets_at":"2099-01-01T12:00:00Z"},"seven_day":{"utilization":100,"resets_at":"2000-01-01T12:00:00Z"},"limits":[{"kind":"session","percent":20,"is_active":true},{"kind":"weekly_all","percent":100,"is_active":false},{"kind":"weekly_scoped","percent":100,"is_active":false,"resets_at":"2000-01-01T12:00:00Z","scope":{"model":{"display_name":"Example"}}}]}"#.utf8)
+    let snapshot = try JSONDecoder().decode(ClaudeUsageResponse.self, from: data).snapshot(profileID: UUID())
+    #expect(snapshot.state == .available)
+    #expect(snapshot.windows.count == 3)
+    #expect(snapshot.windows.first { $0.id == "seven_day" }?.isActive == false)
+    #expect(snapshot.windows.first { $0.id == "seven_day" }?.utilizationPercent == 100)
+    #expect(snapshot.currentWindows.map(\.utilizationPercent) == [20])
+    let inactiveOnly = Data(#"{"five_hour":{"utilization":null},"limits":[{"kind":"session","percent":100,"is_active":false,"resets_at":"2000-01-01T12:00:00Z"}]}"#.utf8)
+    let unmeasured = try JSONDecoder().decode(ClaudeUsageResponse.self, from: inactiveOnly).snapshot(profileID: UUID())
+    #expect(unmeasured.state == .unavailable)
+    #expect(unmeasured.fetchedAt == nil)
+    #expect(unmeasured.currentWindows.isEmpty)
+    #expect(unmeasured.windows.first?.utilizationPercent == nil)
+}
+
+@Test func claudeMigrationRetiresOnlyItsOwnedCaptureAndPreservesEditsAndCleanupRecovery() async throws {
+    struct Settings: Codable, Equatable {
+        struct StatusLine: Codable, Equatable { let type: String; var command: String; var padding: Int? }
+        var statusLine: StatusLine
+        let theme: String
+    }
+    for variant in ["original", "replaced", "padding", "invalid"] {
+        let fixture = try OAuthFixture(steps: [.response(tokenResponse), .response(profileResponse), .response(profileResponse), .response(usageResponse)])
+        defer { fixture.removeDirectory() }
+        let helper = fixture.directory.appendingPathComponent("UsageCapture")
+        try UsagePaths.writePrivate(Data("#!/bin/sh\nexit 0\n".utf8), to: helper, permissions: 0o700)
+        let source = fixture.directory.appendingPathComponent("Claude")
+        let settingsURL = source.appendingPathComponent("settings.json")
+        let original = Settings(statusLine: .init(type: "command", command: "printf original", padding: 2), theme: "dark")
+        try UsagePaths.writePrivate(JSONEncoder().encode(original), to: settingsURL)
+        let legacy = try await fixture.service.importClaudeCLI(label: "Personal", configurationURL: source)
+        let before = try ConfigurationStorage(directory: fixture.directory).load()
+        let installation = try #require(before.captureInstallations[legacy.id.uuidString])
+        let installed = try JSONDecoder().decode(Settings.self, from: Data(contentsOf: settingsURL))
+        var edited = installed
+        if variant == "replaced" { edited.statusLine.command = "printf changed" }
+        if variant == "padding" { edited.statusLine.padding = 9 }
+        try UsagePaths.writePrivate(variant == "invalid" ? Data("{".utf8) : JSONEncoder().encode(edited), to: settingsURL)
+        let request = try await fixture.service.prepareClaudeSignIn(existingProfileID: legacy.id)
+        let profile = try await fixture.service.completeClaudeSignIn(requestID: request.id, callbackURL: callback(request))
+        #expect(profile.id == legacy.id)
+        #expect(profile.label == legacy.label)
+        #expect(profile.source == .claudeOAuth)
+        #expect(fixture.credentials.count == 1)
+        #expect(await fixture.service.snapshot(for: profile.id)?.state == .available)
+        #expect(FileManager.default.isExecutableFile(atPath: helper.path))
+        let after = try ConfigurationStorage(directory: fixture.directory).load()
+        #expect((after.captureInstallations[profile.id.uuidString] != nil) == ["padding", "invalid"].contains(variant))
+        if variant != "invalid" {
+            let restored = try JSONDecoder().decode(Settings.self, from: Data(contentsOf: settingsURL))
+            #expect(restored == (variant == "original" ? original : edited))
+        }
+        if ["padding", "invalid"].contains(variant) {
+            #expect(await fixture.service.snapshot(for: profile.id)?.detail?.contains("old Claude Code connection") == true)
+            // Repairing the saved wrapper allows idempotent maintenance to finish, without a new login.
+            let statusLine = try JSONDecoder().decode(Settings.StatusLine.self, from: installation.installedStatusLine)
+            try UsagePaths.writePrivate(JSONEncoder().encode(Settings(statusLine: statusLine, theme: "dark")), to: settingsURL)
+            _ = try await fixture.service.load()
+            #expect(try ConfigurationStorage(directory: fixture.directory).load().captureInstallations[profile.id.uuidString] == nil)
+            #expect(try JSONDecoder().decode(Settings.self, from: Data(contentsOf: settingsURL)) == original)
+            #expect(fixture.credentials.count == 1)
+        }
+    }
+}
+
 @Test func claudeConnectionBindsIdentityReadsImmediatelyAndRejectsDuplicateOrChangedAccount() async throws {
     let fixture = try OAuthFixture(steps: [.response(tokenResponse), .response(profileResponse), .response(profileResponse), .response(usageResponse),
                                          .response(tokenResponse), .response(profileResponse), .response(tokenResponse), .response(otherProfileResponse)])

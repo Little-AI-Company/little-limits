@@ -47,7 +47,7 @@ On first run, click the menu bar item and choose **Add Claude Account…** or **
 - **Codex:** choose **Add Account → Connect Codex** and complete its official CLI login. Each profile uses a separate app-owned `CODEX_HOME`. Finish one login before starting another.
 - **Manual balances:** expand **Manual balance**, select an API credit category, and enter its amount, confirmation date, and optional expiry from the billing dashboard.
 
-The experimental subscription connection stores its own OAuth grant in a separate Keychain item for each app account. It does not refresh, replace, or export your existing Claude Code credentials. If sign-in or refresh fails, the connection shows the error and a recovery action.
+The experimental subscription connection stores its own OAuth grant in a separate Keychain item for each app account. It does not refresh, replace, or export your existing Claude Code credentials. Reconnecting an older capture profile restores its previous status line when the app's wrapper is unchanged. User replacements are preserved; incomplete cleanup retains its recovery record and shows an account-specific message. If sign-in or refresh fails, the connection shows the error and a recovery action. Provider-reported inactive quotas remain visible as inactive and do not affect current usage summaries.
 
 The Console connection keeps its login in a separate persistent WebKit store for each app account. It does not export cookies into the saved account file. Disconnecting stops automatic reads while retaining the browser login for reconnecting. Removing a Codex profile removes monitoring data and leaves the CLI login intact.
 

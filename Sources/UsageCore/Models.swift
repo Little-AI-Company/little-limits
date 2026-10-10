@@ -130,6 +130,7 @@ public struct AccountSnapshot: Codable, Sendable, Equatable {
     public let credits: [CreditBalance]
     public let state: SnapshotState
     public let detail: String?
+    public var currentWindows: [UsageWindow] { windows.filter { $0.isActive != false } }
 
     public init(profileID: UUID, fetchedAt: Date? = nil, windows: [UsageWindow] = [],
                 credits: [CreditBalance] = [], state: SnapshotState, detail: String? = nil) {

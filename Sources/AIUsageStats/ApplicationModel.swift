@@ -49,7 +49,7 @@ final class ApplicationModel {
     func refreshIfNeeded() {
         guard profiles.contains(where: { profile in
             guard let snapshot = snapshots[profile.id], let date = snapshot.fetchedAt else { return true }
-            if snapshot.windows.contains(where: { $0.resetsAt.map { $0 <= Date() } == true }) { return true }
+            if snapshot.currentWindows.contains(where: { $0.resetsAt.map { $0 <= Date() } == true }) { return true }
             return Date().timeIntervalSince(date) >= 300
         }) else { return }
         refresh()
