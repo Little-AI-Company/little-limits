@@ -127,7 +127,8 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
     }
 
     private func updateControls() {
-        let connected = model.consoleConnections[profile.id] != nil
+        let connectedOrganization = model.consoleConnections[profile.id]
+        let connected = connectedOrganization != nil
         headingTitle.stringValue = connected ? "API Credits" : "Connect API Credits"
         let intendedAccount = "Claude account: \(InterfaceFormatting.accountIdentity(profile))"
         if hasDiscoveredAccount {
@@ -142,7 +143,10 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
             : "Use your separate Claude Platform sign-in below, then choose Continue."
         organizationControls.isHidden = !discovered
         organization.isEnabled = discovered && !isFetching
-        readButton.title = discovered ? (connected ? "Refresh Credits" : "Connect") : "Continue"
+        if !discovered { readButton.title = "Continue" }
+        else if let connectedOrganization {
+            readButton.title = selectedOrganizationID == connectedOrganization ? "Refresh Credits" : "Switch Organization"
+        } else { readButton.title = "Connect" }
         readButton.isEnabled = !isFetching && (!discovered || selectedOrganizationID != nil)
         reloadItem.isEnabled = !isFetching
         disconnectItem.isHidden = !connected
