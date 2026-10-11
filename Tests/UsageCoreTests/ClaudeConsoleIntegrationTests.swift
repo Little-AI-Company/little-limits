@@ -81,6 +81,28 @@ private func monthlyService(directory: URL) async throws -> (UsageService, Accou
     #expect(await service.snapshot(for: profile.id)?.credits.contains { $0.id.hasPrefix("monthly_grant_") } == false)
 }
 
+@Test func currentMonthlyInvoiceDoesNotRestorePreviousGrantWhenLinkStateFails() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AIUsageStatsMonthly-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let (service, profile) = try await monthlyService(directory: directory)
+    try await service.updateClaudeConsoleCredits(accountID: profile.id, organizationID: monthlyOrganizationID, responseData: monthlyBalance(),
+                                                expectedIdentity: nil, linkStateData: monthlyLinkState, invoicesData: monthlyInvoices, observedAt: monthlyObservedAt)
+    let refreshedAt = monthlyObservedAt.addingTimeInterval(30)
+    let currentBalance = Data(String(decoding: monthlyBalance(monthlyCents: 1700), as: UTF8.self)
+        .replacingOccurrences(of: "\"id\":\"monthly\"", with: "\"id\":\"current-monthly\"").utf8)
+    try await service.updateClaudeConsoleCredits(accountID: profile.id, organizationID: monthlyOrganizationID,
+                                                responseData: currentBalance, expectedIdentity: nil,
+                                                invoicesData: monthlyInvoices, observedAt: refreshedAt)
+    let snapshot = try #require(await service.snapshot(for: profile.id))
+    let grants = snapshot.credits.filter { $0.id.hasPrefix("monthly_grant_") }
+    #expect(grants.map(\.id) == ["monthly_grant_current-monthly"])
+    let current = try #require(grants.first)
+    #expect(current.amount == 17)
+    #expect(current.asOf == refreshedAt)
+    #expect(current.status == nil)
+    #expect(!snapshot.credits.contains { $0.id == "monthly_grant_monthly" || $0.id == "monthly_grant" })
+}
+
 @Test func genericPromotionsKeepMonthlyManualFallbackAndUnknownMonthlyState() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AIUsageStatsMonthly-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }

@@ -58,6 +58,15 @@ public actor UsageService {
         return authorization.request
     }
 
+    public func allowClaudeKeychainAccess(id: UUID) throws {
+        try ensureLoaded()
+        guard let profile = configuration.profiles.first(where: { $0.id == id && $0.provider == .claude && $0.source == .claudeOAuth }),
+              let credentials = try claudeCredentials.read(accountID: id, allowInteraction: true),
+              credentials.identity == profile.providerAccountID else {
+            throw UsageError.authenticationRequired("Claude credentials are missing or belong to another account. Connect this account again.")
+        }
+    }
+
     public func cancelClaudeSignIn(id: UUID) {
         guard let pending = claudeAuthorizations.removeValue(forKey: id) else { return }
         if generations[pending.profileID, default: 0] == pending.generation {
@@ -422,7 +431,7 @@ public actor UsageService {
         let metadataIncomplete = linkState == nil || invoices == nil
         if metadataIncomplete {
             let explanation = metadataErrors.isEmpty ? "Monthly grant details are unavailable." : metadataErrors.joined(separator: " ")
-            if let previous = configuration.consoleObservations[accountID.uuidString], previous.organizationID == connectedOrganization {
+            if invoices == nil, let previous = configuration.consoleObservations[accountID.uuidString], previous.organizationID == connectedOrganization {
                 for credit in previous.credits where credit.id.hasPrefix("monthly_grant_") && !credits.contains(where: { $0.id == credit.id }) {
                     // A cached monthly classification must not also appear as a fresh generic grant.
                     let genericID = "console_grant_" + credit.id.dropFirst("monthly_grant_".count)

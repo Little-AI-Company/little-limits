@@ -30,7 +30,7 @@ open "dist/AI Usage Stats.app"
 
 For local installation, move `dist/AI Usage Stats.app` to Applications and open that copy. Quit an older instance before launching a new build.
 
-Packaging produces an ad hoc signed app and ZIP for local use. Public downloads are not available yet, and the local build is not notarized. See [local packaging](docs/RELEASING.md) for version and architecture options.
+Packaging uses the selected existing local development identity, falling back to ad hoc signing when none is configured, and creates an app and ZIP for local use. Public downloads are not available yet, and the local build is not notarized. See [local packaging](docs/RELEASING.md) for version and architecture options.
 
 ## Connect accounts
 
@@ -42,6 +42,8 @@ Menu headings use the provider logo and verified sign-in email. When the provide
 - **Claude monthly/API credits:** select the Claude account, choose **Connect Claude Platform…**, sign in to **platform.claude.com** in the same management window, and choose the organization that holds your grant. This authentication is separate from Claude subscription sign-in at **claude.ai**. **Back to Account** returns to the same account. Monthly grants are identified by matching a specifically named monthly invoice to its promotional balance and expiry. Other promotions remain separate. If Console reports an eligible plan as **Not linked**, **Open Claude Billing** opens the official page where you can link or claim it yourself; monitoring performs no claim, plan change, or purchase.
 - **Codex:** choose **Add Account → Connect Codex** and complete its official CLI login. Each profile uses a separate app-owned `CODEX_HOME`. Finish one login before starting another.
 - **Manual balances:** expand **Manual balance**, select an API credit category, and enter its amount, confirmation date, and optional expiry from the billing dashboard.
+
+If macOS denies access to a saved subscription sign-in, open **Manage Accounts… → Connection Details… → Allow Keychain Access…**. This explicit action reads the existing credential; it does not start another sign-in or replace tokens. Background refresh does not request Keychain permission. Use a consistent local signing identity when rebuilding; changing an ad hoc build can invalidate earlier approvals.
 
 The experimental subscription connection stores its own OAuth grant in a separate Keychain item for each app account. It does not refresh, replace, or export your existing Claude Code credentials. Reconnecting an older capture profile restores its previous status line when the app's wrapper is unchanged. User replacements are preserved; incomplete cleanup retains its recovery record and shows an account-specific message. If sign-in or refresh fails, the connection shows the error and a recovery action. Provider-reported inactive quotas remain visible as inactive and do not affect current usage summaries.
 

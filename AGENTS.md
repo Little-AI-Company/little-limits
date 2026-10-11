@@ -50,7 +50,7 @@ scripts/package_app.sh
 open -n "dist/AI Usage Stats.app"
 ```
 
-These are available commands, not a requirement to run all four for every edit. Packaging builds in Release mode and signs ad hoc for local use. Launch through the packaged `.app`; a raw `swift run AIUsageStats` does not establish bundle behavior. Quit the previous development instance before comparing builds.
+These are available commands, not a requirement to run all four for every edit. Packaging builds in Release mode using the selected local signing identity, with ad hoc signing as the fallback. Launch through the packaged `.app`; a raw `swift run AIUsageStats` does not establish bundle behavior. Quit the previous development instance before comparing builds.
 
 ## Verification
 

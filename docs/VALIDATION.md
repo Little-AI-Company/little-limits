@@ -498,3 +498,23 @@ The per-profile WKWebsiteDataStore identifiers, account/organization guards, dat
 Before replacement, one bounded `sample 67082 1 1 -file /tmp/ai-usage-stats-main-thread.sample.txt` examined the prior integrated app because native automation lookup timed out. Its main thread was idle in NSApplication.run/event routing, CFRunLoopServiceMachPort, and mach_msg2_trap; no app-code blocking or hang was observed in that one-second interval. Only main-thread function names were inspected, without secret values. This supports a tool-inspection limitation and does not prove visible window layout.
 
 The observed live subscription dialog reported an account identity mismatch. That observation does not establish whether a separate Platform session was signed in elsewhere. A zero stored Console-connection count also does not establish authentication state before Read. Persistent Platform cookies were preserved during replacement so the embedded pane can reuse any existing sign-in. Live Platform credit retrieval, real monthly invoice correlation, and the new one-window keyboard/layout checks remain pending runtime review. Existing native-menu capture, older macOS, Intel, VoiceOver, and system accessibility-preference limits remain unchanged. Source/lifecycle review and builds are separate evidence from those live checks.
+
+## Quiet Keychain checks and stable local signing, October 11, 2026
+
+Tested uncommitted changes after `d255903226af40485aaba05406d1572be1915241`. Code/test SHA-256: `88db78e926fdf819141af8b96a47f4f6dfdf98d4065d5862344c153b9696ab44`; source/resource/packaging SHA-256: `1e51622389800ae76c22b1430ed16d798286812e0e7d8fe6ed382f075940e93b`; signed executable SHA-256: `4bec275dfead056499c0ca8815e37b868aa283959abfc2e206016174124d750a`. Earlier digest procedures apply.
+
+Background file-based Keychain operations suppress interaction under a shared lock and restore the prior process policy, retaining LAContext/UI-fail checks. Denied reads preserve credentials and observations. Connection Details → Allow Keychain Access… explicitly reads the existing bound credential without OAuth/provider requests or replacement, preserves drafts while busy, then permits ordinary refresh. Fresh invoices also prevent recovery of an obsolete cached monthly grant when only link-state fails. That fixture's competing baseline run was canceled before execution; no baseline failure is claimed.
+
+| Command/check | Observed result |
+| --- | --- |
+| `swift test` | 49 passed, zero failures: 21 XCTest plus 28 Swift Testing; build 104.92 seconds. |
+| `swift build -c release` | Passed, 373.53 seconds; four unsuppressed deprecation diagnostics for retained legacy Keychain UI-policy/UI-fail APIs. |
+| Canonical script with selected existing personal Apple Development identity | First bounded signing attempt passed; cached build 6.78 seconds. Public identity identifier remains only in ignored .local-signing-identity. No security workaround, ACL/trust/partition change, or certificate creation. |
+| `plutil -lint`, `codesign --verify --deep --strict --verbose=2`, resource/byte comparison | Passed on temporary/canonical apps; helper and all six provider assets/notices included. Canonical app/ZIP match tested artifacts. Both executables are arm64. |
+| Designated requirement and unlaunched resource-modified copy | Certificate plus bundle identifier; changed code hash with identical requirement and valid signature. Requirement SHA-256: `f744c98a159127b3cd4f458eb9851f19347e37cd31d7f5f516d8ebf18c8027d0`. Copy never launched. |
+| `open -n "dist/AI Usage Stats.app" --args --show-accounts` | One normal signed launch; sole PID 74082. Tools did not invoke explicit recovery or query production credentials. |
+| `git diff --check` | Passed. |
+
+The user confirmed no automatic Keychain dialog appeared after this restart. CUA app lookup still timed out around 6.5 seconds, so repeated Check Usage, explicit permission recovery, keyboard/draft UI behavior, and live Platform monthly retrieval remain unverified through automation. Profiles, credentials, and browser sessions were retained.
+
+Development signing is neither Developer ID distribution trust nor notarization. A change from ad hoc identity can require one explicit permission for existing items; the copy test does not establish real ACL acceptance across future certificates/builds. Deprecated APIs, older macOS/Intel execution, and broader runtime no-prompt behavior remain limitations.

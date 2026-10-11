@@ -7,6 +7,11 @@ output_directory="${OUTPUT_DIRECTORY:-$repository_directory/dist}"
 version="${VERSION:-$(plutil -extract CFBundleShortVersionString raw Resources/Info.plist)}"
 build_number="${BUILD_NUMBER:-$(plutil -extract CFBundleVersion raw Resources/Info.plist)}"
 universal="${UNIVERSAL:-0}"
+signing_identity="${CODE_SIGN_IDENTITY:-}"
+if [[ -z "$signing_identity" && -f .local-signing-identity ]]; then
+    IFS= read -r signing_identity < .local-signing-identity || [[ -n "$signing_identity" ]]
+fi
+signing_identity="${signing_identity:--}"
 
 if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || ! "$build_number" =~ ^[1-9][0-9]*$ ]]; then
     printf 'VERSION must contain three numeric components; BUILD_NUMBER must be a positive integer.\n' >&2
@@ -41,8 +46,8 @@ cp -R "$binary_directory/AIUsageStats_AIUsageStats.bundle" "$application/Content
 plutil -replace CFBundleShortVersionString -string "$version" "$application/Contents/Info.plist"
 plutil -replace CFBundleVersion -string "$build_number" "$application/Contents/Info.plist"
 plutil -lint "$application/Contents/Info.plist"
-codesign --force --sign - --timestamp=none "$application/Contents/MacOS/UsageCapture"
-codesign --force --sign - --timestamp=none "$application"
+codesign --force --sign "$signing_identity" --timestamp=none "$application/Contents/MacOS/UsageCapture"
+codesign --force --sign "$signing_identity" --timestamp=none "$application"
 codesign --verify --deep --strict --verbose=2 "$application"
 
 destination="$output_directory/AI Usage Stats.app"
@@ -54,3 +59,6 @@ archive="$output_directory/AI-Usage-Stats-$version.zip"
 ditto -c -k --keepParent "$destination" "$archive"
 printf 'Packaged %s\nArchive: %s\n' "$destination" "$archive"
 printf 'Local development build only. This archive is not a notarized public release.\n'
+if [[ "$signing_identity" == - ]]; then
+    printf 'Ad hoc signing changes Keychain identity when code changes. Set CODE_SIGN_IDENTITY or .local-signing-identity for stable local access.\n'
+fi

@@ -186,6 +186,30 @@ import Testing
     #expect(await fixture.transport.requests.count == requestCount)
 }
 
+@Test func deniedBackgroundKeychainAccessPreservesSignInUntilExplicitPermissionRecovery() async throws {
+    let fixture = try OAuthFixture(steps: [.response(tokenResponse), .response(profileResponse), .response(profileResponse), .response(usageResponse),
+                                         .response(profileResponse), .response(usageResponse)])
+    defer { fixture.removeDirectory() }
+    let profile = try await fixture.connect()
+    let original = try fixture.credentials.read(accountID: profile.id, allowInteraction: false)
+    fixture.credentials.requireReadPermission()
+    let requestCount = await fixture.transport.requests.count
+    let denied = await fixture.service.refreshAccount(id: profile.id)
+    #expect(denied.state == .authenticationRequired)
+    #expect(denied.windows.first?.utilizationPercent == 42)
+    #expect(await fixture.transport.requests.count == requestCount)
+    #expect(fixture.credentials.count == 1)
+
+    try await fixture.service.allowClaudeKeychainAccess(id: profile.id)
+    #expect(await fixture.transport.requests.count == requestCount)
+    #expect(try fixture.credentials.read(accountID: profile.id, allowInteraction: false) == original)
+    let recovered = await fixture.service.refreshAccount(id: profile.id)
+    #expect(recovered.state == .available)
+    #expect(recovered.windows.first?.utilizationPercent == 42)
+    #expect(try fixture.credentials.read(accountID: profile.id, allowInteraction: false) == original)
+    await #expect(throws: UsageError.self) { try await fixture.service.allowClaudeKeychainAccess(id: UUID()) }
+}
+
 @Test func optionalClaudeOrganizationPreservesKnownIdentityThroughSuccessfulRenewal() async throws {
     let accountOnlyProfile = ClaudeHTTPResponse(status: 200, contentType: "application/json",
         body: Data(#"{"account":{"uuid":"AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA","email":"example@example.com"}}"#.utf8))
@@ -420,8 +444,18 @@ private final class MemoryClaudeCredentials: ClaudeCredentialStore, @unchecked S
     private let lock = NSLock()
     private var values: [UUID: ClaudeCredentials] = [:]
     private var removalFailures = 0
+    private var readPermissionRequired = false
     var count: Int { lock.withLock { values.count } }
-    func read(accountID: UUID, allowInteraction: Bool) throws -> ClaudeCredentials? { lock.withLock { values[accountID] } }
+    func requireReadPermission() { lock.withLock { readPermissionRequired = true } }
+    func read(accountID: UUID, allowInteraction: Bool) throws -> ClaudeCredentials? {
+        try lock.withLock {
+            if readPermissionRequired {
+                guard allowInteraction else { throw UsageError.authenticationRequired("Fixture Keychain access requires permission.") }
+                readPermissionRequired = false
+            }
+            return values[accountID]
+        }
+    }
     func save(_ credentials: ClaudeCredentials, accountID: UUID, allowInteraction: Bool) throws { lock.withLock { values[accountID] = credentials } }
     func failNextRemoval() { lock.withLock { removalFailures += 1 } }
     func remove(accountID: UUID, allowInteraction: Bool) throws {

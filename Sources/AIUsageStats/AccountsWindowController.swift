@@ -286,6 +286,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         saveNameButton.isEnabled = available && selectedID != nil
         removeButton.isEnabled = available && selectedID != nil
         status.stringValue = model.isDemo ? "Demo accounts cannot be changed."
+            : model.isAllowingKeychainAccess ? "Allowing Keychain access…"
             : model.isSigningInClaude ? "Claude sign-in is in progress."
             : model.isChangingAccounts ? "Updating account…" : ""
         status.isHidden = status.stringValue.isEmpty
@@ -560,7 +561,11 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             case .available: description.append("Connected. Usage is available.")
             case .unavailable: description.append("Usage unavailable.")
             case .stale: description.append("The last reading is out of date.")
-            case .authenticationRequired: description.append("Sign-in required. Reconnect to restore usage readings.")
+            case .authenticationRequired:
+                description.append("Subscription usage needs access or sign-in.")
+                if profile.source == .claudeOAuth {
+                    description.append("If Keychain permission was denied, open Connection Details → Allow Keychain Access… to use the saved sign-in. Reconnect Subscription only when a new sign-in is needed.")
+                }
             }
             if let detail = snapshot.detail, !detail.isEmpty { description.append(detail) }
         } else {
@@ -614,7 +619,16 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         if let message = model.consoleMessages[id] { details.append("API billing: \(message)") }
         alert.informativeText = details.joined(separator: "\n\n")
         alert.addButton(withTitle: "Done")
-        if let window { alert.beginSheetModal(for: window) }
+        let canAllowKeychain = profile.source == .claudeOAuth && !model.isDemo && !model.isChangingAccounts && !model.isRefreshing
+        if canAllowKeychain {
+            alert.addButton(withTitle: "Allow Keychain Access…")
+            alert.informativeText += "\n\nAllow Keychain Access reads this account’s existing saved subscription credential. It may show one macOS permission dialog. It does not start sign-in or replace credentials."
+        }
+        if let window {
+            alert.beginSheetModal(for: window) { [weak self] response in
+                if canAllowKeychain, response == .alertSecondButtonReturn { self?.model.allowKeychainAccess(id) }
+            }
+        }
     }
 
     @objc private func connectClaude(_ sender: Any?) { connect(.claude) }
