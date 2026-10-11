@@ -36,12 +36,12 @@ enum UsageMenu {
             let snapshot = snapshots[profile.id]
             let provider = InterfaceFormatting.provider(profile.provider)
             let email = InterfaceFormatting.accountEmail(profile)
-            let identity = email == "Email unavailable" ? profile.label : email
+            let identity = InterfaceFormatting.accountIdentity(profile)
             let observation = snapshot?.fetchedAt.map { "Last reading: \(InterfaceFormatting.exactDate($0))" } ?? "No usage reading yet."
             let heading = NSMenuItem.sectionHeader(title: "\(provider) • \(identity)")
             heading.image = ProviderIcons.images[profile.provider]
             if #available(macOS 27, *) { heading.preferredImageVisibility = .visible }
-            heading.toolTip = ["\(provider) · \(profile.label)", email, observation, snapshot?.detail].compactMap { $0 }.joined(separator: "\n")
+            heading.toolTip = ["\(provider) · \(identity)", email == "Email unavailable" ? email : nil, observation, snapshot?.detail].compactMap { $0 }.joined(separator: "\n")
             items.append(heading)
             for metric in metrics[index] {
                 let item = reading("\(metric.label): \(metric.value)\(metric.timing.isEmpty ? "" : " · \(metric.timing)")", detail: metric.detail)

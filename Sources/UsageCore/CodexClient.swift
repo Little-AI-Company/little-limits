@@ -175,7 +175,7 @@ struct CodexClient: Sendable {
     let home: URL
     var timeout: TimeInterval = 25
 
-    struct Result: Sendable { let snapshot: AccountSnapshot; let accountIdentity: String? }
+    struct Result: Sendable { let snapshot: AccountSnapshot; let accountIdentity: String?; let accountEmail: String? }
 
     func fetch(profileID: UUID, expectedIdentity: String?) throws -> Result {
         let connection = try CodexConnection(executable: executable, home: home, timeout: timeout)
@@ -199,7 +199,7 @@ struct CodexClient: Sendable {
         if let expectedIdentity, expectedIdentity != identity {
             throw UsageError.authenticationRequired("This Codex profile now belongs to a different login. Create a separate profile for that account.")
         }
-        return Result(snapshot: response.snapshot(profileID: profileID), accountIdentity: identity)
+        return Result(snapshot: response.snapshot(profileID: profileID), accountIdentity: identity, accountEmail: account.account?.email)
     }
 }
 

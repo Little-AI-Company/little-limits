@@ -125,10 +125,6 @@ final class ApplicationModel {
         }
     }
 
-    func renameAccount(_ id: UUID, label: String) {
-        changeAccounts { service in try await service.renameAccount(id: id, label: label) }
-    }
-
     func signInCodex(_ id: UUID) {
         guard !isDemo, !isChangingAccounts, !isRefreshing else { return }
         isChangingAccounts = true

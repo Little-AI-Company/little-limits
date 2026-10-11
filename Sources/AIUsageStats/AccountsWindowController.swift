@@ -12,7 +12,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private var platform: ClaudePlatformViewController?
     private var accountWindowSize: NSSize?
     private let table = NSTableView()
-    private let nameField = NSTextField(string: "")
     private let accountTitle = InterfaceControls.label("", size: 20, weight: .semibold)
     private let accountDescription = InterfaceControls.label("")
     private let creditDescription = InterfaceControls.label("")
@@ -25,7 +24,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private let accountEditor = NSStackView()
     private let emptyState = InterfaceControls.label("Add a Claude or Codex account to view its usage.", size: 13)
     private var displayedProfiles: [AccountProfile] = []
-    private let saveNameButton = NSButton(title: "Save Name", target: nil, action: nil)
     private let removeButton = NSButton(title: "Remove Account…", target: nil, action: nil)
     private let manualCategory = NSPopUpButton(frame: .zero, pullsDown: false)
     private let balanceField = NSTextField(string: "")
@@ -106,10 +104,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         divider.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(divider)
 
-        nameField.placeholderString = "Account name"
-        nameField.setAccessibilityLabel("Account name")
-        saveNameButton.target = self
-        saveNameButton.action = #selector(saveName(_:))
         removeButton.target = self
         removeButton.action = #selector(removeAccount(_:))
         loginButton.target = self
@@ -123,12 +117,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         detailsButton.action = #selector(showConnectionDetails(_:))
         billingButton.target = self
         billingButton.action = #selector(openBilling(_:))
-        let nameRow = NSStackView(views: [nameField, saveNameButton])
-        nameRow.orientation = .horizontal
-        nameRow.spacing = 8
-        nameField.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        nameField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        nameField.widthAnchor.constraint(greaterThanOrEqualToConstant: 160).isActive = true
         let connectionActions = NSStackView(views: [loginButton, usageButton, detailsButton])
         connectionActions.orientation = .vertical
         connectionActions.alignment = .leading
@@ -198,8 +186,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         accountEditor.detachesHiddenViews = true
         let sections: [NSView] = [
             accountTitle,
-            InterfaceControls.label("Name", size: 13, weight: .semibold), nameRow,
-            InterfaceControls.separator(),
             InterfaceControls.label("Connection", size: 13, weight: .semibold), accountDescription, connectionActions,
             InterfaceControls.separator(),
             InterfaceControls.label("API Credits", size: 13, weight: .semibold), creditDescription, creditActions,
@@ -207,7 +193,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             InterfaceControls.separator(), removeButton
         ]
         for view in sections { accountEditor.addArrangedSubview(view) }
-        for view in sections where view is NSTextField || view is NSBox || view === nameRow || view === manualEditor {
+        for view in sections where view is NSTextField || view is NSBox || view === manualEditor {
             view.widthAnchor.constraint(equalTo: accountEditor.widthAnchor).isActive = true
         }
         let detailDocument = AccountDetailDocumentView()
@@ -283,7 +269,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         if let platform, !model.profiles.contains(where: { $0.id == platform.accountID }) { showAccountDetail() }
         let available = !model.isDemo && !model.isChangingAccounts && !model.isRefreshing
         addAccountButton.isEnabled = available
-        saveNameButton.isEnabled = available && selectedID != nil
         removeButton.isEnabled = available && selectedID != nil
         status.stringValue = model.isDemo ? "Demo accounts cannot be changed."
             : model.isAllowingKeychainAccess ? "Allowing Keychain access…"
@@ -383,15 +368,15 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         guard model.profiles.indices.contains(row) else { return nil }
         let profile = model.profiles[row]
         let cell = NSTableCellView()
-        let isClaude = profile.provider == .claude
-        let name = NSTextField(labelWithString: isClaude ? InterfaceFormatting.accountEmail(profile) : profile.label)
+        let name = NSTextField(labelWithString: InterfaceFormatting.accountIdentity(profile))
         name.font = .systemFont(ofSize: 13, weight: .medium)
-        name.lineBreakMode = isClaude ? .byTruncatingMiddle : .byTruncatingTail
+        name.lineBreakMode = .byTruncatingMiddle
         let providerName = InterfaceFormatting.provider(profile.provider)
-        let provider = NSTextField(labelWithString: isClaude ? "\(providerName) · \(profile.label)" : providerName)
+        let provider = NSTextField(labelWithString: providerName)
         provider.font = .systemFont(ofSize: 11)
         provider.lineBreakMode = .byTruncatingTail
-        let accountDescription = "\(providerName), \(profile.label)" + (isClaude ? ", \(name.stringValue)" : "")
+        let emailUnavailable = InterfaceFormatting.accountEmail(profile) == "Email unavailable"
+        let accountDescription = "\(providerName), \(name.stringValue)" + (emailUnavailable ? ". Email unavailable" : "")
         for label in [name, provider] {
             label.toolTip = accountDescription
             label.translatesAutoresizingMaskIntoConstraints = false
@@ -424,7 +409,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
 
     private func renderSelection() {
         guard let id = selectedID, let profile = model.profiles.first(where: { $0.id == id }) else {
-            nameField.stringValue = ""
             accountEditor.isHidden = true
             emptyState.isHidden = false
             displayedCredits = []
@@ -435,7 +419,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         }
         accountEditor.isHidden = false
         emptyState.isHidden = true
-        nameField.stringValue = profile.label
         updateSelectionDescription()
         let savedManual = model.manualCredits[id] ?? []
         let pendingManual = model.pendingManualCredits[id] ?? []
@@ -455,8 +438,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private func updateEditorAvailability() {
         let editable = !model.isDemo && selectedID != nil
         let canSave = editable && !model.isRefreshing && !model.isChangingAccounts
-        nameField.isEnabled = editable
-        saveNameButton.isEnabled = canSave
         removeButton.isEnabled = canSave
         loginButton.isEnabled = canSave
         usageButton.isEnabled = canSave
@@ -526,26 +507,19 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         alert.informativeText = provider == .claude
             ? "Sign in to your Claude subscription at claude.ai in your browser. This updates subscription usage only. Monthly grants and API balances use a separate Claude Platform sign-in at platform.claude.com."
             : "Creates a separate Codex CLI login for this account and opens Terminal to sign in through the official browser flow. Each account keeps its own login. Your existing CLI login is preserved."
-        let field = NSTextField(string: "\(InterfaceFormatting.provider(provider)) Account")
-        field.setAccessibilityLabel("New account name")
-        field.frame = NSRect(x: 0, y: 0, width: 320, height: 24)
-        alert.accessoryView = field
         alert.addButton(withTitle: provider == .claude ? "Sign In…" : "Connect")
         alert.addButton(withTitle: "Cancel")
-        alert.window.initialFirstResponder = field
         guard let window else { return }
         alert.beginSheetModal(for: window) { [weak self] response in
             guard let self, response == .alertFirstButtonReturn else { return }
-            let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !name.isEmpty else { self.showError("Enter an account name."); return }
-            if provider == .claude { self.onClaudeConnection?(nil, name) }
-            else { self.model.importAccount(provider: provider, label: name) }
+            if provider == .claude { self.onClaudeConnection?(nil, "Claude Account") }
+            else { self.model.importAccount(provider: provider, label: "Codex Account") }
         }
     }
 
     private func updateSelectionDescription() {
         guard let id = selectedID, let profile = model.profiles.first(where: { $0.id == id }) else { return }
-        accountTitle.stringValue = InterfaceFormatting.provider(profile.provider)
+        accountTitle.stringValue = "\(InterfaceFormatting.provider(profile.provider)) · \(InterfaceFormatting.accountIdentity(profile))"
         loginButton.isHidden = false
         loginButton.title = profile.provider == .claude ? "Reconnect Subscription…" : "Sign In Again…"
         loginButton.toolTip = profile.provider == .claude ? "Claude subscription sign-in at claude.ai. This does not sign in to Claude Platform." : "Sign in through the Codex CLI."
@@ -553,7 +527,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         let snapshot = model.snapshots[id]
         var description: [String] = []
         if profile.provider == .claude { description.append("Subscription usage uses claude.ai. Platform credits require a separate platform.claude.com sign-in.") }
-        if let email = profile.providerEmail { description.append("Signed in as \(email).") }
+        if InterfaceFormatting.accountEmail(profile) == "Email unavailable" { description.append("Login email unavailable.") }
         if model.isDemo {
             description.append("Example account. Connect your own account to receive readings.")
         } else if let snapshot {
@@ -635,7 +609,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     @objc private func connectCodex(_ sender: Any?) { connect(.codex) }
     @objc private func signIn(_ sender: Any?) {
         guard let id = selectedID, let profile = model.profiles.first(where: { $0.id == id }) else { return }
-        if profile.provider == .claude { onClaudeConnection?(id, profile.label) }
+        if profile.provider == .claude { onClaudeConnection?(id, InterfaceFormatting.accountIdentity(profile)) }
         else { model.signInCodex(id) }
     }
     @objc private func checkUsage(_ sender: Any?) { model.refresh() }
@@ -643,17 +617,10 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         guard let id = selectedID else { return }
         onConsoleConnection?(id)
     }
-    @objc private func saveName(_ sender: Any?) {
-        guard let id = selectedID else { return }
-        let name = nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { showError("Enter an account name."); return }
-        editorReloadRevision = model.completedAccountChanges + 1
-        model.renameAccount(id, label: name)
-    }
     @objc private func removeAccount(_ sender: Any?) {
         guard let id = selectedID, let profile = model.profiles.first(where: { $0.id == id }) else { return }
         let alert = NSAlert()
-        alert.messageText = "Remove \(profile.label)?"
+        alert.messageText = "Remove \(InterfaceFormatting.provider(profile.provider)) · \(InterfaceFormatting.accountIdentity(profile))?"
         alert.informativeText = "Removes this profile and its saved usage from AI Usage Stats."
         alert.addButton(withTitle: "Remove")
         alert.addButton(withTitle: "Cancel")

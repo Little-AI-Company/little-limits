@@ -5,7 +5,7 @@ public enum DemoFixtures {
         AccountProfile(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, provider: .claude,
                        label: "Example personal", source: .demo, providerEmail: "personal@example.invalid", sourcePath: "/Example/claude-personal"),
         AccountProfile(id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!, provider: .codex,
-                       label: "Example work", source: .demo, providerAccountID: "person@example.invalid"),
+                       label: "Example work", source: .demo, providerAccountID: "example-codex-account", providerEmail: "person@example.invalid"),
         AccountProfile(id: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!, provider: .claude,
                        label: "Example research", source: .demo, providerEmail: "research.department@example.invalid"),
         AccountProfile(id: UUID(uuidString: "00000000-0000-0000-0000-000000000004")!, provider: .claude,

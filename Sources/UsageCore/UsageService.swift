@@ -521,11 +521,14 @@ public actor UsageService {
                     try client.fetch(profileID: profile.id, expectedIdentity: profile.providerAccountID)
                 }.value
                 observed = result.snapshot
-                if profile.providerAccountID == nil, let identity = result.accountIdentity,
+                if let identity = result.accountIdentity,
                    let index = configuration.profiles.firstIndex(where: { $0.id == profile.id }) {
+                    let reportedEmail = result.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let knownEmail = profile.providerAccountID == identity ? profile.providerEmail : nil
+                    let email = reportedEmail?.isEmpty == false ? reportedEmail : knownEmail
                     configuration.profiles[index] = AccountProfile(id: profile.id, provider: profile.provider,
                                                                   label: configuration.profiles[index].label, source: profile.source,
-                                                                  providerAccountID: identity, sourcePath: profile.sourcePath)
+                                                                  providerAccountID: identity, providerEmail: email, sourcePath: profile.sourcePath)
                 }
             }
         } catch {
