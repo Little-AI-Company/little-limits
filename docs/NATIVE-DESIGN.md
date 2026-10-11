@@ -4,7 +4,7 @@ AI Usage Stats is an AppKit menu bar utility. A status item opens a standard nat
 
 ## First run
 
-Use an actual `NSMenu` with direct Add Claude Account… and Add Codex Account… commands, followed by Accounts…, Settings…, and Quit. AppKit owns its appearance, keyboard selection, sizing, and dismissal. Explain Claude Code configuration and Codex CLI sign-in in the corresponding setup dialog, rather than a technical paragraph in the menu.
+Use an actual `NSMenu` with direct Add Claude Account… and Add Codex Account… commands, followed by Accounts…, Settings…, and Quit. AppKit owns its appearance, keyboard selection, sizing, and dismissal. Explain Claude browser sign-in and Codex CLI sign-in in the corresponding setup dialog, rather than a technical paragraph in the menu.
 
 Do not show a title banner, disabled Refresh control, generic Actions dropdown, empty dashboard, or refresh footer. A load failure has its own error and retry commands; it is not treated as a fresh account list. After removing the last account, the next ordinary click returns to this menu.
 
@@ -16,7 +16,7 @@ Keep subscription quota, API money, Codex credit units, and earned reset counts 
 
 A visible Details control exposes exact time-zone-aware dates, observation sources, grant scope, original amounts, and recovery instructions. Show one concise freshness state per account rather than repeating full timestamps beside every value. Authentication failures and stale values remain visible without expanding Details.
 
-The default view makes the two demo accounts' main readings visible together. Scrolling accommodates more accounts and expanded details. Account sections and controls retain their identity during countdown updates; only the displayed values change. Keyboard focus on Details or its dashboard action scrolls that control into view when expansion places it below the viewport. Validate focus and scroll behavior in the running app instead of inferring it from the source.
+Main readings use compact rows. Demo accounts exercise distinct Claude emails, a long email, and an unavailable email alongside Codex readings. Scrolling accommodates additional accounts and expanded details. Account sections and controls retain their identity during countdown updates; only the displayed values change. Keyboard focus on Details or its dashboard action scrolls that control into view when expansion places it below the viewport. Validate focus and scroll behavior in the running app instead of inferring it from the source.
 
 Use semantic AppKit colors, modest text weights, and separators. No decorative cards, pills, gray subtitles above sections, or continuous animations. Demo mode is explicitly labelled and used for public captures.
 

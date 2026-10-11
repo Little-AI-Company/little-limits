@@ -124,12 +124,12 @@ Tests should cover meaningful contracts. Redacted fixtures do not establish live
 
 ## Remaining limits
 
-- Claude status-line rate-limit fields depend on the installed Claude Code version and payload. A profile needs a new captured reading before automatic data can appear.
+- Legacy Claude status-line profiles depend on a new supported captured reading. The experimental direct connection requests quota after its own browser sign-in. A fresh usage-only grant and current quota were verified for one account; multiple live accounts and automatic renewal remain unverified.
 - Codex app-server fields depend on CLI version and plan. Use returned durations and preserve unavailable values.
 - Codex credit units, earned limit-reset counts, and monetary API prepaid credits are different data.
 - Documented public APIs did not establish remaining API prepaid balances or all grant-expiry details. The experimental Claude Console path uses private billing endpoints. Manual entries remain dated and explicitly labelled.
 - The experimental Claude Console connection reads private browser-facing billing endpoints. Typed parser tests do not establish live availability, successful sign-in, correct account membership, or a stable provider contract.
-- Claude accounts use separate existing configuration directories. Codex profiles use separate app-owned `CODEX_HOME` directories; changing the default CLI login is outside monitoring scope.
+- New Claude subscription connections use app-owned grants in separate Keychain items. Legacy capture profiles follow their existing configuration directories. Codex profiles use separate app-owned `CODEX_HOME` directories; changing any default CLI login is outside monitoring scope.
 - Local ad hoc packaging is available. Public signing, notarization, release hosting, and updates are not configured.
 
 ## Native first-run menu, October 10, 2026
@@ -176,3 +176,211 @@ Verified October 10, 2026 on Apple silicon with macOS 27.0.1 (26A434). The sourc
 Local delivery ZIP SHA-256: `8f780d75051fee77183d646136715f683de98de6fb197517422ec96ec7e5d394`.
 
 The submitted commit is recorded in the pull request test plan. The checks above establish local arm64 packaging and launch; they add no new provider, VoiceOver, older-macOS, Intel, Developer ID, notarization, or public-release evidence.
+
+## Claude first reading diagnosis, October 10, 2026
+
+Baseline commit `2f0f54b` reproduced the reported unavailable usage after adding a Claude capture profile. The selected profile had a capture hook, but no capture file, zero usage windows, no observation timestamp, and an unavailable refresh state. A valid isolated helper fixture wrote two usage windows. The app already reloads capture files; timing alone does not explain the absent observation. The active Desktop process used an embedded stream-JSON CLI, and this check did not establish that it emits the supported status-line payload. No inference request was sent as a probe.
+
+The initial authentication diagnosis needed correction. Running `claude auth status` with `CLAUDE_CONFIG_DIR` explicitly set to the default directory selected a different hashed Keychain service and reported no login. With the selector absent, the normal CLI reported signed in. Inspection of the installed Claude Code 2.1.295 credential selector confirmed this distinction; identical filesystem paths do not establish identical credential selection.
+
+An authorized, noninteractive read of the exact default Keychain item succeeded. Its access token was expired and included the `user:profile` scope. One read-only `GET /api/oauth/usage` and one `GET /api/oauth/profile` returned HTTP 401. No refresh token was parsed, used, or written, and the existing CLI login was not changed. No local CLIProxyAPI installation or saved ProxyCLI credentials were found. These results establish an expired borrowed credential, not a successful fresh grant or signed-in quota read. Account identifiers, credentials, and provider response bodies are excluded from this record.
+
+The changed connection follows an independent browser OAuth grant with direct quota reads and explicit connection feedback. Source inspection is recorded in [Claude research](research/claude.md). The later native check accepted the requested `user:profile`-only grant and returned current quota for one account, preserving the existing capture profile UUID and alias. Multiple live account bindings and automatic renewal remain unverified. Build, fixture, and packaging evidence follows. Native observations and live account availability are separate claims.
+
+### Direct connection build and fixture evidence
+
+Verified October 10, 2026 on Apple silicon with macOS 27.0.1 (26A434). Tested baseline `2f0f54be466bda8fe319a3cdb4048a25665e4347` plus the uncommitted direct-connection changes. The digest method above covers 24 files: `Package.swift` and 23 Swift files in `Sources` and `Tests`.
+
+```text
+c565e021ffbf944483ddb8db4952b1aa69553c534f3ba6bd832ea62a3522e065
+```
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test` | Passed: 29 tests, zero failures, comprising 13 XCTest and 16 Swift Testing tests. Debug build completed in 0.34 seconds. |
+| `swift build -c release` | Passed; Release build completed in 11.84 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build completed in 0.43 seconds. Produced the local app and ZIP. |
+| `plutil -lint "dist/AI Usage Stats.app/Contents/Info.plist"` | Passed on the packaged bundle. |
+| `codesign --verify --deep --strict --verbose=2 "dist/AI Usage Stats.app"` | Passed on the packaged app and helper. Local ad hoc signing. |
+| `lipo -archs` for the bundled app and `UsageCapture` helper | Both report `arm64`. |
+| `git diff --check` and changed-document local links | Passed. |
+
+Eight new behavior tests verify requested `user:profile` scope, PKCE/state/expiry, unknown versus measured zero and inactive windows, profile identity and duplicate isolation, credential exclusion from account JSON, cancelled exchange, refresh uncertainty without replay while retaining the previous reading, removal during an in-flight quota read, and rejection of authentication, rate-limit, HTML, and redirected responses. Synthetic token responses omit optional unchanged scope metadata and exercise the private provider's response shape. The added overlap fixture verifies that metadata objects do not become quota rows, canonical windows are not duplicated by equivalent `limits` entries, unknown canonical values stay unknown, and model-scoped limits keep their weekly duration. No fixture is evidence of provider acceptance of the new grant.
+
+The final packaged app executable SHA-256 is `ea179671760bdda869e33674ff39ce817551cbae54a29d5f1107caf88e2d4d6f`.
+
+A standalone Swift 6 fixture compiled the actual callback listener and exercised real Network sockets. Invalid callback path and state returned HTTP 400 without consuming the listener; the valid state and code returned HTTP 200 and completed exactly one callback. The port could be rebound immediately afterward. These observations establish local callback behavior, not the provider's browser redirect or successful signed-in quota retrieval.
+
+### Native subscription sign-in
+
+On the same Mac, the packaged app showed the existing capture account's unavailable state and a recovery action. Check Usage retained that unavailable state without a fabricated observation timestamp. Reconnect opened the system browser and a native waiting window. The user completed the provider sign-in; the app's own `user:profile`-only grant was accepted, identity verification succeeded, and direct quota retrieval supplied a current observation. Accounts then showed Connected with quota available. The existing app profile UUID and alias were preserved.
+
+The Accounts view before reconnect was visually inspected and showed readable connection feedback without overflow. The signed-in state and quota fields were inspected in the running native app. No public screenshot or account identifiers, email, credentials, or live quota values are included here.
+
+After rebuilding with the parser correction, manual Refresh read the saved app-owned grant without reconnecting. It returned exactly three quota rows: 5 hours, 7 days, and a model-specific 7-day window. There was no breakdown metadata row or duplicate primary limit. Accounts showed a fresh observation timestamp and the verified provider email. This final check used the source digest and packaged executable above.
+
+Keyboard Tab reached Refresh; subsequent Tab and Space opened Accounts. These control checks used the packaged app's explicitly labelled `--show-window` validation host so the native automation tool could bind to it. They establish the shared native controls, not ordinary status-item anchoring.
+
+The final `--show-panel` launch used normal app mode without a validation window. Native accessibility inspection identified the actual `NSPopover`, and its screenshot was visually inspected. All three corrected quota rows fit without duplicate or metadata rows. Reset countdowns were visible; a genuinely missing reset remained unknown. API credit fields remained unavailable because the separate Console connection had not been completed. No public screenshot was saved.
+
+This establishes one live account's authorization and quota read. It does not establish multiple live account bindings, automatic grant renewal, failed provider consent, a VoiceOver session, minimum-macOS runtime, Intel runtime, or live Console billing. An initial live response also exposed duplicate quota rows and a `seven_day_breakdown` metadata object displayed as an unavailable quota. The amended parser excludes metadata objects, keeps canonical quota windows when also represented in `limits`, and retains model-scoped weekly limits. The final source digest and 29-test results above include that correction.
+
+### Pull request review corrections
+
+Review of commit `ecb6b9a484a54d8ac7d36b59044363467c7b8d63` found two additional issues. Inactive provider limits were retained but still affected current percentages and reset freshness. A migrated OAuth profile also retained its obsolete status-line installation. The correction labels inactive rows as inactive, excludes them from current measurements and stale-reset decisions, and propagates activity flags from equivalent limits to canonical windows without replacing their values. It saves a valid browser grant before retiring only the migrated profile's unchanged wrapper. User replacements are preserved. Failed or incomplete cleanup retains its restoration record and reports the issue; later account loads can retry.
+
+The reviewed source, using the same 24-file digest method, is:
+
+```text
+20bd6ead7ac7e3f0f05e1e9755dc7b284a54aafb2415dd5ee9fd321b08d9a187
+```
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test --filter ClaudeOAuthTests` | Passed: 10 tests, zero failures; debug build 6.16 seconds. |
+| `swift test` | Passed: 31 tests, zero failures, comprising 13 XCTest and 18 Swift Testing tests; cached build 0.58 seconds. |
+| `swift build -c release` | Passed; 18.95 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build 0.51 seconds. |
+| Packaged plist lint, deep strict signature verification, executable architecture, and `git diff --check` | Passed; app and helper remain local ad hoc signed arm64 binaries. |
+
+The two new synthetic behavior tests cover exhausted inactive quotas with expired resets, duplicate activity flags, inactive-only responses, successful legacy command restoration, unrelated command preservation, changed wrapper fields, cleanup failures, and idempotent recovery without discarding the new grant.
+
+The final packaged executable SHA-256 is `643bd12c2afb4f1af9d8438a58e49b35b70c24fa2a82dbd4dd59a0ca5ba9888d`.
+
+Separately from fixtures, the authorized existing-profile cleanup ran on the new packaged app's first load. Hash-only checks confirmed restoration of the original status line, preservation of every non-status-line setting, removal of only the migrated profile's installation record, unchanged saved account profiles, and preservation of the shared capture helper. No saved command, settings content, credential, or account value was disclosed by those checks.
+
+Native accessibility inspection of this corrected packaged build showed the model-specific quota marked `Inactive` and `Not current`. A subsequent sanitized persisted-state check confirmed an available provider reading less than five minutes old, with one current window and two explicitly inactive windows. The current observation retained the provider's activity flags, including flags applied to canonical windows. Completing the final manual Refresh click could not be established because the native automation bridge timed out; this is recorded as an environment limit, not a completed interaction. No public account screenshot was saved.
+
+### Optional identity metadata and failed removal recovery
+
+The next review of `441eeb0ffbb041efee57cbd623daf92c3cee2b66` found that an omitted organization object could reject an otherwise valid profile, and that failed account-file persistence could leave a listed profile without its deleted Keychain grant. The corrected parser always requires the account UUID, permits account-only initial identity, cross-checks any supplied token identity, retains a previously known organization on omission, and rejects explicit conflicts. Existing composite identity strings remain valid. Explicit removal retains the exact app-owned credential in memory and restores it when subsequent configuration persistence fails; restoration failure is reported rather than ignored.
+
+The final 24-file source digest is:
+
+```text
+c9610f169d863d86d8121db14fe4b234bc5be7df6a4bbdc6ac7e054afc51c0ac
+```
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test --filter ClaudeOAuthTests` | Passed: 12 tests, zero failures; build 8.06 seconds. |
+| `swift test` | Passed: 33 tests, zero failures, comprising 13 XCTest and 20 Swift Testing tests; cached build 1.23 seconds. |
+| `swift build -c release` | Passed; 23.42 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build 1.23 seconds. |
+| Packaged plist lint, deep strict signature verification, executable architecture, and `git diff --check` | Passed; app and helper remain local ad hoc signed arm64 binaries. |
+
+Two additional fixtures exercise initial account-only identity and successful owned renewal with optional organization data, retained known organization, explicit account/organization conflicts, restoration of the exact grant after failed configuration persistence, and successful subsequent account removal. Renewal and removal failure handling remain fixture evidence; the real account was not removed or reconnected for these checks.
+
+The packaged executable SHA-256 is `16197873a2e73f2e3a968d568de17307509e45f3e6c54aea316c16d4b7ddab34`. The normal `--show-panel` app was relaunched. Sanitized persistence checks confirmed one unchanged profile, available state, and an observation less than five minutes old. No additional native automation claim or live organization-omission/renewal claim is made for this final parser and persistence correction.
+
+### Verified email display and legacy financial isolation
+
+Verified October 10, 2026 on the same Apple silicon Mac with macOS 27.0.1 (26A434). The 24-file source digest for this correction is:
+
+```text
+f11b59ffdca98d22db9d9427e419d44d86f71ba716ad143dfa971237fbec849f
+```
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test` | Passed: 34 tests, zero failures, comprising 13 XCTest and 21 Swift Testing tests; build 2.36 seconds. |
+| `swift build -c release` | Passed; 11.66 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build 0.30 seconds. |
+| `plutil -lint "dist/AI Usage Stats.app/Contents/Info.plist"` | Passed; metadata retains version 0.1.0, build 1, menu-bar bundle behavior, and minimum macOS 14. |
+| `codesign --verify --deep --strict --verbose=2 "dist/AI Usage Stats.app"` | Passed on the moved app and helper; local ad hoc signing. |
+| `lipo -archs` for the packaged app and capture helper | Both report `arm64`; icon resource is present. |
+| `git diff --check` | Passed. |
+
+The added behavior fixture binds an unverified legacy profile to its first verified subscription identity. Earlier Console connections and observations are cleared; earlier manual balances move to saved pending values rather than becoming the verified account's current balances. Saving one balance confirms only that category. Responses with the old captured identity are rejected. Same-identity reconnect preserves confirmed financial data, and removing the account removes pending values. Native Console controllers retire before subscription reconnect; both service and model updates check the immutable identity captured when the controller opened, including a previously unknown identity. These remain synthetic isolation and confirmation checks; no real account was reconnected or removed for this correction.
+
+Native demo checks visually inspected distinct Claude email headings, the full longer email in the overview, and the explicit unavailable-email state after scrolling. Accounts showed email-first rows with provider and saved alias beneath. The longer sidebar email truncated in the middle while its full value remained available in accessibility/help and the selected account description. Clicking the longer-email row and pressing Down selected the unavailable-email row correctly. These checks used fictional demo data in the packaged validation window. The final build adds a shared display formatter for nil, empty, or whitespace-only email values without changing saved profile data. A final normal-mode demo launch exposed the actual accessibility popover; visual inspection confirmed the email beneath the Claude header and preserved alias in the native layout. No public screenshots or real account values were saved.
+
+The final packaged executable SHA-256 is `ad67e601c73e6dfe89e51bea4a20bbb4b6b465c1ccdfdaed6cf3dd9fd0c7314b`. The app was returned to normal real-account mode; a sanitized check confirmed saved profiles include verified Claude email metadata. Final real-mode native automation timed out after five seconds, so no additional real-mode visual inspection is claimed. Multiple live account binding, real Console billing, live renewal, VoiceOver, minimum-macOS runtime, Intel runtime, Developer ID signing, and notarization remain unverified.
+
+### Recovery after sign-in persistence and Keychain cleanup failure
+
+Review of `609033129a1b6a368f357a2ac3cde2a1bd7e1032` found that failed account-file persistence could suppress a second failure while removing a newly saved Keychain grant. The correction writes an empty, private UUID marker before saving a grant with no previous credential. Failed deletion preserves that identifier for retry after a successful configuration load or when preparing the next sign-in, including after restart. Background cleanup failures keep the marker and leave otherwise valid accounts available; interactive retry reports the cleanup error. Cleanup skips active sign-ins, ignores directories and symlinks, and preserves grants associated with committed, verified OAuth profiles. A legacy capture row alone does not establish that association. Existing-profile credential restoration failures are explicit and direct the user to reconnect. No credential contents enter the marker or account file.
+
+The final 24-file source digest is:
+
+```text
+01e0aa0452e63e41094cb481a40b406ce6fbaae30ec8c1510aad2dc5d4e18782
+```
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test` | Passed: 35 tests, zero failures, comprising 13 XCTest and 22 Swift Testing tests; build 132.58 seconds. |
+| `swift build -c release` | Passed; 201.65 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build 14.03 seconds. |
+| Packaged plist lint, deep strict signature verification, executable architecture, and `git diff --check` | Passed; both executables remain local ad hoc signed arm64 binaries. |
+
+The new synthetic fixture forces account persistence and Keychain deletion to fail together, verifies a mode-0600 marker containing no credential data, and recreates the service to verify that blocked background cleanup leaves a committed account available. Interactive retry reports the same cleanup failure; a later load removes only the orphan grant. Repeated cleanup preserves the exact committed credential. UUID-named directories and symlinks remain untouched. Actual Keychain failure and live sign-in were not induced. The UI source is unchanged from the inspected email build. The new packaged app was launched in normal real-account mode; the prior native automation limit remains, and no additional visual check is claimed.
+
+The packaged executable SHA-256 is `7b1ede2703a30017e86fae608be2d1b23218de14e0bf0105fbc0a0ab75babfd3`.
+
+### Preserve capture recovery before removing a migrated account
+
+Review of `a2f78278c1f8fe405339c43f9a0a8fe11d243dd6` identified an account-removal path that discarded a modified legacy wrapper's recovery record while its capture command remained active. The existing migration fixture was expanded before the production change. On that baseline, changing another status-line field while retaining the installed capture command, migrating to OAuth, and then removing the account deleted the profile, grant, and restoration record without stopping the command. The focused run failed one test with six assertion issues, including the missing removal error and lost profile, credential, and recovery record. The cause was the unchecked `ClaudeCaptureInstallation.remove` call in `UsageService.removeAccount`.
+
+Removal now uses the existing checked retirement operation before deleting credentials or profile data. If the edited wrapper still runs the helper, removal reports the required repair steps and keeps the profile, grant, wrapper edits, and restoration record. Repairing the wrapper permits subsequent removal. User replacements remain untouched.
+
+The final 24-file source digest is:
+
+```text
+8b3557bef2b4f0d4299ec85400a1c7d433a82bcd63d414e632584e49ae7ee51a
+```
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test --filter claudeMigrationRetiresOnlyItsOwnedCaptureAndPreservesEditsAndCleanupRecovery` on baseline production code with the added assertions | Failed as expected: one test, six assertion issues; build 56.57 seconds. |
+| Same focused command after the correction | Passed: one test, zero failures; build 38.12 seconds. |
+| `swift test` | Passed: 35 tests, zero failures, comprising 13 XCTest and 22 Swift Testing tests; cached build 5.12 seconds. |
+| `swift build -c release` | Passed; 102.80 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build 2.98 seconds. |
+| Packaged plist lint, deep strict signature verification, executable architecture, and `git diff --check` | Passed; both executables remain local ad hoc signed arm64 binaries. |
+
+No real account was removed or reconnected. The email UI source is unchanged from the inspected build, and the existing native automation and runtime coverage limits still apply.
+
+The packaged executable SHA-256 is `2bd4ed41976a66788cb2b9b89f127a40dbef85fefc436dd2c4b8e22b0dd1b53e`. The final packaged app was returned to normal real-account mode.
+
+### Preserve valid quota when a limit has no kind
+
+Verified October 11, 2026 on Apple silicon with macOS 27.0.1. Review of `6f008f6d19444c888ae96a2e00d5a4b35369bf2c` identified a required `ClaudeUsageResponse.Limit.kind` field that rejected valid canonical quota windows when an experimental limit omitted that field. The existing overlapping-response fixture was expanded with missing, null, and blank kinds. Against that baseline production code, `swift test --filter claudeOverlappingQuotaShapesOmitMetadataAndUsePrimaryLimitsOnlyAsFallback` failed with `DecodingError.keyNotFound(kind)` after a 3.86-second build. The correction decodes kind optionally and skips incomplete entries before classifying them. Valid canonical and model-scoped readings retain their values, including unknown versus zero.
+
+The tested working source uses the 24-file digest method above:
+
+```text
+f145352038c25fa89a3babe055254a5d37820d796bea52be9ee88854c060b008
+```
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test --filter claudeOverlappingQuotaShapesOmitMetadataAndUsePrimaryLimitsOnlyAsFallback` after the correction | Passed: one test, zero failures; build 3.00 seconds. |
+| `swift test` | Passed: 35 tests, zero failures, comprising 13 XCTest and 22 Swift Testing tests; build 0.33 seconds. |
+| `swift build -c release` | Passed; 13.90 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build 0.49 seconds. |
+| `plutil -lint "dist/AI Usage Stats.app/Contents/Info.plist"` and `plutil -p` | Passed; version 0.1.0/build 1, bundle ID, menu-bar behavior, and minimum macOS 14 retained. |
+| `codesign --verify --deep --strict --verbose=2 "dist/AI Usage Stats.app"` and `codesign -d --verbose=2` | Passed on the moved app and helper; ad hoc signature with no TeamIdentifier. |
+| `lipo -archs` for both packaged executables and icon resource inspection | Both report `arm64`; icon is present. |
+| `git diff --check` | Passed. |
+| `open -n "dist/AI Usage Stats.app" --args --show-panel` | Passed; packaged app launched in normal account mode. |
+
+The packaged executable SHA-256 is `fea47f437af66be7d3c2af3ab6bcbfcb4ee10dd71c51dd951d1c6009069a4fe8`. No previous development instance was running when packaging began. The email UI source is unchanged from the visually inspected build. No additional real-mode visual check, provider sign-in, reconnect, removal, or quota probe was performed for this parser correction. The existing live-account, native-automation, Intel, minimum-macOS, VoiceOver, and distribution limits still apply.
+
+### Preserve known account data during same-identity reconnect
+
+Review of `6a0fbcd211e70f1801840329fa4a24f788ada138` identified unconditional snapshot deletion and replacement of a saved email with an omitted optional email in `UsageService.completeClaudeSignIn`. The existing `bindingLegacyIdentityIsolatesConsoleDataAndRequiresManualBalanceConfirmation` fixture was expanded to reconnect the same verified identity without email while its immediate usage request failed. `swift test --filter bindingLegacyIdentityIsolatesConsoleDataAndRequiresManualBalanceConfirmation` failed against baseline production with four assertion issues: lost email, unavailable instead of stale state, lost windows, and lost observation timestamp; build 4.69 seconds.
+
+Same-identity reconnect now keeps the previous snapshot and falls back to its known verified email when the new email is missing or blank. Initial unverified legacy binding still clears the old snapshot and separate Console data and cannot inherit an unverified email. The final fixture also exercises a whitespace-only email and a second failed immediate usage request while preserving independently confirmed balances.
+
+On October 11, 2026, on the same Apple silicon Mac with macOS 27.0.1, the final 24-file source digest was `4743b9daa1113446a5860451a3e4046c4e036ca3e3868a8c99800cedcc31ff50`.
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test` | Passed: 35 tests, zero failures, comprising 13 XCTest and 22 Swift Testing tests; build 5.61 seconds. The expanded reconnect fixture passed. |
+| `swift build -c release` | Passed; 8.43 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build 0.48 seconds. |
+| Packaged plist lint, deep strict signature verification, both executable architectures, icon resource, and `git diff --check` | Passed; local ad hoc signed arm64 app and helper. |
+| `open -n "dist/AI Usage Stats.app" --args --show-panel` | Passed after quitting the exact prior development process; normal account mode. |
+
+The final packaged executable SHA-256 is `138e0dfa4ceef4efb568d9141b1e87a824fce3ca110ca4b5c63800e3b0a36a2c`. These reconnect failures were exercised with synthetic fixtures. No real sign-in, reconnect, removal, or quota probe was performed. The email UI source and existing visual-check and runtime limits are unchanged.

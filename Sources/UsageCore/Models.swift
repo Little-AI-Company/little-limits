@@ -9,6 +9,7 @@ public enum Provider: String, Codable, Sendable, CaseIterable {
 
 public enum AccountSource: String, Codable, Sendable {
     case claudeCLI
+    case claudeOAuth
     case codexCLI
     case manual
     case demo
@@ -20,15 +21,17 @@ public struct AccountProfile: Identifiable, Codable, Sendable, Equatable {
     public var label: String
     public let source: AccountSource
     public let providerAccountID: String?
+    public let providerEmail: String?
     public let sourcePath: String?
 
     public init(id: UUID = UUID(), provider: Provider, label: String, source: AccountSource,
-                providerAccountID: String? = nil, sourcePath: String? = nil) {
+                providerAccountID: String? = nil, providerEmail: String? = nil, sourcePath: String? = nil) {
         self.id = id
         self.provider = provider
         self.label = label
         self.source = source
         self.providerAccountID = providerAccountID
+        self.providerEmail = providerEmail
         self.sourcePath = sourcePath
     }
 }
@@ -45,22 +48,25 @@ public struct UsageWindow: Identifiable, Codable, Sendable, Equatable {
     public let title: String
     public let utilizationPercent: Double?
     public let resetsAt: Date?
+    public let isActive: Bool?
 
-    public init(id: String, title: String, utilizationPercent: Double?, resetsAt: Date?) {
+    public init(id: String, title: String, utilizationPercent: Double?, resetsAt: Date?, isActive: Bool? = nil) {
         self.id = id
         self.title = title
         self.utilizationPercent = utilizationPercent.flatMap { $0.isFinite ? min(100, max(0, $0)) : nil }
         self.resetsAt = resetsAt
+        self.isActive = isActive
     }
 
-    private enum CodingKeys: String, CodingKey { case id, title, utilizationPercent, resetsAt }
+    private enum CodingKeys: String, CodingKey { case id, title, utilizationPercent, resetsAt, isActive }
 
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         self.init(id: try values.decode(String.self, forKey: .id),
                   title: try values.decode(String.self, forKey: .title),
                   utilizationPercent: try values.decodeIfPresent(Double.self, forKey: .utilizationPercent),
-                  resetsAt: try values.decodeIfPresent(Date.self, forKey: .resetsAt))
+                  resetsAt: try values.decodeIfPresent(Date.self, forKey: .resetsAt),
+                  isActive: try values.decodeIfPresent(Bool.self, forKey: .isActive))
     }
 
     public func secondsUntilReset(at date: Date = Date()) -> TimeInterval? {
@@ -124,6 +130,7 @@ public struct AccountSnapshot: Codable, Sendable, Equatable {
     public let credits: [CreditBalance]
     public let state: SnapshotState
     public let detail: String?
+    public var currentWindows: [UsageWindow] { windows.filter { $0.isActive != false } }
 
     public init(profileID: UUID, fetchedAt: Date? = nil, windows: [UsageWindow] = [],
                 credits: [CreditBalance] = [], state: SnapshotState, detail: String? = nil) {

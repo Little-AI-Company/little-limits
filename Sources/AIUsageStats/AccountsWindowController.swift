@@ -14,11 +14,10 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private let addAccountButton = NSPopUpButton(frame: .zero, pullsDown: true)
     private let manualDisclosure = NSButton(title: "", target: nil, action: nil)
     private let manualEditor = NSStackView()
+    private let manualHelp = InterfaceControls.label("Enter the amount shown in billing. This dated record does not update automatically.")
     private let accountEditor = NSStackView()
     private let emptyState = InterfaceControls.label("Add a Claude or Codex account to view its usage.", size: 13)
     private var displayedProfiles: [AccountProfile] = []
-    private var claudeConfigurationURL: URL?
-    private let claudeConfigurationField = NSTextField(labelWithString: "")
     private let saveNameButton = NSButton(title: "Save Name", target: nil, action: nil)
     private let removeButton = NSButton(title: "Remove Account…", target: nil, action: nil)
     private let manualCategory = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -36,6 +35,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private var editorNeedsReload = true
     private var editorReloadRevision: Int?
     private let loginButton = NSButton(title: "Sign In Again…", target: nil, action: nil)
+    private let usageButton = NSButton(title: "Check Usage", target: nil, action: nil)
+    var onClaudeConnection: ((UUID?, String) -> Void)?
     private let consoleButton = NSButton(title: "Connect API Credits…", target: nil, action: nil)
     var onConsoleConnection: ((UUID) -> Void)?
 
@@ -105,6 +106,9 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         removeButton.action = #selector(removeAccount(_:))
         loginButton.target = self
         loginButton.action = #selector(signIn(_:))
+        usageButton.target = self
+        usageButton.action = #selector(checkUsage(_:))
+        usageButton.setAccessibilityLabel("Check usage for all accounts")
         consoleButton.target = self
         consoleButton.action = #selector(connectConsole(_:))
         detailsButton.target = self
@@ -117,7 +121,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         nameField.setContentHuggingPriority(.defaultLow, for: .horizontal)
         nameField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         nameField.widthAnchor.constraint(greaterThanOrEqualToConstant: 160).isActive = true
-        let connectionActions = NSStackView(views: [loginButton, detailsButton])
+        let connectionActions = NSStackView(views: [loginButton, usageButton, detailsButton])
         connectionActions.orientation = .horizontal
         connectionActions.spacing = 8
         connectionActions.detachesHiddenViews = true
@@ -160,7 +164,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         let balanceActions = NSStackView(views: [saveBalanceButton, clearBalanceButton])
         balanceActions.orientation = .horizontal
         balanceActions.spacing = 8
-        let manualHelp = InterfaceControls.label("Enter the amount shown in billing. This dated record does not update automatically.")
         manualEditor.orientation = .vertical
         manualEditor.alignment = .leading
         manualEditor.spacing = 12
@@ -263,7 +266,9 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         addAccountButton.isEnabled = available
         saveNameButton.isEnabled = available && selectedID != nil
         removeButton.isEnabled = available && selectedID != nil
-        status.stringValue = model.isDemo ? "Demo accounts cannot be changed." : model.isChangingAccounts ? "Saving account…" : ""
+        status.stringValue = model.isDemo ? "Demo accounts cannot be changed."
+            : model.isSigningInClaude ? "Claude sign-in is in progress."
+            : model.isChangingAccounts ? "Updating account…" : ""
         status.isHidden = status.stringValue.isEmpty
         let savedChangeCompleted = editorReloadRevision.map { model.completedAccountChanges >= $0 } ?? false
         if previousID != selectedID || (!model.isChangingAccounts && (editorNeedsReload || savedChangeCompleted)) {
@@ -280,18 +285,23 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         guard model.profiles.indices.contains(row) else { return nil }
         let profile = model.profiles[row]
         let cell = NSTableCellView()
-        let name = NSTextField(labelWithString: profile.label)
+        let isClaude = profile.provider == .claude
+        let name = NSTextField(labelWithString: isClaude ? InterfaceFormatting.accountEmail(profile) : profile.label)
         name.font = .systemFont(ofSize: 13, weight: .medium)
-        name.lineBreakMode = .byTruncatingTail
-        let provider = NSTextField(labelWithString: InterfaceFormatting.provider(profile.provider))
+        name.lineBreakMode = isClaude ? .byTruncatingMiddle : .byTruncatingTail
+        let providerName = InterfaceFormatting.provider(profile.provider)
+        let provider = NSTextField(labelWithString: isClaude ? "\(providerName) · \(profile.label)" : providerName)
         provider.font = .systemFont(ofSize: 11)
-        provider.textColor = .secondaryLabelColor
+        provider.lineBreakMode = .byTruncatingTail
+        let accountDescription = "\(providerName), \(profile.label)" + (isClaude ? ", \(name.stringValue)" : "")
         for label in [name, provider] {
+            label.toolTip = accountDescription
             label.translatesAutoresizingMaskIntoConstraints = false
             cell.addSubview(label)
         }
         cell.textField = name
-        cell.setAccessibilityLabel("\(profile.label), \(InterfaceFormatting.provider(profile.provider))")
+        cell.toolTip = accountDescription
+        cell.setAccessibilityLabel(accountDescription)
         NSLayoutConstraint.activate([
             name.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 12),
             name.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -12),
@@ -326,10 +336,12 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         nameField.stringValue = profile.label
         updateSelectionDescription()
         let savedManual = model.manualCredits[id] ?? []
+        let pendingManual = model.pendingManualCredits[id] ?? []
         displayedCredits = UsageService.unavailableCredits(for: profile.provider)
             .filter { $0.id == "api_balance" || $0.id == "monthly_grant" }
-            .map { fallback in savedManual.first(where: { $0.id == fallback.id }) ?? fallback }
-        loginButton.isEnabled = profile.provider == .codex && !model.isDemo && !model.isChangingAccounts && !model.isRefreshing
+            .map { fallback in savedManual.first(where: { $0.id == fallback.id })
+                ?? pendingManual.first(where: { $0.id == fallback.id }) ?? fallback }
+        loginButton.isEnabled = !model.isDemo && !model.isChangingAccounts && !model.isRefreshing
         manualCategory.removeAllItems()
         manualCategory.addItems(withTitles: displayedCredits.map(\.title))
         if let selectedCategoryID, let index = displayedCredits.firstIndex(where: { $0.id == selectedCategoryID }) {
@@ -344,7 +356,9 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         nameField.isEnabled = editable
         saveNameButton.isEnabled = canSave
         removeButton.isEnabled = canSave
-        loginButton.isEnabled = canSave && model.profiles.first(where: { $0.id == selectedID })?.provider == .codex
+        loginButton.isEnabled = canSave
+        usageButton.isEnabled = canSave
+        usageButton.title = model.isRefreshing ? "Checking Usage…" : "Check Usage"
         consoleButton.isEnabled = canSave && model.profiles.first(where: { $0.id == selectedID })?.provider == .claude
         consoleButton.title = selectedID.flatMap { model.consoleConnections[$0] } == nil ? "Connect API Credits…" : "Manage API Credits…"
         detailsButton.isEnabled = selectedID != nil
@@ -359,6 +373,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         expiryDate.isEnabled = editable && hasCredit && expiryKnown.state == .on
         saveBalanceButton.isEnabled = canSave && hasCredit
         clearBalanceButton.isEnabled = canSave && hasCredit && displayedCredits[index].source == .manual
+        updateManualDescription()
     }
 
     private func updateManualFields() {
@@ -387,116 +402,80 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         expiryDate.isEnabled = available && expiryKnown.state == .on
         saveBalanceButton.isEnabled = available
         clearBalanceButton.isEnabled = available && credit.source == .manual && credit.amount != nil
+        updateManualDescription()
+    }
+
+    private func updateManualDescription() {
+        let index = manualCategory.indexOfSelectedItem
+        let needsConfirmation = displayedCredits.indices.contains(index) && selectedID.map { id in
+            (model.pendingManualCredits[id] ?? []).contains { $0.id == displayedCredits[index].id }
+                && !(model.manualCredits[id] ?? []).contains { $0.id == displayedCredits[index].id }
+        } == true
+        manualHelp.stringValue = needsConfirmation
+            ? "This saved balance came from the earlier unverified connection. Confirm it in billing, then choose Save Balance before it is shown as this account's balance."
+            : "Enter the amount shown in billing. This dated record does not update automatically."
     }
 
     func connect(_ provider: Provider) {
-        guard !model.isDemo else { return }
+        guard !model.isDemo, !model.isChangingAccounts, !model.isRefreshing else { return }
         let alert = NSAlert()
         alert.messageText = "Connect \(InterfaceFormatting.provider(provider)) Account"
-        if provider == .claude {
-            alert.informativeText = "Connects Claude Code from the folder below. Quota reporting is added to its status line and your existing output is preserved. Usage appears after your next Claude response. Choose a different configuration folder to connect another account."
-        } else {
-            alert.informativeText = "Creates a separate Codex CLI login for this account and opens Terminal to sign in through the official browser flow. Each account keeps its own login. Your existing CLI login is preserved."
-        }
+        alert.informativeText = provider == .claude
+            ? "Sign in through Claude in your browser. Each account keeps a separate connection in AI Usage Stats. Subscription usage updates after sign-in. This connection is experimental."
+            : "Creates a separate Codex CLI login for this account and opens Terminal to sign in through the official browser flow. Each account keeps its own login. Your existing CLI login is preserved."
         let field = NSTextField(string: "\(InterfaceFormatting.provider(provider)) Account")
         field.setAccessibilityLabel("New account name")
-        if provider == .claude {
-            let configurationPath = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"] ?? NSHomeDirectory() + "/.claude"
-            claudeConfigurationURL = URL(fileURLWithPath: configurationPath).standardizedFileURL
-            updateClaudeConfigurationField()
-            claudeConfigurationField.setAccessibilityLabel("Claude Code configuration folder")
-            claudeConfigurationField.lineBreakMode = .byTruncatingMiddle
-            claudeConfigurationField.isSelectable = true
-            let chooseFolder = NSButton(title: "Choose Folder…", target: self, action: #selector(chooseClaudeConfiguration(_:)))
-            let accessory = NSView(frame: NSRect(x: 0, y: 0, width: 420, height: 100))
-            let nameLabel = NSTextField(labelWithString: "Name")
-            let folderLabel = NSTextField(labelWithString: "Folder")
-            let accessoryControls: [NSView] = [nameLabel, field, folderLabel, claudeConfigurationField, chooseFolder]
-            for view in accessoryControls {
-                view.translatesAutoresizingMaskIntoConstraints = false
-                accessory.addSubview(view)
-            }
-            NSLayoutConstraint.activate([
-                nameLabel.leadingAnchor.constraint(equalTo: accessory.leadingAnchor),
-                nameLabel.topAnchor.constraint(equalTo: accessory.topAnchor, constant: 8),
-                field.leadingAnchor.constraint(equalTo: accessory.leadingAnchor, constant: 58),
-                field.trailingAnchor.constraint(equalTo: accessory.trailingAnchor),
-                field.firstBaselineAnchor.constraint(equalTo: nameLabel.firstBaselineAnchor),
-                folderLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
-                folderLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 20),
-                claudeConfigurationField.leadingAnchor.constraint(equalTo: field.leadingAnchor),
-                claudeConfigurationField.trailingAnchor.constraint(equalTo: accessory.trailingAnchor),
-                claudeConfigurationField.firstBaselineAnchor.constraint(equalTo: folderLabel.firstBaselineAnchor),
-                chooseFolder.leadingAnchor.constraint(equalTo: field.leadingAnchor),
-                chooseFolder.topAnchor.constraint(equalTo: claudeConfigurationField.bottomAnchor, constant: 8)
-            ])
-            alert.accessoryView = accessory
-        } else {
-            field.frame = NSRect(x: 0, y: 0, width: 320, height: 24)
-            alert.accessoryView = field
-        }
-        alert.addButton(withTitle: "Connect")
+        field.frame = NSRect(x: 0, y: 0, width: 320, height: 24)
+        alert.accessoryView = field
+        alert.addButton(withTitle: provider == .claude ? "Sign In…" : "Connect")
         alert.addButton(withTitle: "Cancel")
         alert.window.initialFirstResponder = field
         if alert.runModal() == .alertFirstButtonReturn {
             let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else { showError("Enter an account name."); return }
-            if provider == .claude {
-                var isDirectory: ObjCBool = false
-                guard let url = claudeConfigurationURL,
-                      FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-                      isDirectory.boolValue else {
-                    showError("The Claude Code configuration folder does not exist. Choose an existing folder, then connect again.")
-                    return
-                }
-                model.importAccount(provider: provider, label: name, configurationURL: url)
-            } else { model.importAccount(provider: provider, label: name) }
+            if provider == .claude { onClaudeConnection?(nil, name) }
+            else { model.importAccount(provider: provider, label: name) }
         }
-    }
-
-    @objc private func chooseClaudeConfiguration(_ sender: Any?) {
-        let picker = NSOpenPanel()
-        picker.title = "Choose Claude Code Configuration"
-        picker.message = "Choose the Claude configuration folder for this account."
-        picker.canChooseFiles = false
-        picker.canChooseDirectories = true
-        picker.canCreateDirectories = false
-        picker.showsHiddenFiles = true
-        picker.directoryURL = claudeConfigurationURL
-        picker.prompt = "Choose Folder"
-        if picker.runModal() == .OK, let url = picker.url {
-            claudeConfigurationURL = url
-            updateClaudeConfigurationField()
-        }
-    }
-
-    private func updateClaudeConfigurationField() {
-        claudeConfigurationField.stringValue = claudeConfigurationURL.map { ($0.path as NSString).abbreviatingWithTildeInPath } ?? "Choose a configuration folder"
-        claudeConfigurationField.toolTip = claudeConfigurationURL?.path
     }
 
     private func updateSelectionDescription() {
         guard let id = selectedID, let profile = model.profiles.first(where: { $0.id == id }) else { return }
         accountTitle.stringValue = InterfaceFormatting.provider(profile.provider)
-        loginButton.isHidden = profile.provider != .codex
+        loginButton.isHidden = false
+        loginButton.title = profile.provider == .claude ? "Reconnect…" : "Sign In Again…"
         consoleButton.isHidden = profile.provider != .claude
-        let state = model.snapshots[id]?.state
+        let snapshot = model.snapshots[id]
+        var description: [String] = []
+        if let email = profile.providerEmail { description.append("Signed in as \(email).") }
         if model.isDemo {
-            accountDescription.stringValue = "Example account. Connect your own account to receive readings."
-        } else if state == .authenticationRequired {
-            accountDescription.stringValue = profile.provider == .codex
-                ? "Sign in again to restore usage readings."
-                : "Sign in through Claude Code to restore usage readings."
+            description.append("Example account. Connect your own account to receive readings.")
+        } else if let snapshot {
+            switch snapshot.state {
+            case .available: description.append("Connected. Usage is available.")
+            case .unavailable: description.append("Usage unavailable.")
+            case .stale: description.append("The last reading is out of date.")
+            case .authenticationRequired: description.append("Sign-in required. Reconnect to restore usage readings.")
+            }
+            if let detail = snapshot.detail, !detail.isEmpty { description.append(detail) }
         } else {
-            accountDescription.stringValue = profile.provider == .claude
-                ? "Usage comes from Claude Code after a response."
-                : "Usage comes from this account’s separate Codex login."
+            description.append("No usage reading yet. Sign in or check usage.")
         }
+        if let snapshot {
+            for window in snapshot.windows {
+                description.append("\(window.title): \(InterfaceFormatting.remaining(window)). \(InterfaceFormatting.reset(window)).")
+            }
+            if let date = snapshot.fetchedAt { description.append("Last reading: \(InterfaceFormatting.exactDate(date)).") }
+            else { description.append("Last reading: unavailable.") }
+        }
+        accountDescription.stringValue = description.joined(separator: "\n")
         creditDescription.stringValue = profile.provider == .claude
             ? (model.consoleConnections[id] == nil
                ? "Connect Claude Console to read credits. This connection is experimental."
                : "Claude Console is linked to this account. This connection is experimental.")
             : "View API billing or enter a dated balance manually."
+        if !(model.pendingManualCredits[id] ?? []).isEmpty {
+            creditDescription.stringValue += " Saved manual balances await confirmation. Open Manual balance to confirm before use."
+        }
     }
 
     @objc private func toggleManualEditor(_ sender: NSButton) {
@@ -510,10 +489,13 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         let alert = NSAlert()
         alert.messageText = "\(InterfaceFormatting.provider(profile.provider)) Connection"
         var details = ["Account identity: \(profile.providerAccountID ?? "Unavailable")"]
+        if let email = profile.providerEmail { details.append("Verified account email: \(email)") }
         if let path = profile.sourcePath { details.append("Configuration: \(path)") }
         if let organization = model.consoleConnections[id] { details.append("Claude Console organization: \(organization)") }
         details.append(profile.provider == .claude
-            ? "Claude Code reports quota through its status line. Your existing status line output is preserved. The experimental Claude Console session is separate from Claude Code."
+            ? (profile.source == .claudeOAuth
+               ? "Subscription usage uses this account’s separate browser sign-in. The usage endpoint is experimental. Claude Console API credits use a separate connection."
+               : "This older profile reads captured Claude Code quota. Reconnect to enable direct subscription usage. Claude Console API credits use a separate connection.")
             : "This account has a separate Codex CLI login. Your existing CLI login is preserved.")
         alert.informativeText = details.joined(separator: "\n\n")
         alert.addButton(withTitle: "Done")
@@ -523,9 +505,11 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     @objc private func connectClaude(_ sender: Any?) { connect(.claude) }
     @objc private func connectCodex(_ sender: Any?) { connect(.codex) }
     @objc private func signIn(_ sender: Any?) {
-        guard let id = selectedID else { return }
-        model.signInCodex(id)
+        guard let id = selectedID, let profile = model.profiles.first(where: { $0.id == id }) else { return }
+        if profile.provider == .claude { onClaudeConnection?(id, profile.label) }
+        else { model.signInCodex(id) }
     }
+    @objc private func checkUsage(_ sender: Any?) { model.refresh() }
     @objc private func connectConsole(_ sender: Any?) {
         guard let id = selectedID else { return }
         onConsoleConnection?(id)

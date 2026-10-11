@@ -155,8 +155,8 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
                 try Task.checkCancellation()
                 // Decode before saving the connection so malformed data cannot replace an existing connection.
                 _ = try ClaudeConsoleBalance.decode(response, organizationID: selectedID)
-                try await model.setConsoleConnection(accountID: profile.id, organizationID: selectedID)
-                try await model.updateConsoleCredits(accountID: profile.id, organizationID: selectedID, responseData: response)
+                try await model.setConsoleConnection(accountID: profile.id, organizationID: selectedID, expectedIdentity: profile.providerAccountID)
+                try await model.updateConsoleCredits(accountID: profile.id, organizationID: selectedID, responseData: response, expectedIdentity: profile.providerAccountID)
                 status.stringValue = "Connected\(account.email.map { " as \($0)" } ?? "") · Read \(InterfaceFormatting.exactDate(Date())). Credits refresh every 5 minutes."
             } catch {
                 if Task.isCancelled || error is CancellationError { status.stringValue = "Credits refresh paused."; return }
@@ -362,7 +362,7 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
         guard !isFetching else { return }
         Task {
             do {
-                try await model.setConsoleConnection(accountID: profile.id, organizationID: nil)
+                try await model.setConsoleConnection(accountID: profile.id, organizationID: nil, expectedIdentity: profile.providerAccountID)
                 await model.load()
                 status.stringValue = "Automatic API credits disconnected. Saved manual balances are available again."
             } catch { status.stringValue = error.localizedDescription }

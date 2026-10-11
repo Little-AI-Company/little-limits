@@ -61,6 +61,7 @@ final class AccountSectionView: NSStackView {
     private var consoleMessage: String?
     private let providerLabel = InterfaceControls.label("", size: 15, weight: .semibold)
     private let nameLabel = InterfaceControls.label("", size: 12)
+    private let emailLabel = InterfaceControls.label("", size: 13)
     private let stateLabel = InterfaceControls.label("", size: 11, weight: .medium)
     private let disclosure = FocusVisibilityButton(title: "Details", target: nil, action: nil)
     private let quotaRows = InterfaceControls.stack([], spacing: 0)
@@ -82,6 +83,8 @@ final class AccountSectionView: NSStackView {
         spacing = 4
         nameLabel.lineBreakMode = .byTruncatingTail
         nameLabel.maximumNumberOfLines = 1
+        emailLabel.lineBreakMode = .byTruncatingMiddle
+        emailLabel.maximumNumberOfLines = 1
         disclosure.target = self
         disclosure.action = #selector(toggleDetails(_:))
         disclosure.setButtonType(.pushOnPushOff)
@@ -108,11 +111,11 @@ final class AccountSectionView: NSStackView {
         details.isHidden = true
         detailsText.widthAnchor.constraint(equalTo: details.widthAnchor).isActive = true
         let separator = InterfaceControls.separator()
-        for component in [heading, quotaRows, separator, creditRows, issue, details] {
+        for component in [heading, emailLabel, quotaRows, separator, creditRows, issue, details] {
             addArrangedSubview(component)
             component.widthAnchor.constraint(equalTo: widthAnchor).isActive = true
         }
-        setCustomSpacing(6, after: heading)
+        setCustomSpacing(6, after: emailLabel)
         setCustomSpacing(6, after: quotaRows)
         setCustomSpacing(6, after: separator)
         setCustomSpacing(6, after: creditRows)
@@ -127,7 +130,13 @@ final class AccountSectionView: NSStackView {
         providerLabel.stringValue = InterfaceFormatting.provider(profile.provider)
         nameLabel.stringValue = profile.label
         nameLabel.toolTip = profile.label
-        disclosure.setAccessibilityLabel("Details for \(profile.label)")
+        emailLabel.stringValue = InterfaceFormatting.accountEmail(profile)
+        emailLabel.isHidden = profile.provider != .claude
+        emailLabel.toolTip = emailLabel.stringValue
+        let accountDescription = "\(InterfaceFormatting.provider(profile.provider)), \(profile.label)"
+            + (profile.provider == .claude ? ", \(emailLabel.stringValue)" : "")
+        emailLabel.setAccessibilityLabel(accountDescription)
+        disclosure.setAccessibilityLabel("Details for \(accountDescription)")
         dashboard.title = "Open \(InterfaceFormatting.provider(profile.provider)) Usage Dashboard"
         let windows = snapshot?.windows ?? []
         let credits = snapshot?.credits ?? UsageService.unavailableCredits(for: profile.provider)
@@ -150,11 +159,11 @@ final class AccountSectionView: NSStackView {
             guard let row = quotaViews[window.id] else { continue }
             row.title.stringValue = window.title
             row.value.stringValue = InterfaceFormatting.remaining(window)
-            row.timing.stringValue = InterfaceFormatting.compactReset(window.resetsAt, now: now)
-            row.toolTip = "\(window.title): \(InterfaceFormatting.remaining(window)). \(InterfaceFormatting.reset(window.resetsAt, now: now))"
+            row.timing.stringValue = window.isActive == false ? "Not current" : InterfaceFormatting.compactReset(window.resetsAt, now: now)
+            row.toolTip = "\(window.title): \(InterfaceFormatting.remaining(window)). \(InterfaceFormatting.reset(window, now: now))"
             row.setAccessibilityLabel(row.toolTip)
             row.title.toolTip = window.title
-            row.timing.setAccessibilityLabel(InterfaceFormatting.reset(window.resetsAt, now: now))
+            row.timing.setAccessibilityLabel(InterfaceFormatting.reset(window, now: now))
         }
         for credit in credits {
             guard let row = creditViews[credit.id] else { continue }
@@ -242,7 +251,7 @@ final class AccountSectionView: NSStackView {
                 lines.append("\(profile.provider == .claude ? "Captured" : "Fetched") \(InterfaceFormatting.exactDate(date))\(isStale(snapshot, now: now) ? " · Stale" : "")")
             } else { lines.append("No quota reading yet.") }
             for window in snapshot.windows {
-                lines.append("\(window.title): \(InterfaceFormatting.reset(window.resetsAt, now: now))")
+                lines.append("\(window.title): \(window.isActive == false ? "Inactive. " : "")\(InterfaceFormatting.reset(window, now: now))")
             }
             for credit in snapshot.credits {
                 var line = "\(credit.title): \(InterfaceFormatting.credit(credit))"
@@ -265,7 +274,7 @@ final class AccountSectionView: NSStackView {
     private func isStale(_ snapshot: AccountSnapshot, now: Date) -> Bool {
         snapshot.state == .stale || snapshot.state == .authenticationRequired
             || snapshot.fetchedAt.map { now.timeIntervalSince($0) >= 300 } == true
-            || snapshot.windows.contains { $0.resetsAt.map { $0 <= now } == true }
+            || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
     }
 
     private func updateDisclosure() {

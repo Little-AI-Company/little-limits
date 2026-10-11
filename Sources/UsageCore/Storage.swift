@@ -60,6 +60,7 @@ struct StoredConfiguration: Codable, Sendable {
     var profiles: [AccountProfile] = []
     var snapshots: [AccountSnapshot] = []
     var manualCredits: [String: [CreditBalance]] = [:]
+    var pendingManualCredits: [String: [CreditBalance]] = [:]
     var captureInstallations: [String: CaptureInstallation] = [:]
     var consoleConnections: [String: String] = [:]
     var consoleObservations: [String: ConsoleCreditObservation] = [:]
@@ -67,7 +68,7 @@ struct StoredConfiguration: Codable, Sendable {
     init() {}
 
     private enum CodingKeys: String, CodingKey {
-        case profiles, snapshots, manualCredits, captureInstallations, consoleConnections, consoleObservations
+        case profiles, snapshots, manualCredits, pendingManualCredits, captureInstallations, consoleConnections, consoleObservations
     }
 
     init(from decoder: Decoder) throws {
@@ -75,6 +76,7 @@ struct StoredConfiguration: Codable, Sendable {
         profiles = try values.decodeIfPresent([AccountProfile].self, forKey: .profiles) ?? []
         snapshots = try values.decodeIfPresent([AccountSnapshot].self, forKey: .snapshots) ?? []
         manualCredits = try values.decodeIfPresent([String: [CreditBalance]].self, forKey: .manualCredits) ?? [:]
+        pendingManualCredits = try values.decodeIfPresent([String: [CreditBalance]].self, forKey: .pendingManualCredits) ?? [:]
         captureInstallations = try values.decodeIfPresent([String: CaptureInstallation].self, forKey: .captureInstallations) ?? [:]
         consoleConnections = try values.decodeIfPresent([String: String].self, forKey: .consoleConnections) ?? [:]
         consoleObservations = try values.decodeIfPresent([String: ConsoleCreditObservation].self, forKey: .consoleObservations) ?? [:]
@@ -91,6 +93,31 @@ struct ConfigurationStorage: Sendable {
     let directory: URL
 
     private var fileURL: URL { directory.appendingPathComponent("accounts.json") }
+    private var credentialCleanupDirectory: URL { directory.appendingPathComponent("PendingClaudeCredentials", isDirectory: true) }
+
+    func markClaudeCredentialForCleanup(accountID: UUID) throws {
+        try UsagePaths.writePrivate(Data(), to: credentialCleanupDirectory.appendingPathComponent(accountID.uuidString))
+    }
+
+    func pendingClaudeCredentialAccountIDs() throws -> [UUID] {
+        guard FileManager.default.fileExists(atPath: credentialCleanupDirectory.path) else { return [] }
+        return try FileManager.default.contentsOfDirectory(at: credentialCleanupDirectory,
+            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+            .filter { try isClaudeCredentialCleanupMarker($0) }
+            .compactMap { UUID(uuidString: $0.lastPathComponent) }
+    }
+
+    func removeClaudeCredentialCleanupMarker(accountID: UUID) throws {
+        let marker = credentialCleanupDirectory.appendingPathComponent(accountID.uuidString)
+        if FileManager.default.fileExists(atPath: marker.path), try isClaudeCredentialCleanupMarker(marker) {
+            try FileManager.default.removeItem(at: marker)
+        }
+    }
+
+    private func isClaudeCredentialCleanupMarker(_ url: URL) throws -> Bool {
+        let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+        return values.isRegularFile == true && values.isSymbolicLink != true && values.fileSize == 0
+    }
 
     func load() throws -> StoredConfiguration {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return StoredConfiguration() }

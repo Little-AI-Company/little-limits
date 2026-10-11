@@ -14,6 +14,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
     private var countdownTimer: Timer?
     private var sleeping = false
     private var consoleWindows: [UUID: ClaudeConsoleWindowController] = [:]
+    private var claudeSignIn: ClaudeSignInWindowController?
     private var accountsLoaded = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -80,6 +81,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
         refreshTimer?.invalidate()
         countdownTimer?.invalidate()
         model.cancelRefresh()
+        claudeSignIn?.stop()
         consoleWindows.values.forEach { $0.pause() }
         NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
@@ -103,7 +105,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
         for provider in [Provider.claude, .codex] {
             let profiles = model.profiles.filter { $0.provider == provider }
             guard !profiles.isEmpty else { continue }
-            let values = profiles.flatMap { model.snapshots[$0.id]?.windows ?? [] }.compactMap(\.utilizationPercent).filter(\.isFinite)
+            let values = profiles.flatMap { model.snapshots[$0.id]?.currentWindows ?? [] }.compactMap(\.utilizationPercent).filter(\.isFinite)
             let remaining = values.max().map { Int((100 - min(100, max(0, $0))).rounded()) }
             summaries.append("\(InterfaceFormatting.provider(provider)) \(remaining.map { "\($0)%" } ?? "?")")
             descriptions.append("\(InterfaceFormatting.provider(provider)): \(remaining.map { "\($0)% lowest remaining quota" } ?? "usage unavailable") across \(profiles.count) account\(profiles.count == 1 ? "" : "s")")
@@ -112,7 +114,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
             guard let snapshot = model.snapshots[$0.id] else { return false }
             return snapshot.state == .stale || snapshot.state == .authenticationRequired
                 || snapshot.fetchedAt.map { Date().timeIntervalSince($0) >= 300 } == true
-                || snapshot.windows.contains { $0.resetsAt.map { $0 <= Date() } == true }
+                || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= Date() } == true }
         }
         let title = summaries.isEmpty ? "AI" : summaries.joined(separator: " · ") + (stale ? " !" : "")
         if statusItem?.button?.title != title { statusItem?.button?.title = title }
@@ -243,6 +245,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
         if accounts == nil {
             accounts = AccountsWindowController(model: model)
             accounts?.onConsoleConnection = { [weak self] id in self?.showConsoleCredits(id) }
+            accounts?.onClaudeConnection = { [weak self] id, label in self?.showClaudeSignIn(id: id, label: label) }
         }
         accounts?.render()
         accounts?.showWindow(sender)
@@ -337,6 +340,20 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
         controller.showWindow(nil)
         controller.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+    private func showClaudeSignIn(id: UUID?, label: String) {
+        if let controller = claudeSignIn, controller.window?.isVisible == true {
+            controller.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        if let id { consoleWindows.removeValue(forKey: id)?.retire() }
+        let controller = ClaudeSignInWindowController(model: model, existingProfileID: id, label: label)
+        claudeSignIn = controller
+        controller.showWindow(nil)
+        controller.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        controller.start()
     }
     private func refreshConsoleCredits() {
         guard !sleeping, !model.isDemo else { return }
