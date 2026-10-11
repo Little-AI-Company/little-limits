@@ -393,7 +393,8 @@ public actor UsageService {
         configuration = updated
     }
 
-    public func updateClaudeConsoleCredits(accountID: UUID, organizationID: String, responseData: Data, expectedIdentity: String?) throws {
+    public func updateClaudeConsoleCredits(accountID: UUID, organizationID: String, responseData: Data, expectedIdentity: String?,
+                                          linkStateData: Data? = nil, invoicesData: Data? = nil, observedAt: Date = Date(), monthlyMetadataError: String? = nil) throws {
         try Task.checkCancellation()
         try ensureLoaded()
         guard let profile = configuration.profiles.first(where: { $0.id == accountID && $0.provider == .claude }),
@@ -405,10 +406,50 @@ public actor UsageService {
               configuration.profiles.contains(where: { $0.id == accountID && $0.provider == .claude }) else {
             throw UsageError.invalidConfiguration("The Console response no longer matches this profile's connected organization.")
         }
-        let balance = try ClaudeConsoleBalance.decode(responseData, organizationID: connectedOrganization)
+        var linkState: ClaudeConsoleLinkState?
+        var invoices: ClaudeConsoleInvoices?
+        var metadataErrors = monthlyMetadataError.map { [$0] } ?? []
+        if let linkStateData {
+            do { linkState = try ClaudeConsoleLinkState.decode(linkStateData, organizationID: connectedOrganization) }
+            catch { metadataErrors.append("Monthly plan details could not be read.") }
+        }
+        if let invoicesData {
+            do { invoices = try ClaudeConsoleInvoices.decode(invoicesData, organizationID: connectedOrganization) }
+            catch { metadataErrors.append("Monthly invoices could not be read.") }
+        }
+        let balance = try ClaudeConsoleBalance.decode(responseData, organizationID: connectedOrganization, observedAt: observedAt, linkState: linkState, invoices: invoices)
+        var credits = balance.credits
+        let metadataIncomplete = linkState == nil || invoices == nil
+        if metadataIncomplete {
+            let explanation = metadataErrors.isEmpty ? "Monthly grant details are unavailable." : metadataErrors.joined(separator: " ")
+            if let previous = configuration.consoleObservations[accountID.uuidString], previous.organizationID == connectedOrganization {
+                for credit in previous.credits where credit.id.hasPrefix("monthly_grant_") && !credits.contains(where: { $0.id == credit.id }) {
+                    // A cached monthly classification must not also appear as a fresh generic grant.
+                    let genericID = "console_grant_" + credit.id.dropFirst("monthly_grant_".count)
+                    credits.removeAll { $0.id == genericID }
+                    credits.append(CreditBalance(id: credit.id, title: credit.title, amount: credit.amount, unit: credit.unit,
+                                                 expiresAt: credit.expiresAt, source: credit.source, asOf: credit.asOf,
+                                                 detail: credit.status == "Stale" ? credit.detail : [credit.detail, explanation, "Last verified monthly reading retained; refresh monthly details to confirm the current balance."].compactMap { $0 }.joined(separator: " "),
+                                                 isUnlimited: credit.isUnlimited, status: "Stale", doesNotExpire: credit.doesNotExpire,
+                                                 currencyCode: credit.currencyCode, originalAmount: credit.originalAmount))
+                }
+            }
+            if !credits.contains(where: { $0.id.hasPrefix("monthly_grant_") }) {
+                if let index = credits.firstIndex(where: { $0.id == "monthly_grant" }) {
+                    let placeholder = credits[index]
+                    credits[index] = CreditBalance(id: placeholder.id, title: placeholder.title, amount: nil, asOf: placeholder.asOf,
+                                                  detail: [placeholder.detail, explanation].compactMap { $0 }.joined(separator: " "),
+                                                  status: placeholder.status == "Balance unidentified" ? "Details unavailable" : placeholder.status)
+                } else {
+                    credits.append(CreditBalance(id: "monthly_grant", title: "Monthly included API grant", amount: nil,
+                                                asOf: balance.observedAt, detail: explanation, status: "Details unavailable"))
+                }
+            }
+        }
+        if credits.contains(where: { $0.id.hasPrefix("monthly_grant_") }) { credits.removeAll { $0.id == "monthly_grant" } }
         var updated = configuration
         updated.consoleObservations[accountID.uuidString] = ConsoleCreditObservation(organizationID: balance.organizationID,
-                                                                                   observedAt: balance.observedAt, credits: balance.credits)
+                                                                                   observedAt: balance.observedAt, credits: credits)
         try storage.save(updated)
         configuration = updated
     }
@@ -555,10 +596,11 @@ public actor UsageService {
         let provider = configuration.profiles.first { $0.id == snapshot.profileID }?.provider ?? .claude
         for credit in Self.unavailableCredits(for: provider) where !credits.contains(where: { $0.id == credit.id }) {
             if credit.id == "api_balance", credits.contains(where: { $0.id.hasPrefix("api_balance_") }) { continue }
-            if credit.id == "monthly_grant", credits.contains(where: { $0.id.hasPrefix("console_grant_") }) { continue }
+            if credit.id == "monthly_grant", credits.contains(where: { $0.id.hasPrefix("monthly_grant_") }) { continue }
             credits.append(credit)
         }
         for credit in configuration.manualCredits[snapshot.profileID.uuidString] ?? [] {
+            if credit.id == "monthly_grant", credits.contains(where: { $0.id.hasPrefix("monthly_grant_") }) { continue }
             if credit.id == "api_balance", credits.contains(where: { $0.id.hasPrefix("api_balance_") }) { continue }
             credits.removeAll { $0.id == credit.id }
             credits.append(credit)

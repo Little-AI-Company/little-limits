@@ -16,7 +16,7 @@ lipo -archs "dist/AI Usage Stats.app/Contents/MacOS/UsageCapture"
 open -n "dist/AI Usage Stats.app"
 ```
 
-The script builds all Release products, embeds `AIUsageStats` and the `UsageCapture` helper, generates `Resources/AppIcon.icns` if absent or older than `assets/app-icon.png`, copies the license and metadata, signs the helper and bundle ad hoc, verifies the signature, and creates a ZIP using `ditto`.
+The script builds all Release products, embeds `AIUsageStats` and the `UsageCapture` helper, generates `Resources/AppIcon.icns` if absent or older than `assets/app-icon.png`, copies the license, metadata, and generated SwiftPM provider-icon resource bundle, signs the helper and bundle ad hoc, verifies the signature, and creates a ZIP using `ditto`.
 
 Defaults are version `0.1.0`, build `1`, bundle ID `com.parkerrex.ai-usage-stats`, macOS minimum `14.0`, and output directory `dist`. The bundle is a menu bar agent with `LSUIElement` enabled.
 
@@ -31,6 +31,12 @@ UNIVERSAL=1 scripts/package_app.sh
 `VERSION` must have three numeric components, `BUILD_NUMBER` must be positive, and `UNIVERSAL` must be `0` or `1`. Packaging replaces the previous app and same-version archive in the selected output directory. Quit a running development instance before replacing it.
 
 Universal compilation targets Apple silicon and Intel. Record actual runtime checks separately; do not infer Intel or macOS 14 execution from a successful build on another machine.
+
+## Provider menu icons
+
+The bundle embeds `Contents/Resources/AIUsageStats_AIUsageStats.bundle`, containing `ProviderIcons/claude.png`, `ProviderIcons/codex.png`, their original SVGs, and the opencode MIT LICENSE.txt and attribution NOTICE.txt. The source resource directory is `Sources/AIUsageStats/Resources/ProviderIcons`. These pre-rendered resources require no external image converter when building or packaging.
+
+Verify both images and attribution in the actual app bundle, not only `.build`. AppKit loads this bundle through Bundle.main before considering the SwiftPM development fallback. The PNGs contain alpha, are 96 by 96 pixels, and display at 16 by 16 points as template images.
 
 ## Capture helper location
 

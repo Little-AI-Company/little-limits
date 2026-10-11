@@ -9,6 +9,16 @@ public enum ClaudeConsoleClient {
         return URL(string: "https://platform.claude.com/api/organizations/\(identifier)/prepaid/credits")!
     }
 
+    public static func linkStateURL(organizationID: String) throws -> URL {
+        let identifier = try validatedOrganizationID(organizationID)
+        return URL(string: "https://platform.claude.com/api/quirky-lollipop/organizations/\(identifier)/link-state")!
+    }
+
+    public static func invoicesURL(organizationID: String) throws -> URL {
+        let identifier = try validatedOrganizationID(organizationID)
+        return URL(string: "https://platform.claude.com/api/organizations/\(identifier)/invoices?limit=25")!
+    }
+
     static func validatedOrganizationID(_ value: String) throws -> String {
         guard let identifier = UUID(uuidString: value), identifier.uuidString.lowercased() == value.lowercased() else {
             throw UsageError.invalidConfiguration("Claude Console organization must be a UUID.")
@@ -59,6 +69,111 @@ public struct ClaudeConsoleMoney: Sendable, Equatable {
     public let amount: Decimal
 }
 
+/// Plan linkage identifies eligibility and allowance, not an individual promotional grant's origin.
+public struct ClaudeConsoleLinkState: Sendable, Equatable {
+    public enum Status: String, Decodable, Sendable { case eligible, linked, ineligible }
+
+    public let organizationID: String
+    public let status: Status
+    public let plan: String?
+    public let monthlyAllowance: ClaudeConsoleMoney?
+
+    public static func decode(_ data: Data, organizationID: String) throws -> Self {
+        struct Response: Decodable {
+            let status: Status
+            let plan: String?
+            let monthly_credit_usd_cents: Decimal?
+        }
+        let identifier = try ClaudeConsoleClient.validatedOrganizationID(organizationID)
+        let response = try ClaudeConsoleClient.decode(Response.self, from: data)
+        let plan = response.plan.flatMap { $0.isEmpty ? nil : $0 }
+        guard response.status != .eligible || plan != nil else {
+            throw UsageError.providerFailure("Claude Console did not identify the eligible plan.")
+        }
+        let allowance: ClaudeConsoleMoney?
+        if response.status != .ineligible, let cents = response.monthly_credit_usd_cents {
+            guard cents > 0 else {
+                throw UsageError.providerFailure("Claude Console returned an invalid monthly allowance.")
+            }
+            allowance = ClaudeConsoleMoney(currency: "USD", amount: try ConsoleCurrency.majorUnits(cents, currency: "USD"))
+        } else { allowance = nil }
+        return Self(organizationID: identifier, status: response.status, plan: plan, monthlyAllowance: allowance)
+    }
+
+    func monthlyCredit(observedAt: Date) -> CreditBalance {
+        let allowance = monthlyAllowance.map { " The plan allowance is USD \(NSDecimalNumber(decimal: $0.amount).stringValue) per billing cycle." } ?? ""
+        let detail: String
+        let creditStatus: String
+        switch status {
+        case .eligible:
+            creditStatus = "Not linked"
+            detail = "An eligible Claude plan can be linked to this Console organization in Claude Settings > Billing.\(allowance) No monthly balance has been established."
+        case .linked:
+            creditStatus = "Balance unidentified"
+            detail = "This Console organization is linked to a Claude plan.\(allowance) No promotional grant could be uniquely matched to a monthly API credit invoice, so the remaining monthly balance and expiry are unknown."
+        case .ineligible:
+            creditStatus = "Not eligible"
+            detail = "Console reports no eligible Claude plan for this organization. Existing promotional grants remain separate."
+        }
+        return CreditBalance(id: "monthly_grant", title: "Monthly included API grant", amount: nil,
+                             asOf: observedAt, detail: detail, status: creditStatus)
+    }
+}
+
+/// Invoice names establish origin; balances and expiry still come from the matching promotional tranche.
+public struct ClaudeConsoleInvoices: Sendable, Equatable {
+    public let organizationID: String
+    private let monthlyReferences: [ConsoleMonthlyGrantReference]
+
+    public static func decode(_ data: Data, organizationID: String) throws -> Self {
+        struct Invoice: Decodable {
+            let name: String?
+            let amount: Decimal?
+            let currency: String?
+            let effective_at: String?
+            let expires_at: String?
+        }
+        struct Response: Decodable { let invoices: [Invoice] }
+        let identifier = try ClaudeConsoleClient.validatedOrganizationID(organizationID)
+        let response = try ClaudeConsoleClient.decode(Response.self, from: data)
+        let names: Set<String> = ["API credit (Max 5x)", "API credit (Max 20x)", "API credit (Team)"]
+        var references: [ConsoleMonthlyGrantReference] = []
+        for invoice in response.invoices {
+            guard let name = invoice.name, names.contains(name),
+                  invoice.currency == nil || invoice.currency?.uppercased() == "USD",
+                  let cents = invoice.amount, cents > 0,
+                  let grantedAt = try ConsoleDate.parse(invoice.effective_at),
+                  let expiresAt = try ConsoleDate.parse(invoice.expires_at), expiresAt > grantedAt else { continue }
+            references.append(ConsoleMonthlyGrantReference(name: name,
+                amount: try ConsoleCurrency.majorUnits(cents, currency: "USD"), grantedAt: grantedAt, expiresAt: expiresAt))
+        }
+        return Self(organizationID: identifier, monthlyReferences: references)
+    }
+
+    func matchingMonthlyGrants(_ grants: [ClaudeConsoleGrant]) -> [String: String] {
+        var matches: [String: String] = [:]
+        for grant in grants {
+            let references = monthlyReferences.filter { $0.matches(grant) }
+            guard references.count == 1, let reference = references.first,
+                  grants.filter({ reference.matches($0) }).count == 1 else { continue }
+            matches[grant.id] = reference.name
+        }
+        return matches
+    }
+}
+
+private struct ConsoleMonthlyGrantReference: Sendable, Equatable {
+    let name: String
+    let amount: Decimal
+    let grantedAt: Date
+    let expiresAt: Date
+
+    func matches(_ grant: ClaudeConsoleGrant) -> Bool {
+        grant.currency == "USD" && grant.supportsAPI == true && grant.grantedAmount == amount
+            && grant.grantedAt == grantedAt && grant.expiresAt == expiresAt
+    }
+}
+
 public struct ClaudeConsoleGrant: Sendable, Equatable, Identifiable {
     public let id: String
     public let currency: String
@@ -77,6 +192,8 @@ public struct ClaudeConsoleBalance: Sendable, Equatable {
     public let totalBalance: ClaudeConsoleMoney?
     public let purchasedBalances: [ClaudeConsoleMoney]
     public let promotionalGrants: [ClaudeConsoleGrant]
+    public let linkState: ClaudeConsoleLinkState?
+    private let monthlyGrantNames: [String: String]
 
     public var credits: [CreditBalance] {
         let purchased = purchasedBalances.map { balance in
@@ -84,17 +201,28 @@ public struct ClaudeConsoleBalance: Sendable, Equatable {
                           amount: balance.amount, unit: .currency, asOf: observedAt,
                           currencyCode: balance.currency)
         }
-        return purchased + promotionalGrants.filter { $0.supportsAPI != false }.map { grant in
-            CreditBalance(id: "console_grant_\(grant.id)",
-                          title: grant.supportsAPI == true ? "Promotional API grant" : "Promotional grant (scope unavailable)",
+        let promotional = promotionalGrants.filter { $0.supportsAPI != false }.map { grant in
+            let monthlyName = monthlyGrantNames[grant.id]
+            return CreditBalance(id: monthlyName != nil ? "monthly_grant_\(grant.id)" : "console_grant_\(grant.id)",
+                          title: monthlyName != nil ? "Monthly included API grant"
+                              : grant.supportsAPI == true ? "Promotional API grant" : "Promotional grant (scope unavailable)",
                           amount: grant.remainingAmount, unit: .currency, expiresAt: grant.expiresAt,
-                          asOf: observedAt, detail: grant.scopeDescription,
+                          asOf: observedAt, detail: monthlyName.map { "\($0). Matched to the Console invoice by original amount, grant date, and expiry. \(grant.scopeDescription)" } ?? grant.scopeDescription,
                           currencyCode: grant.currency, originalAmount: grant.grantedAmount)
         }
+        let monthlyStatus = monthlyGrantNames.isEmpty ? linkState.map { [$0.monthlyCredit(observedAt: observedAt)] } ?? [] : []
+        return purchased + promotional + monthlyStatus
     }
 
-    public static func decode(_ data: Data, organizationID: String, observedAt: Date = Date()) throws -> Self {
+    public static func decode(_ data: Data, organizationID: String, observedAt: Date = Date(),
+                              linkState: ClaudeConsoleLinkState? = nil, invoices: ClaudeConsoleInvoices? = nil) throws -> Self {
         let identifier = try ClaudeConsoleClient.validatedOrganizationID(organizationID)
+        guard linkState == nil || linkState?.organizationID == identifier else {
+            throw UsageError.providerFailure("Claude Console monthly grant linkage belongs to another organization.")
+        }
+        guard invoices == nil || invoices?.organizationID == identifier else {
+            throw UsageError.providerFailure("Claude Console invoices belong to another organization.")
+        }
         let response = try ClaudeConsoleClient.decode(ConsoleBalanceResponse.self, from: data)
         guard response.amount != nil || response.tranches != nil || response.promo_tranches != nil else {
             throw UsageError.providerFailure("Claude Console did not return credit balances.")
@@ -119,6 +247,7 @@ public struct ClaudeConsoleBalance: Sendable, Equatable {
         if response.tranches != nil, purchased.isEmpty, let total { purchased[total.currency] = 0 }
         var grants: [ClaudeConsoleGrant] = []
         var identifiers: Set<String> = []
+        var providerGrantIdentifiers: Set<String> = []
         for (index, tranche) in (response.promo_tranches ?? []).enumerated() {
             guard try tranche.isUnexpired(at: observedAt) else { continue }
             let currency = try ConsoleCurrency.code(tranche.currency)
@@ -130,6 +259,7 @@ public struct ClaudeConsoleBalance: Sendable, Equatable {
             guard !grantID.isEmpty, identifiers.insert(grantID).inserted else {
                 throw UsageError.providerFailure("Claude Console returned duplicate or missing grant identifiers.")
             }
+            if tranche.id != nil { providerGrantIdentifiers.insert(grantID) }
             grants.append(ClaudeConsoleGrant(id: grantID, currency: currency,
                                             grantedAmount: try ConsoleCurrency.majorUnits(granted, currency: currency),
                                             remainingAmount: try ConsoleCurrency.majorUnits(tranche.remaining_amount_minor_units,
@@ -141,7 +271,10 @@ public struct ClaudeConsoleBalance: Sendable, Equatable {
         }
         return Self(organizationID: identifier, observedAt: observedAt, totalBalance: total,
                     purchasedBalances: purchased.keys.sorted().map { ClaudeConsoleMoney(currency: $0, amount: purchased[$0]!) },
-                    promotionalGrants: grants)
+                    promotionalGrants: grants, linkState: linkState,
+                    // Array positions cannot identify the same grant across refreshes.
+                    monthlyGrantNames: (invoices?.matchingMonthlyGrants(grants) ?? [:])
+                        .filter { providerGrantIdentifiers.contains($0.key) })
     }
 }
 

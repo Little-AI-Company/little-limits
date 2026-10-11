@@ -1,0 +1,14 @@
+Provider menu icons are derived from the opencode UI assets.
+Copyright (c) 2025 opencode. Distributed under the accompanying MIT license.
+
+Source repository: https://github.com/anomalyco/opencode
+Source commit: 388406238bd5ca15564a762840a2362c3a45bd9c
+
+Claude: packages/ui/src/assets/icons/file-types/claude.svg
+Codex (OpenAI knot): packages/ui/src/assets/icons/provider/openai.svg
+License: packages/ui/LICENSE
+
+The SVG sources are preserved here. The PNGs were rendered offline with
+rsvg-convert at 96 by 96 pixels. AppKit displays them at 16 by 16 points
+as template images, using their alpha silhouettes in the system appearance.
+No SVG renderer or external dependency is needed at runtime or when packaging.

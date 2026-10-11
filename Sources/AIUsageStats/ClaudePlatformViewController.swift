@@ -4,15 +4,15 @@ import UsageCore
 
 @MainActor
 private final class ConsoleObservationHandler: NSObject, WKScriptMessageHandler {
-    weak var owner: ClaudeConsoleWindowController?
-    init(owner: ClaudeConsoleWindowController) { self.owner = owner }
+    weak var owner: ClaudePlatformViewController?
+    init(owner: ClaudePlatformViewController) { self.owner = owner }
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         owner?.receiveObservation(message)
     }
 }
 
 @MainActor
-final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDelegate, WKUIDelegate, NSWindowDelegate {
+final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate, WKUIDelegate {
     private struct BrowserResponse: Decodable {
         let status: Int
         let contentType: String
@@ -23,9 +23,9 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
     private let profile: AccountProfile
     private let model: ApplicationModel
     private let webView: WKWebView
-    private let status = InterfaceControls.label("Sign in on the official Claude Console page, then read your API credits.")
+    private let status = InterfaceControls.label("Sign in to Claude Platform (platform.claude.com), select the organization with your monthly grant, then read credits.")
     private let organization = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let readButton = NSButton(title: "Read API Credits", target: nil, action: nil)
+    private let readButton = NSButton(title: "Read Monthly/API Credits", target: nil, action: nil)
     private let signInButton = NSButton(title: "Open Sign-In", target: nil, action: nil)
     private let disconnectButton = NSButton(title: "Disconnect", target: nil, action: nil)
     private var organizations: [ClaudeConsoleOrganization] = []
@@ -37,6 +37,10 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
     private var responseTimer: Timer?
     private var refreshTask: Task<Void, Never>?
     private var isPaused = false
+    private var isRetired = false
+    var accountID: UUID { profile.id }
+    var onBack: (() -> Void)?
+    private var isPaneVisible = false
     private let billingURL = URL(string: "https://platform.claude.com/settings/billing")!
 
     init(profile: AccountProfile, model: ApplicationModel) {
@@ -45,40 +49,48 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = WKWebsiteDataStore(forIdentifier: profile.id)
         webView = WKWebView(frame: .zero, configuration: configuration)
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 950, height: 760),
-                              styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-        window.title = "\(profile.label) · Claude API Credits"
-        window.isReleasedWhenClosed = false
-        window.contentMinSize = NSSize(width: 700, height: 560)
-        super.init(window: window)
+        super.init(nibName: nil, bundle: nil)
         configuration.userContentController.add(ConsoleObservationHandler(owner: self), name: "ClaudeConsoleObservation")
         configuration.userContentController.addUserScript(WKUserScript(source: Self.observationScript,
                                                                        injectionTime: .atDocumentStart,
                                                                        forMainFrameOnly: true))
-        window.delegate = self
         webView.navigationDelegate = self
         webView.uiDelegate = self
+    }
+    required init?(coder: NSCoder) { nil }
+
+    override func loadView() {
+        let root = NSView()
+        view = root
         readButton.target = self
         readButton.action = #selector(readCredits(_:))
         signInButton.target = self
         signInButton.action = #selector(showSignIn(_:))
         disconnectButton.target = self
         disconnectButton.action = #selector(disconnect(_:))
-        organization.setAccessibilityLabel("Claude Console organization")
-        organization.addItem(withTitle: "Organization appears after sign-in")
+        organization.setAccessibilityLabel("Claude Platform organization")
+        if organization.numberOfItems == 0 { organization.addItem(withTitle: "Organization appears after sign-in") }
+        let back = NSButton(title: "Back to Account", target: self, action: #selector(backToAccount(_:)))
         let controls = NSStackView(views: [organization, readButton, signInButton, disconnectButton])
+        let title = InterfaceControls.label("Claude Platform · \(profile.label)", size: 16, weight: .semibold)
+        let heading = NSStackView(views: [back, NSView(), title])
+        heading.orientation = .horizontal
+        heading.spacing = 12
         controls.orientation = .horizontal
         controls.spacing = 8
-        let explanation = InterfaceControls.label("This account uses its own saved Console login. AI Usage Stats reads balances and grant expiration dates. Billing changes are made only on the official provider page.")
-        if let root = window.contentView {
-            for component in [explanation, controls, status, webView] {
+        let explanation = InterfaceControls.label("Sign in to Claude Platform (platform.claude.com) to read monthly grants and purchased API credits. This is separate from your Claude subscription sign-in. Choose the organization linked to this Claude account.")
+        do {
+            for component in [heading, explanation, controls, status, webView] {
                 component.translatesAutoresizingMaskIntoConstraints = false
                 root.addSubview(component)
             }
             NSLayoutConstraint.activate([
                 explanation.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
                 explanation.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
-                explanation.topAnchor.constraint(equalTo: root.topAnchor, constant: 16),
+                heading.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
+                heading.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
+                heading.topAnchor.constraint(equalTo: root.topAnchor, constant: 16),
+                explanation.topAnchor.constraint(equalTo: heading.bottomAnchor, constant: 12),
                 controls.leadingAnchor.constraint(equalTo: explanation.leadingAnchor),
                 controls.trailingAnchor.constraint(equalTo: explanation.trailingAnchor),
                 controls.topAnchor.constraint(equalTo: explanation.bottomAnchor, constant: 10),
@@ -91,16 +103,27 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
                 webView.bottomAnchor.constraint(equalTo: root.bottomAnchor)
             ])
         }
-        window.center()
     }
-    required init?(coder: NSCoder) { nil }
 
-    override func showWindow(_ sender: Any?) {
+    func presentPane() {
+        guard !isRetired else { return }
+        _ = view
+        let wasVisible = isPaneVisible
+        isPaneVisible = true
         isPaused = false
         webView.isHidden = false
-        if !isFetching { webView.load(URLRequest(url: billingURL)) }
-        super.showWindow(sender)
+        if !isFetching, !wasVisible { webView.load(URLRequest(url: billingURL)) }
     }
+
+    func hidePane(pauseRefresh: Bool = false) {
+        isPaneVisible = false
+        webView.isHidden = true
+        guard !isRetired else { return }
+        if pauseRefresh { pause(); parkBrowser() }
+        else if !isFetching { parkBrowser() }
+    }
+
+    @objc private func backToAccount(_ sender: Any?) { onBack?() }
 
     func refreshInBackground() {
         guard model.consoleConnections[profile.id] != nil, !isFetching else { return }
@@ -112,7 +135,7 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
         guard !isFetching else { return }
         webView.isHidden = false
         webView.load(URLRequest(url: billingURL))
-        status.stringValue = "Sign in to Claude Console, then read your API credits."
+        status.stringValue = "Sign in to Claude Platform (platform.claude.com), select your grant organization, then read credits."
     }
 
     private func startFetch(isInteractive: Bool) {
@@ -122,7 +145,8 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
         readButton.isEnabled = false
         signInButton.isEnabled = false
         disconnectButton.isEnabled = false
-        status.stringValue = "Reading Claude Console organizations and balances…"
+        organization.isEnabled = false
+        status.stringValue = "Reading Claude Console balances and monthly grant details…"
         refreshTask = Task { [weak self] in
             guard let self else { return }
             defer {
@@ -130,8 +154,9 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
                 readButton.isEnabled = true
                 signInButton.isEnabled = true
                 disconnectButton.isEnabled = true
+                organization.isEnabled = true
                 refreshTask = nil
-                if !isPaused, window?.isVisible != true { parkBrowser() }
+                if !isPaused, !isPaneVisible { parkBrowser() }
             }
             do {
                 try await prepareBrowser()
@@ -148,16 +173,34 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
                         status.stringValue = "Signed in\(account.email.map { " as \($0)" } ?? ""). Select your API organization, then read credits."
                         return
                     }
-                    throw UsageError.authenticationRequired("The saved Console login no longer has access to the connected organization. Open Manage Claude API Credits to sign in again.")
+                    throw UsageError.authenticationRequired("The saved Console login no longer has access to the connected organization. Open Connect Claude Platform in Manage Accounts to sign in again.")
                 }
                 let url = try ClaudeConsoleClient.balanceURL(organizationID: selectedID)
                 let response = try await get(url)
+                let observedAt = Date()
                 try Task.checkCancellation()
                 // Decode before saving the connection so malformed data cannot replace an existing connection.
                 _ = try ClaudeConsoleBalance.decode(response, organizationID: selectedID)
                 try await model.setConsoleConnection(accountID: profile.id, organizationID: selectedID, expectedIdentity: profile.providerAccountID)
-                try await model.updateConsoleCredits(accountID: profile.id, organizationID: selectedID, responseData: response, expectedIdentity: profile.providerAccountID)
-                status.stringValue = "Connected\(account.email.map { " as \($0)" } ?? "") · Read \(InterfaceFormatting.exactDate(Date())). Credits refresh every 5 minutes."
+                var linkStateData: Data?
+                var invoicesData: Data?
+                var monthlyErrors: [String] = []
+                do { linkStateData = try await get(ClaudeConsoleClient.linkStateURL(organizationID: selectedID)) }
+                catch {
+                    try Task.checkCancellation()
+                    monthlyErrors.append("Monthly plan details could not be read.")
+                }
+                do { invoicesData = try await get(ClaudeConsoleClient.invoicesURL(organizationID: selectedID)) }
+                catch {
+                    try Task.checkCancellation()
+                    monthlyErrors.append("Monthly invoices could not be read.")
+                }
+                try await model.updateConsoleCredits(accountID: profile.id, organizationID: selectedID, responseData: response,
+                                                     expectedIdentity: profile.providerAccountID, linkStateData: linkStateData,
+                                                     invoicesData: invoicesData, observedAt: observedAt,
+                                                     monthlyMetadataError: monthlyErrors.isEmpty ? nil : monthlyErrors.joined(separator: " "))
+                status.stringValue = "Connected\(account.email.map { " as \($0)" } ?? "") · Read \(InterfaceFormatting.exactDate(observedAt)). Credits refresh every 5 minutes."
+                if !monthlyErrors.isEmpty { status.stringValue += " Monthly plan or invoice details could not be fully checked." }
             } catch {
                 if Task.isCancelled || error is CancellationError { status.stringValue = "Credits refresh paused."; return }
                 let message = error.localizedDescription
@@ -186,7 +229,7 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
         if webView.url?.host == "platform.claude.com", webView.url?.scheme == "https", !webView.isLoading { return }
         try await withCheckedThrowingContinuation { continuation in
             navigationWaiter = continuation
-            awaitedNavigation = webView.load(URLRequest(url: window?.isVisible == true ? billingURL : ClaudeConsoleClient.accountURL, timeoutInterval: 20))
+            awaitedNavigation = webView.load(URLRequest(url: isPaneVisible ? billingURL : ClaudeConsoleClient.accountURL, timeoutInterval: 20))
             navigationTimer = Timer.scheduledTimer(timeInterval: 20, target: self,
                                                   selector: #selector(navigationTimedOut(_:)), userInfo: nil, repeats: false)
         }
@@ -194,22 +237,24 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
 
     private func get(_ url: URL) async throws -> Data {
         try Task.checkCancellation()
-        guard url.scheme == "https", url.host == "platform.claude.com",
+        guard url.scheme == "https", url.host == "platform.claude.com", Self.isPermittedObservationPath(url.path),
               webView.url?.scheme == "https", webView.url?.host == "platform.claude.com" else {
-            throw UsageError.invalidConfiguration("The billing request must use the official Claude Console.")
+            throw UsageError.invalidConfiguration("The billing request must use the official Claude Platform.")
         }
         let script = """
-        if (location.origin !== 'https://platform.claude.com') throw new Error('Open the official Claude Console sign-in page.');
+        if (location.origin !== 'https://platform.claude.com') throw new Error('Open the official Claude Platform sign-in page.');
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 20000);
         try {
-          const response = await fetch(path, {credentials: 'include', cache: 'no-store',
+          const response = await fetch(path, {method: 'GET', credentials: 'include', cache: 'no-store',
             headers: {'Accept': 'application/json', 'anthropic-client-platform': 'web_console'}, signal: controller.signal});
           return JSON.stringify({status: response.status, contentType: response.headers.get('content-type') || '',
             redirected: response.redirected, body: await response.text()});
         } finally { clearTimeout(timeout); }
         """
-        let value = try await webView.callAsyncJavaScript(script, arguments: ["path": url.path], in: nil, contentWorld: .page)
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let target = (components?.percentEncodedPath ?? url.path) + (components?.percentEncodedQuery.map { "?" + $0 } ?? "")
+        let value = try await webView.callAsyncJavaScript(script, arguments: ["path": target], in: nil, contentWorld: .page)
         try Task.checkCancellation()
         guard let text = value as? String, let data = text.data(using: .utf8) else {
             throw UsageError.providerFailure("Claude Console returned an unreadable response.")
@@ -220,11 +265,12 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
             return try await responseFromOfficialPage(for: url)
         }
         if response.status == 401 || response.status == 403 || response.redirected || !response.contentType.lowercased().contains("json") {
-            throw UsageError.authenticationRequired("Sign in on the official Claude Console page, then read credits again.")
+            throw UsageError.authenticationRequired("Sign in on the official Claude Platform page, then read credits again.")
         }
         guard (200..<300).contains(response.status) else {
             throw UsageError.providerFailure("Claude Console could not read credits (HTTP \(response.status)). Open Sign-In and try again.")
         }
+        guard response.body.utf8.count <= 1_048_576 else { throw UsageError.providerFailure("Claude Console returned too much credit data.") }
         return Data(response.body.utf8)
     }
 
@@ -243,7 +289,6 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
         if navigationAction.request.url?.scheme == "https" { webView.load(navigationAction.request) }
         return nil
     }
-    func windowWillClose(_ notification: Notification) { if !isFetching && !isPaused { parkBrowser() } }
 
     private func completeNavigation(error: Error? = nil) {
         navigationTimer?.invalidate()
@@ -275,13 +320,14 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
     }
 
     func retire() {
+        isRetired = true
         pause()
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "ClaudeConsoleObservation")
         // Replacing the document cancels pending JavaScript without changing the saved login store.
         webView.loadHTMLString("", baseURL: nil)
-        close()
+        if isViewLoaded { view.removeFromSuperview() }
     }
 
     private func responseFromOfficialPage(for url: URL) async throws -> Data {
@@ -317,13 +363,19 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
         struct Observation: Decodable { let path: String; let body: String }
         guard let observation = try? JSONDecoder().decode(Observation.self, from: data),
               observation.path == responseWaiter?.path else { return }
-        if observation.path != "/api/account" {
-            let components = observation.path.split(separator: "/")
-            guard components.count == 5, components[0] == "api", components[1] == "organizations",
-                  UUID(uuidString: String(components[2])) != nil,
-                  components[3] == "prepaid", components[4] == "credits" else { return }
-        }
+        guard Self.isPermittedObservationPath(observation.path) else { return }
         completeResponse(data: Data(observation.body.utf8))
+    }
+
+    private static func isPermittedObservationPath(_ path: String) -> Bool {
+        if path == "/api/account" { return true }
+        let components = path.split(separator: "/")
+        if components.count == 5, components[0] == "api", components[1] == "organizations",
+           UUID(uuidString: String(components[2])) != nil, components[3] == "prepaid", components[4] == "credits" { return true }
+        if components.count == 4, components[0] == "api", components[1] == "organizations",
+           UUID(uuidString: String(components[2])) != nil, components[3] == "invoices" { return true }
+        return components.count == 5 && components[0] == "api" && components[1] == "quirky-lollipop"
+            && components[2] == "organizations" && UUID(uuidString: String(components[3])) != nil && components[4] == "link-state"
     }
 
     private static let observationScript = """
@@ -337,7 +389,8 @@ final class ClaudeConsoleWindowController: NSWindowController, WKNavigationDeleg
           const url = new URL(input instanceof Request ? input.url : String(input), location.href);
           const method = (parameters[1]?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
           const permitted = url.origin === 'https://platform.claude.com' &&
-            (url.pathname === '/api/account' || /^\\/api\\/organizations\\/[0-9a-f-]{36}\\/prepaid\\/credits$/i.test(url.pathname));
+            (url.pathname === '/api/account' || /^\\/api\\/organizations\\/[0-9a-f-]{36}\\/(prepaid\\/credits|invoices)$/i.test(url.pathname) ||
+             /^\\/api\\/quirky-lollipop\\/organizations\\/[0-9a-f-]{36}\\/link-state$/i.test(url.pathname));
           if (method === 'GET' && permitted && response.ok && !response.redirected &&
               (response.headers.get('content-type') || '').includes('json')) {
             response.clone().text().then(body => {

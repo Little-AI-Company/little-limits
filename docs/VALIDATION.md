@@ -384,3 +384,117 @@ On October 11, 2026, on the same Apple silicon Mac with macOS 27.0.1, the final 
 | `open -n "dist/AI Usage Stats.app" --args --show-panel` | Passed after quitting the exact prior development process; normal account mode. |
 
 The final packaged executable SHA-256 is `138e0dfa4ceef4efb568d9141b1e87a824fce3ca110ca4b5c63800e3b0a36a2c`. These reconnect failures were exercised with synthetic fixtures. No real sign-in, reconnect, removal, or quota probe was performed. The email UI source and existing visual-check and runtime limits are unchanged.
+
+## Native usage menu redesign, October 11, 2026
+
+Tested uncommitted changes on baseline `80fb0b6`, branch `codex/native-usage-menu`. Code-and-test source SHA-256: `7c922494872e28f5f2f005a9575616d9f2b71fa4bacb4e01672c52574682ddfb`, using the sorted path/NUL/content/NUL procedure described above. Packaged executable SHA-256: `f92ea607ce26e3b6d86747e56ed4ba5e36c98fe82a8a2f368fc82b0701f40e08`. The build environment was Apple M1 Max, 64 GB memory, macOS 27.0.1 (26A434), Swift 6.4.
+
+The populated status item now uses the same actual `NSMenu` as first run. Account headings use AppKit section headers, verified available at the macOS 14.0 deployment target in the installed SDK. Readings explicitly say percent used; the status-item summary retains remaining quota. The former custom popover, account overview, and countdown timer were removed. Native tracking owns selection and dismissal; model changes are applied on the next opening. README no longer presents the historical dashboard screenshot as current UI.
+
+| Command | Observed result |
+| --- | --- |
+| `swift test` | Passed: 35 tests, zero failures; 13 XCTest tests and 22 Swift Testing contracts. Debug build completed in 4.24 seconds. |
+| `swift build -c release` | Passed without warnings; final Release build completed in 11.47 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build completed in 0.63 seconds. Created version 0.1.0, build 1 app and local ZIP. |
+| `plutil -lint "dist/AI Usage Stats.app/Contents/Info.plist"` and `plutil -p` | Passed; bundle identifier `com.parkerrex.ai-usage-stats`, `LSMinimumSystemVersion = 14.0`, `LSUIElement = true`, and icon metadata present. |
+| `codesign --verify --deep --strict --verbose=2 "dist/AI Usage Stats.app"` | Passed on the final moved bundle and helper. |
+| `codesign -d --verbose=2 "dist/AI Usage Stats.app"` | Ad hoc signature; no TeamIdentifier. This is local bundle verification, not Developer ID trust or notarization. |
+| `lipo -archs` for app and helper | Both `arm64`. Intel runtime and universal compilation were not exercised for this change. |
+| `file "dist/AI Usage Stats.app/Contents/Resources/AppIcon.icns"` | Valid ICNS present. |
+| `open -n "dist/AI Usage Stats.app" --args --demo --show-accounts` | Packaged app launched its existing Accounts window with fictional data after terminating the verified previous development process. |
+| `open -n "dist/AI Usage Stats.app" --args --demo --show-menu` | Launch command returned success. Native menu opening was then checked with the diagnostic launch below. |
+
+No provider parsing, authentication, credentials, or persistence code changed. Existing provider tests passed; that does not establish live provider behavior or native accessibility. Runtime menu evidence is recorded separately below. macOS 14 execution, Intel execution, live multi-account refresh during menu tracking, VoiceOver speech, and real system accessibility-preference transitions remain unverified. No performance measurements or distribution change are claimed.
+
+### Native menu lifecycle diagnostic
+
+`open -n "dist/AI Usage Stats.app" --stderr /tmp/ai-usage-stats-menu-baseline.log --args --demo --show-accounts --show-menu --menu-diagnostics` reached `NSMenuDelegate.menuWillOpen` in the unchanged package. The diagnostic reported `surface: native-menu`, a visible status item and visible status-button window, and an anchor frame. It contains no account values or credentials. This disproved the suspected failure to open an initially empty menu before delegate update on this tested macOS version. It does not establish the rendered menu's layout or colors.
+
+### Native runtime evidence and limits
+
+Native automation and a screenshot inspected the existing demo Accounts window. Its sidebar preserved the distinct fictional personal and research emails and explicit unavailable identity. The personal account showed `37% used` and `61% used`, with exact reset and observation dates. The same screenshot showed the unverified account's missing identity; this was an Accounts-window check, not a rendering check of the usage menu's unavailable rows.
+
+The standard application menu exposed Manage Accounts… through accessibility. Selecting it returned the existing Accounts window without creating a duplicate. Accessibility Cancel dismissed the tracked menu. Arrow Down and Return sent through the native automation bridge while a menu was tracking were delivered to the underlying Accounts table and selected Codex instead. Native menu keyboard selection, Return activation, and Escape dismissal therefore remain unverified.
+
+The native menu's actual visual appearance could not be captured through this automation bridge. A windowless app lookup timed out after five seconds; with Accounts open, the capture showed the Accounts window; a screenshot request during native menu tracking reported `Screenshot unavailable`. The lifecycle diagnostic above confirms native status-menu opening and anchoring, but gray section styling, informational-row legibility, long-email layout, scroll behavior, light/dark menu appearance, outside-click dismissal, and real accessibility-preference behavior remain unverified visually. No custom dashboard was retained or substituted as evidence.
+
+The updated packaged app was restored to normal account mode using `open -n "dist/AI Usage Stats.app" --args --show-menu` after terminating the exact demo development process. No account setup, removal, sign-in, plan change, or purchase was performed. The final source digest remained unchanged after runtime checks. These changes remain uncommitted; no push, pull request, merge, or release was performed.
+
+## Provider logos and readable metric columns, October 11, 2026
+
+This continues the uncommitted `codex/native-usage-menu` changes on baseline `80fb0b6c925184f7ae9655de5387ac2e3a60eca2`. Final code-and-test SHA-256: `5d3c784840e63229e48d6449ae408631c269d734bcf6a116ddd44393c76a8264`. Source/resource/packaging SHA-256: `1bf21f340f2d902c70718c7315381a1d5bf47ebb262b4ebffef5ee7626f56b2a`, using sorted relative path/NUL/content/NUL for Package.swift, scripts/package_app.sh, every file under Sources, and Swift files under Tests. Packaged executable SHA-256: `684cb6d86a1083ccc7ea0a3d42d8f54209d8488b01d21ee026f2c60e90dc314f`.
+
+The menu retains AppKit section headers and adds template Claude/OpenAI images from the local opencode checkout. Compact metric labels, semibold values, and secondary timing share native paragraph tab stops. Unknown expiry is still available in tooltip and Connection Details, while absent email uses the saved name in the heading without implying an unverified account UUID. Status and recovery text are concise. No provider, authentication, or credential code changed.
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test` | Final source passed 35 tests: 13 XCTest plus 22 Swift Testing, zero failures. Debug build 2.50 seconds. |
+| `swift build -c release` | Final source passed without warnings; 12.80 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build 0.33 seconds. Version 0.1.0, build 1 local app and ZIP created with the generated SwiftPM resource bundle embedded. |
+| `plutil -lint "dist/AI Usage Stats.app/Contents/Info.plist"` | Passed. |
+| `codesign --verify --deep --strict --verbose=2 "dist/AI Usage Stats.app"` | Passed for final moved app and capture helper. Signing remains ad hoc for local use. |
+| `lipo -archs` for app and capture helper | Both `arm64`. |
+| `sips -g pixelWidth -g pixelHeight -g hasAlpha` for both packaged ProviderIcons PNGs | Both 96 by 96 pixels, alpha present. |
+| Byte comparison of source and packaged ProviderIcons files | All six files matched: two PNGs, two SVG sources, LICENSE.txt, and NOTICE.txt. The bundle contains the opencode MIT notice, copyright, original asset paths, and source commit. |
+| `git -C /Users/parkerrex/Developer/opencode diff --quiet HEAD -- packages/ui/LICENSE packages/ui/src/assets/icons/file-types/claude.svg packages/ui/src/assets/icons/provider/openai.svg` | Exit 0. Copied SVG/license source files match recorded source commit `388406238bd5ca15564a762840a2362c3a45bd9c`; opencode was not modified. |
+| `open -n "dist/AI Usage Stats.app" --stderr /tmp/ai-usage-stats-provider-icons.log --args --demo --show-menu --menu-diagnostics` | Native menuWillOpen reached; diagnostic `providerIcons=4/4` verified all four fictional account headers have decoded images in the actual packaged app. Status item and anchor window were visible. |
+| Normal launch with `--show-menu --menu-diagnostics` after stopping the exact demo process | Updated app restored to normal account mode; diagnostic confirms native menu opening and loaded header images without printing account values or credentials. |
+| `git diff --check` | Passed. |
+
+An offline AppKit text specimen used the production attributed titles and decoded resources. The temporary Swift harness compiled UsageMenu.swift and InterfaceFormatting.swift against the already built UsageCore, then wrote `/tmp/ai_usage_menu_text_preview.png`. Both agents inspected it: shared columns were legible without overlap, logos were recognizable, full long email text was retained, and currency, credits, and reset units stayed separate. The maximum metric attributed-title width was 378 points in this demo. This is evidence about text drawing and decoded assets, not an actual NSMenu screenshot, native section-header styling, menu image tint, tracking, or dismissal. Direct image drawing in the specimen retained source color; actual menu images are marked as templates.
+
+The previously recorded native-menu capture and keyboard limitations still apply. No repeated CUA attempts or substitute dashboard were used. macOS 14, Intel runtime, VoiceOver, actual native-menu light/dark appearance, and accessibility-preference transitions remain unverified. No performance measurements, commit, push, pull request, merge, or release were performed.
+
+## Compact provider preview and monthly grant integration, October 11, 2026
+
+Tested integrated, uncommitted changes on `codex/native-usage-menu`, baseline `80fb0b6c925184f7ae9655de5387ac2e3a60eca2`. Code-and-test SHA-256: `8c5061287450fcad57f7b9aef332968dad76dab7d6b7d317460227461597bf62`. Source/resource/packaging SHA-256: `20fa6da8483852a37115986d519194e8f503e03853095ff063be1601ff201090`, using the sorted path/NUL/content/NUL procedure and file set described in the previous section. Tested packaged executable SHA-256: `6e9e5a8b1fae02ac791d6724e02f83cc78ac90cb34b26b32ee884e15eb3fc345`.
+
+The populated native status button now uses one cached template image with provider logos and percentages instead of written provider names. Remaining-capacity aggregation, unknown quota, stale indicator, account counts, tooltip, and accessibility descriptions retain their meaning. ProviderIcons supplies the same decoded resources to menu headings and the preview. Bitmap representations are explicitly transparent at 1x and 2x, with point size set before creating each drawing context.
+
+The isolated Console session reads selected-organization balance, plan linkage, and invoices using only GET. Invoice query parameters are preserved. Explicit monthly invoice origin must match the promotional grant's original USD amount, grant date, and expiry one-to-one. A plan allowance is never treated as remaining credit. Supplementary failures retain fresh purchased and unrelated promotional balances while preserving a dated, immediately marked stale last verified monthly reading. The same retained grant cannot also appear as a fresh generic grant or an unknown monthly placeholder. Generic promotions alone cannot hide the monthly placeholder or stored manual fallback; an identified provider monthly grant takes priority over that fallback. Stored manual data remains available in the editor.
+
+Connect Monthly/API Credits… makes setup explicit. A provider-reported Not linked state changes the existing billing action to Open Claude Billing, which opens the official billing page for human linking or claiming. Monitoring never performs a claim, plan change, purchase, or provider mutation.
+
+| Command or check | Observed result |
+| --- | --- |
+| Initial three-case monthly service fixture run | Compiled, then two passed and one assertion failed because a retained monthly grant still had an unknown monthly placeholder beside it. The placeholder was removed when a specific monthly grant exists; no assertion was weakened. Initial debug compilation took 465.41 seconds. |
+| `swift test --filter 'identifiedMonthlyGrantOverridesManualFallbackWithoutRenamingOtherPromotions\|monthlyMetadataFailureRetainsDatedStaleGrantAndFreshPurchasedBalance\|genericPromotionsKeepMonthlyManualFallbackAndUnknownMonthlyState'` | Narrow rerun passed all 3 cases, zero failures; build 1.75 seconds. Fixtures cover organization changes, persisted stale state, original observation date, fresh purchased balances, unrelated promotions, and manual fallback precedence. |
+| `swift test` | Integrated final source passed 45 tests, zero failures: 20 XCTest plus 25 Swift Testing. Build 55.64 seconds. |
+| `swift build -c release` | Passed without warnings or errors; 163.45 seconds. During compilation a running Swift frontend and progressing build phases were observed; no compiler failure or performance claim is inferred from elapsed build time. |
+| `OUTPUT_DIRECTORY=/tmp/ai-usage-stats-monthly-package scripts/package_app.sh` | Passed; cached build 10.38 seconds. Created the tested temporary version 0.1.0, build 1 app and ZIP before replacing the running development bundle. |
+| `plutil -lint` and `codesign --verify --deep --strict --verbose=2` on the tested temporary app | Passed; resource bundle and capture helper included. Ad hoc local signing remains the distribution boundary. |
+| `lipo -archs` on temporary app and helper | Both `arm64`. |
+| Source/packaged ProviderIcons byte comparison | All six PNG/SVG/license/notice files matched. |
+| `node --check /tmp/ai_usage_console_observation.js` | Passed for the Console observation script's Swift-decoded JavaScript. This checks syntax, not provider acceptance or a live session. |
+| `git diff --check` | Passed. |
+
+The production status-image specimen at `/tmp/ai_usage_status_image_preview.png` was inspected by both agents. Claude-only and Codex-only examples were 44 by 18 points; both providers 97 by 18; unknown quota 57 by 18; stale quota 106 by 18. Logos and digits were legible and separate. These dimensions are produced-image measurements, not a comparison of real status-item frames or a status-bar screenshot. Direct drawing in the specimen retains the source logo color; actual native controls supply template tint. Initial specimen iterations exposed opacity metadata and temporary tint-compositing problems; corrected transparent production representations and a stable-source recompilation produced the final inspected artifact. A temporary specimen compile interrupted by a source edit was repeated successfully; it was not a passing final verification.
+
+The tested temporary bundle was copied into canonical `dist`, with executable and resources compared against the tested artifact and the copied signature reverified. The exact previous development process was terminated before normal `--show-accounts` launch. Profile configuration, browser sessions, and stored credentials were not altered by installation. Launch and process checks establish that the new packaged app runs; they do not establish visible layout through the unreliable native automation bridge.
+
+Live monthly balance/invoice correlation in the app's isolated Platform session has not yet been observed. A saved Platform sign-in may already exist before its first Read; connection count alone does not establish authentication state. Browser inspection confirmed a monthly grant and a monthly invoice label, but raw response capture and the native app automation bridge were unreliable; this is not evidence that the new integration has completed a live read. Native keyboard/tint/appearance, macOS 14 and Intel execution, and multi-account live Console refresh remain unverified. The read-only matching and fallback results above are fixture evidence. Publishing disposition was subsequently authorized, but no publication or merge is claimed by these checks.
+
+## One management window and distinct Platform authentication, October 11, 2026
+
+Final tested uncommitted source on the same baseline and branch: code-and-test SHA-256 `795cd11d56255eb4eca1bdaecb1404d66db89e74686532ac50f144c4e7551a5c`; source/resource/packaging SHA-256 `c2fdbb8995170d62fc6afebf505c4e450d2f9fc958ed2dced50482eafa2be71a`; packaged executable SHA-256 `b7f8c4fd7ea640fb0d77460feadefed978ca29f84c90e75da05a388bfe10b64e`. Digest procedures remain as described above.
+
+Settings now selects General inside Accounts, including the standard app-menu Settings… command and Command-comma. The status menu has one Manage Accounts… command and no Settings command. The Platform browser is a per-profile view controller embedded in the same detail area, with Back to Account and explicit platform.claude.com authentication separate from Claude subscription sign-in at claude.ai. Back restores the selected account, unfinished editor fields, and prior window size. The empty account list selects General. Removing the displayed Platform account detaches that pane rather than displaying its old session beside another account.
+
+The per-profile WKWebsiteDataStore identifiers, account/organization guards, data reads, and browser parking remain intact. Closing the management window pauses/parks visible browser activity without signing out. Retiring a controller prevents later loads, cancels its waiters/task, and removes the observation handler. Subscription sign-in is now an attached sheet with its existing OAuth/loopback logic unchanged; ordinary dialogs use attached sheets too. No separate Settings or Platform window is created. Startup state is read through the existing ServiceManagement API; validation did not register or unregister launch-at-login.
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test` | Passed 46 tests, zero failures: 21 XCTest plus 25 Swift Testing. Final debug build 2.62 seconds. Includes the no-provider-ID grant guard: missing IDs cannot become persistent monthly identities and suppress a different later promotion by array position. |
+| `swift build -c release` | Passed without warnings/errors; 257.23 seconds. |
+| `OUTPUT_DIRECTORY=/tmp/ai-usage-stats-management-package scripts/package_app.sh` | Passed; cached Release build 3.33 seconds. Created version 0.1.0, build 1 temporary app and ZIP. |
+| `plutil -lint` on the temporary app | Passed. |
+| `codesign --verify --deep --strict --verbose=2` on temporary and canonical copied apps | Both passed; helper verified. Signing remains ad hoc for local use. |
+| `lipo -archs` for temporary app and helper | Both `arm64`. |
+| ProviderIcons source/resource comparison | All six icon/source/license/notice files matched the packaged bundle. |
+| Temporary-to-canonical bundle and ZIP byte comparison | Every bundle file and ZIP matched the tested artifacts after installation into `dist`. |
+| `open -n "dist/AI Usage Stats.app" --args --show-accounts` | Returned success after terminating the exact prior development process. The updated normal app is running with Accounts requested. Sessions, stored profiles, and credentials were not removed or copied out. |
+| `git diff --check` | Passed. |
+
+Before replacement, one bounded `sample 67082 1 1 -file /tmp/ai-usage-stats-main-thread.sample.txt` examined the prior integrated app because native automation lookup timed out. Its main thread was idle in NSApplication.run/event routing, CFRunLoopServiceMachPort, and mach_msg2_trap; no app-code blocking or hang was observed in that one-second interval. Only main-thread function names were inspected, without secret values. This supports a tool-inspection limitation and does not prove visible window layout.
+
+The observed live subscription dialog reported an account identity mismatch. That observation does not establish whether a separate Platform session was signed in elsewhere. A zero stored Console-connection count also does not establish authentication state before Read. Persistent Platform cookies were preserved during replacement so the embedded pane can reuse any existing sign-in. Live Platform credit retrieval, real monthly invoice correlation, and the new one-window keyboard/layout checks remain pending runtime review. Existing native-menu capture, older macOS, Intel, VoiceOver, and system accessibility-preference limits remain unchanged. Source/lifecycle review and builds are separate evidence from those live checks.

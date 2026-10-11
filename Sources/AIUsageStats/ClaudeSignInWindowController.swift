@@ -19,9 +19,9 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
         self.model = model
         self.existingProfileID = existingProfileID
         accountLabel = label
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 200),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 260),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.title = "Connect Claude"
+        window.title = "Claude Subscription Sign-In"
         window.isReleasedWhenClosed = false
         super.init(window: window)
         window.delegate = self
@@ -29,7 +29,8 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
         cancelButton.action = #selector(cancel(_:))
         cancelButton.keyEquivalent = "\u{1b}"
         let title = InterfaceControls.label(label, size: 17, weight: .semibold)
-        let controls = InterfaceControls.stack([title, status, cancelButton], spacing: 16)
+        let explanation = InterfaceControls.label("Subscription sign-in opens claude.ai in your browser. Claude Platform (platform.claude.com) requires a separate sign-in for monthly grants and API credits.")
+        let controls = InterfaceControls.stack([title, explanation, status, cancelButton], spacing: 16)
         controls.translatesAutoresizingMaskIntoConstraints = false
         if let root = window.contentView {
             root.addSubview(controls)
@@ -38,15 +39,21 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
                 controls.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -24),
                 controls.topAnchor.constraint(equalTo: root.topAnchor, constant: 24),
                 controls.bottomAnchor.constraint(lessThanOrEqualTo: root.bottomAnchor, constant: -24),
-                status.widthAnchor.constraint(equalTo: controls.widthAnchor)
+                status.widthAnchor.constraint(equalTo: controls.widthAnchor),
+                explanation.widthAnchor.constraint(equalTo: controls.widthAnchor)
             ])
         }
         window.initialFirstResponder = cancelButton
         window.recalculateKeyViewLoop()
-        window.center()
     }
 
     required init?(coder: NSCoder) { nil }
+
+    func presentSheet(in parent: NSWindow) {
+        guard let window, parent.attachedSheet == nil else { return }
+        parent.beginSheet(window) { [weak self] _ in self?.stop() }
+        start()
+    }
 
     func start() {
         guard signInTask == nil, !finished else { return }
@@ -106,7 +113,7 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
                 cancelButton.isEnabled = true
                 window?.standardWindowButton(.closeButton)?.isEnabled = true
                 NSApp.activate(ignoringOtherApps: true)
-                window?.makeKeyAndOrderFront(nil)
+                window?.sheetParent?.makeKeyAndOrderFront(nil)
             } catch {
                 guard !finished else { return }
                 fail(error.localizedDescription)
@@ -142,7 +149,13 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    @objc private func cancel(_ sender: Any?) { stop(); close() }
+    @objc private func cancel(_ sender: Any?) {
+        stop()
+        if let window, let parent = window.sheetParent {
+            parent.endSheet(window)
+            window.orderOut(sender)
+        }
+    }
     func windowShouldClose(_ sender: NSWindow) -> Bool { cancelButton.isEnabled }
     func windowWillClose(_ notification: Notification) { stop() }
 }

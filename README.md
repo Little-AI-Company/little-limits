@@ -4,24 +4,18 @@ Claude and Codex usage, reset countdowns, and API credits in your menu bar. Keep
 
 **Native AppKit · macOS 14+ runtime · Swift 6 · No external Swift dependencies**
 
-With no accounts, clicking the menu bar item opens a standard macOS menu with direct account setup commands. After setup, aligned account rows keep quotas and balances easy to compare. Details shows exact dates and sources; Refresh, Accounts, Settings, and Quit are directly accessible through native controls.
+Clicking the menu bar item opens a standard macOS menu. Each account has a native section heading with its provider logo and verified email, followed by aligned usage and credit readings. Quota rows explicitly show the percentage used and a reset countdown; the compact menu bar preview shows provider logos with remaining-quota percentages. Full provider names and remaining-capacity meaning stay in its tooltip and accessibility text. **Manage Accounts…** opens the existing Accounts window. Tooltips and **Connection Details…** keep exact dates and sources available. First-run account setup, Refresh, and Quit use standard status-menu commands. Settings opens the General section inside Manage Accounts through the app menu or Command-comma.
 
 ## What it reads
 
 | Source | Data | Connection |
 | --- | --- | --- |
-| Claude subscription (experimental) | Quota remaining and reset countdowns | Separate browser sign-in for each app account, followed by direct quota reads. Uses private OAuth endpoints. |
-| Claude Console (experimental) | Purchased API balances and promotional grants, including returned scope and expiry | Separate Console sign-in for each account. Uses private billing endpoints. |
+| Claude subscription (experimental) | Quota used and reset countdowns | Separate browser sign-in for each app account, followed by direct quota reads. Uses private OAuth endpoints. |
+| Claude Console (experimental) | Purchased API balances, invoice-identified monthly subscription grants, and other promotions with scope and expiry | Separate Console sign-in for each account. Uses private billing endpoints. |
 | Codex | Usage windows, credit units, and earned quota resets with expiry | Automatic reads through the installed native CLI's app-server interface. |
 | OpenAI API | Prepaid balance and optional expiry | Manual entry with a source date and a link to official billing. |
 
-Subscription limits, API money, and Codex credit units stay separate. Missing readings show as unavailable; old readings retain their timestamps and stale state. Promotional grants keep their reported scope instead of all being labelled monthly credits.
-
-## Screenshot
-
-<a href="assets/screenshots/usage-overview.png"><img src="assets/screenshots/usage-overview.png" alt="AI Usage Stats menu bar panel showing demo Claude and Codex accounts" width="520"></a>
-
-Demo data in the running native app.
+Subscription limits, API money, and Codex credit units stay separate. Missing readings show as unavailable; old readings retain their timestamps and stale state. If monthly metadata fails, purchased balances still refresh and the last verified monthly reading remains explicitly stale. Promotional grants keep their reported scope instead of all being labelled monthly credits.
 
 ## Build and install
 
@@ -40,12 +34,12 @@ Packaging produces an ad hoc signed app and ZIP for local use. Public downloads 
 
 ## Connect accounts
 
-On first run, click the menu bar item and choose **Add Claude Account…** or **Add Codex Account…**. The setup dialog explains the selected connection source and prerequisites. Choose **Accounts…** to manage existing accounts, then select an account in the sidebar to edit its name, connection, or manual balances.
+On first run, click the menu bar item and choose **Add Claude Account…** or **Add Codex Account…**. The setup dialog explains the selected connection source and prerequisites. Choose **Manage Accounts…** to manage existing accounts, then select an account in the sidebar to edit its name, connection, or manual balances.
 
-Claude account headings and the Accounts list show the verified sign-in email alongside the saved name. Accounts without a verified email show **Email unavailable**. Long emails retain their full value in tooltips and accessibility labels.
+Menu headings use the provider logo and verified sign-in email. When the provider returns no email, the heading uses the saved account name; its tooltip and Connection Details show **Email unavailable**. The Accounts window preserves the saved name and connection details. Long emails retain their full value in native menu text and tooltips.
 
-- **Claude:** choose **Add Claude Account…**, give it a name, and complete sign-in in the browser. The app requests usage after sign-in and keeps this account separate from your everyday Claude Code login. No terminal session or model response is needed. Existing status-line capture profiles remain available; reconnect one to switch it to direct reads while preserving its name and profile identity.
-- **Claude API credits:** select the Claude account, choose **Connect API Credits**, sign in to the official Console, and choose the organization. Purchased balances and promotional grants are separate from Claude subscription quota.
+- **Claude subscription:** choose **Add Claude Account…**, give it a name, and complete the subscription sign-in at **claude.ai** in your browser while its confirmation sheet remains attached to Manage Accounts. The app requests usage after sign-in and keeps this account separate from your everyday Claude Code login. No terminal session or model response is needed. Existing status-line capture profiles remain available; reconnect one to switch it to direct reads while preserving its name and profile identity.
+- **Claude monthly/API credits:** select the Claude account, choose **Connect Claude Platform…**, sign in to **platform.claude.com** in the same management window, and choose the organization that holds your grant. This authentication is separate from Claude subscription sign-in at **claude.ai**. **Back to Account** returns to the same account. Monthly grants are identified by matching a specifically named monthly invoice to its promotional balance and expiry. Other promotions remain separate. If Console reports an eligible plan as **Not linked**, **Open Claude Billing** opens the official page where you can link or claim it yourself; monitoring performs no claim, plan change, or purchase.
 - **Codex:** choose **Add Account → Connect Codex** and complete its official CLI login. Each profile uses a separate app-owned `CODEX_HOME`. Finish one login before starting another.
 - **Manual balances:** expand **Manual balance**, select an API credit category, and enter its amount, confirmation date, and optional expiry from the billing dashboard.
 
@@ -53,7 +47,7 @@ The experimental subscription connection stores its own OAuth grant in a separat
 
 When an older profile first receives a verified identity, its earlier Console credit connection is cleared. Saved manual balances remain available in the editor for confirmation through **Save Balance**, and stay out of the current readings until confirmed. Reconnecting an already verified account preserves its confirmed balances.
 
-The Console connection keeps its login in a separate persistent WebKit store for each app account. It does not export cookies into the saved account file. Disconnecting stops automatic reads while retaining the browser login for reconnecting. Removing a Codex profile removes monitoring data and leaves the CLI login intact.
+The Claude Platform connection keeps its login in a separate persistent WebKit store for each app account. Its browser is embedded in Manage Accounts; General settings share that same window. Closing the window parks browser activity without signing out. It does not export cookies into the saved account file. Disconnecting stops automatic reads while retaining the browser login for reconnecting. Removing a Codex profile removes monitoring data and leaves the CLI login intact.
 
 The app only monitors usage. It does not purchase credits or send model requests as a probe. There is no telemetry.
 

@@ -37,6 +37,7 @@ install -m 755 "$binary_directory/UsageCapture" "$application/Contents/MacOS/Usa
 cp Resources/Info.plist "$application/Contents/Info.plist"
 cp Resources/AppIcon.icns "$application/Contents/Resources/AppIcon.icns"
 cp LICENSE "$application/Contents/Resources/LICENSE.txt"
+cp -R "$binary_directory/AIUsageStats_AIUsageStats.bundle" "$application/Contents/Resources/AIUsageStats_AIUsageStats.bundle"
 plutil -replace CFBundleShortVersionString -string "$version" "$application/Contents/Info.plist"
 plutil -replace CFBundleVersion -string "$build_number" "$application/Contents/Info.plist"
 plutil -lint "$application/Contents/Info.plist"

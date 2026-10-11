@@ -180,8 +180,11 @@ final class ApplicationModel {
         consoleConnections[accountID] = organizationID
     }
 
-    func updateConsoleCredits(accountID: UUID, organizationID: String, responseData: Data, expectedIdentity: String?) async throws {
-        try await service.updateClaudeConsoleCredits(accountID: accountID, organizationID: organizationID, responseData: responseData, expectedIdentity: expectedIdentity)
+    func updateConsoleCredits(accountID: UUID, organizationID: String, responseData: Data, expectedIdentity: String?,
+                              linkStateData: Data? = nil, invoicesData: Data? = nil, observedAt: Date = Date(), monthlyMetadataError: String? = nil) async throws {
+        try await service.updateClaudeConsoleCredits(accountID: accountID, organizationID: organizationID, responseData: responseData,
+                                                    expectedIdentity: expectedIdentity, linkStateData: linkStateData,
+                                                    invoicesData: invoicesData, observedAt: observedAt, monthlyMetadataError: monthlyMetadataError)
         try validateConsoleIdentity(accountID: accountID, expectedIdentity: expectedIdentity)
         consoleMessages[accountID] = nil
         await load()
