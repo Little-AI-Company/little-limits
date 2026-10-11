@@ -72,7 +72,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
         if organization.numberOfItems == 0 { organization.addItem(withTitle: "Organization appears after sign-in") }
         let back = NSButton(title: "Back to Account", target: self, action: #selector(backToAccount(_:)))
         let controls = NSStackView(views: [organization, readButton, signInButton, disconnectButton])
-        let title = InterfaceControls.label("Claude Platform · \(profile.label)", size: 16, weight: .semibold)
+        let title = InterfaceControls.label("Claude Platform · \(InterfaceFormatting.accountIdentity(profile))", size: 16, weight: .semibold)
         let heading = NSStackView(views: [back, NSView(), title])
         heading.orientation = .horizontal
         heading.spacing = 12

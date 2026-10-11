@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import XCTest
+import Testing
 @testable import UsageCore
 
 final class CodexClientTests: XCTestCase {
@@ -12,6 +13,7 @@ final class CodexClientTests: XCTestCase {
             .fetch(profileID: UUID(), expectedIdentity: "account-a")
 
         XCTAssertEqual(result.accountIdentity, "account-a")
+        XCTAssertEqual(result.accountEmail, "fixture@example.com")
         XCTAssertEqual(result.snapshot.state, .available)
         XCTAssertEqual(result.snapshot.windows.map(\.utilizationPercent), [25, 40])
         XCTAssertEqual(result.snapshot.windows.first?.resetsAt?.timeIntervalSince1970, 2_000_000_000)
@@ -92,6 +94,31 @@ final class CodexClientTests: XCTestCase {
         XCTAssertEqual(kill(identifier, 0), -1, "Child process survived client cleanup.", file: file, line: line)
         XCTAssertEqual(errno, ESRCH, file: file, line: line)
     }
+}
+
+@Test func codexLoginEmailPersistsOnlyForTheValidatedAccount() async throws {
+    let fixture = try CodexProcessFixture(script: CodexProcessFixture.responses)
+    defer { fixture.remove() }
+    let directory = fixture.directory.appendingPathComponent("Store")
+    let service = UsageService(directory: directory, codexExecutableURL: fixture.executable)
+    let profile = try await service.createCodexProfile(label: "Legacy label")
+    _ = await service.refreshAccount(id: profile.id)
+    let bound = try #require(try await service.load().first)
+    #expect(bound.id == profile.id && bound.providerAccountID == "account-a")
+    #expect(bound.providerEmail == "fixture@example.com")
+    #expect(bound.label == "Legacy label")
+    let original = try String(contentsOf: fixture.executable, encoding: .utf8)
+    try original.replacingOccurrences(of: "\"email\":\"fixture@example.com\",", with: "").write(to: fixture.executable, atomically: false, encoding: .utf8)
+    _ = await service.refreshAccount(id: profile.id)
+    #expect(try await service.load().first?.providerEmail == "fixture@example.com")
+    try original.replacingOccurrences(of: "account-a", with: "account-b").replacingOccurrences(of: "fixture@example.com", with: "other@example.invalid")
+        .write(to: fixture.executable, atomically: false, encoding: .utf8)
+    let failed = await service.refreshAccount(id: profile.id)
+    #expect(failed.state == .authenticationRequired)
+    let preserved = try #require(try await service.load().first)
+    #expect(preserved.providerAccountID == "account-a" && preserved.providerEmail == "fixture@example.com")
+    let reloaded = UsageService(directory: directory, codexExecutableURL: fixture.executable)
+    #expect(try await reloaded.load().first?.providerEmail == "fixture@example.com")
 }
 
 private struct RequestRecord: Decodable {

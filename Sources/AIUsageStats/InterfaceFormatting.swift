@@ -8,6 +8,13 @@ enum InterfaceFormatting {
         return email
     }
 
+    static func accountIdentity(_ profile: AccountProfile) -> String {
+        let email = accountEmail(profile)
+        if email != "Email unavailable" { return email }
+        let fallback = profile.label.trimmingCharacters(in: .whitespacesAndNewlines)
+        return fallback.isEmpty ? "\(provider(profile.provider)) Account" : fallback
+    }
+
     static func usageTitle(_ window: UsageWindow) -> String {
         if window.title == "5 hours" { return "5-hour" }
         if window.title == "7 days" { return "Weekly" }
