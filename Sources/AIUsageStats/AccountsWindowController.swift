@@ -13,10 +13,16 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private var accountWindowSize: NSSize?
     private let table = NSTableView()
     private let accountTitle = InterfaceControls.label("", size: 20, weight: .semibold)
-    private let accountDescription = InterfaceControls.label("")
-    private let creditDescription = InterfaceControls.label("")
-    private let detailsButton = NSButton(title: "Connection Details…", target: nil, action: nil)
-    private let billingButton = NSButton(title: "Open Billing Dashboard", target: nil, action: nil)
+    private let attention = InterfaceControls.label("", size: 12)
+    private let creditHelp = InterfaceControls.label("", size: 12)
+    private let usageReadings = AccountReadingView()
+    private let creditReadings = AccountReadingView()
+    private let accountActions = NSPopUpButton(frame: .zero, pullsDown: true)
+    private let detailsItem = NSMenuItem(title: "Connection Details…", action: #selector(showConnectionDetails(_:)), keyEquivalent: "")
+    private let loginItem = NSMenuItem(title: "Sign In Again…", action: #selector(signIn(_:)), keyEquivalent: "")
+    private let platformItem = NSMenuItem(title: "Manage Claude Platform…", action: #selector(connectConsole(_:)), keyEquivalent: "")
+    private let billingItem = NSMenuItem(title: "Open Billing Dashboard", action: #selector(openBilling(_:)), keyEquivalent: "")
+    private let removeItem = NSMenuItem(title: "Remove Account…", action: #selector(removeAccount(_:)), keyEquivalent: "")
     private let addAccountButton = NSPopUpButton(frame: .zero, pullsDown: true)
     private let manualDisclosure = NSButton(title: "", target: nil, action: nil)
     private let manualEditor = NSStackView()
@@ -24,7 +30,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private let accountEditor = NSStackView()
     private let emptyState = InterfaceControls.label("Add a Claude or Codex account to view its usage.", size: 13)
     private var displayedProfiles: [AccountProfile] = []
-    private let removeButton = NSButton(title: "Remove Account…", target: nil, action: nil)
     private let manualCategory = NSPopUpButton(frame: .zero, pullsDown: false)
     private let balanceField = NSTextField(string: "")
     private let balanceDate = NSDatePicker()
@@ -39,7 +44,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private var isUpdatingSelection = false
     private var editorNeedsReload = true
     private var editorReloadRevision: Int?
-    private let loginButton = NSButton(title: "Sign In Again…", target: nil, action: nil)
+    private let recoveryButton = NSButton(title: "Review Access…", target: nil, action: nil)
     private let usageButton = NSButton(title: "Check Usage", target: nil, action: nil)
     var onClaudeConnection: ((UUID?, String) -> Void)?
     private let consoleButton = NSButton(title: "Connect Claude Platform…", target: nil, action: nil)
@@ -104,24 +109,35 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         divider.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(divider)
 
-        removeButton.target = self
-        removeButton.action = #selector(removeAccount(_:))
-        loginButton.target = self
-        loginButton.action = #selector(signIn(_:))
         usageButton.target = self
         usageButton.action = #selector(checkUsage(_:))
-        usageButton.setAccessibilityLabel("Check usage for all accounts")
+        usageButton.title = "Refresh"
+        usageButton.setAccessibilityLabel("Refresh usage for all accounts")
+        recoveryButton.target = self
         consoleButton.target = self
         consoleButton.action = #selector(connectConsole(_:))
-        detailsButton.target = self
-        detailsButton.action = #selector(showConnectionDetails(_:))
-        billingButton.target = self
-        billingButton.action = #selector(openBilling(_:))
-        let connectionActions = NSStackView(views: [loginButton, usageButton, detailsButton])
-        connectionActions.orientation = .vertical
-        connectionActions.alignment = .leading
-        connectionActions.spacing = 8
-        connectionActions.detachesHiddenViews = true
+        accountActions.addItem(withTitle: "Account")
+        accountActions.setAccessibilityLabel("Account actions")
+        accountActions.menu?.autoenablesItems = false
+        for item in [detailsItem, loginItem, platformItem, billingItem] {
+            item.target = self
+            accountActions.menu?.addItem(item)
+        }
+        removeItem.target = self
+        accountActions.menu?.addItem(.separator())
+        accountActions.menu?.addItem(removeItem)
+        let headerActions = NSStackView(views: [usageButton, accountActions])
+        headerActions.orientation = .horizontal
+        headerActions.spacing = 8
+        let header = InterfaceControls.stack([accountTitle, headerActions], spacing: 8)
+        accountTitle.lineBreakMode = .byTruncatingMiddle
+        accountTitle.maximumNumberOfLines = 1
+        let attentionRow = NSStackView(views: [attention, recoveryButton])
+        attentionRow.orientation = .horizontal
+        attentionRow.alignment = .firstBaseline
+        attentionRow.spacing = 8
+        attentionRow.detachesHiddenViews = true
+        attention.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
         manualCategory.target = self
         manualCategory.action = #selector(selectCredit(_:))
@@ -175,27 +191,25 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         let manualHeading = NSStackView(views: [manualDisclosure, InterfaceControls.label("Manual balance", size: 13)])
         manualHeading.orientation = .horizontal
         manualHeading.spacing = 6
-        let creditActions = NSStackView(views: [consoleButton, billingButton])
-        creditActions.orientation = .vertical
-        creditActions.alignment = .leading
-        creditActions.spacing = 8
-        creditActions.detachesHiddenViews = true
         accountEditor.orientation = .vertical
         accountEditor.alignment = .leading
         accountEditor.spacing = 12
         accountEditor.detachesHiddenViews = true
         let sections: [NSView] = [
-            accountTitle,
-            InterfaceControls.label("Connection", size: 13, weight: .semibold), accountDescription, connectionActions,
+            header, attentionRow,
+            InterfaceControls.label("Usage", size: 13, weight: .semibold), usageReadings,
             InterfaceControls.separator(),
-            InterfaceControls.label("API Credits", size: 13, weight: .semibold), creditDescription, creditActions,
-            manualHeading, manualEditor,
-            InterfaceControls.separator(), removeButton
+            InterfaceControls.label("Credits", size: 13, weight: .semibold), creditReadings,
+            consoleButton, creditHelp,
+            manualHeading, manualEditor
         ]
-        for view in sections { accountEditor.addArrangedSubview(view) }
-        for view in sections where view is NSTextField || view is NSBox || view === manualEditor {
-            view.widthAnchor.constraint(equalTo: accountEditor.widthAnchor).isActive = true
+        for view in sections {
+            accountEditor.addArrangedSubview(view)
+            if view !== consoleButton && view !== manualHeading {
+                view.widthAnchor.constraint(equalTo: accountEditor.widthAnchor).isActive = true
+            }
         }
+        accountTitle.widthAnchor.constraint(equalTo: header.widthAnchor).isActive = true
         let detailDocument = AccountDetailDocumentView()
         detailScroll.documentView = detailDocument
         detailScroll.hasVerticalScroller = true
@@ -269,7 +283,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         if let platform, !model.profiles.contains(where: { $0.id == platform.accountID }) { showAccountDetail() }
         let available = !model.isDemo && !model.isChangingAccounts && !model.isRefreshing
         addAccountButton.isEnabled = available
-        removeButton.isEnabled = available && selectedID != nil
         status.stringValue = model.isDemo ? "Demo accounts cannot be changed."
             : model.isAllowingKeychainAccess ? "Allowing Keychain access…"
             : model.isSigningInClaude ? "Claude sign-in is in progress."
@@ -412,7 +425,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             accountEditor.isHidden = true
             emptyState.isHidden = false
             displayedCredits = []
-            loginButton.isEnabled = false
+            recoveryButton.isEnabled = false
             manualCategory.removeAllItems()
             updateManualFields()
             return
@@ -426,7 +439,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             .filter { $0.id == "api_balance" || $0.id == "monthly_grant" }
             .map { fallback in savedManual.first(where: { $0.id == fallback.id })
                 ?? pendingManual.first(where: { $0.id == fallback.id }) ?? fallback }
-        loginButton.isEnabled = !model.isDemo && !model.isChangingAccounts && !model.isRefreshing
         manualCategory.removeAllItems()
         manualCategory.addItems(withTitles: displayedCredits.map(\.title))
         if let selectedCategoryID, let index = displayedCredits.firstIndex(where: { $0.id == selectedCategoryID }) {
@@ -438,15 +450,19 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private func updateEditorAvailability() {
         let editable = !model.isDemo && selectedID != nil
         let canSave = editable && !model.isRefreshing && !model.isChangingAccounts
-        removeButton.isEnabled = canSave
-        loginButton.isEnabled = canSave
+        accountActions.isEnabled = selectedID != nil
+        loginItem.isEnabled = canSave
+        removeItem.isEnabled = canSave
+        recoveryButton.isEnabled = canSave
         usageButton.isEnabled = canSave
-        usageButton.title = model.isRefreshing ? "Checking Usage…" : "Check Usage"
-        consoleButton.isEnabled = canSave && model.profiles.first(where: { $0.id == selectedID })?.provider == .claude
-        consoleButton.title = selectedID.flatMap { model.consoleConnections[$0] } == nil ? "Connect Claude Platform…" : "Manage Claude Platform…"
-        detailsButton.isEnabled = selectedID != nil
-        billingButton.isEnabled = selectedID != nil
-        billingButton.title = monthlyGrantNeedsLink ? "Open Claude Billing" : "Open Billing Dashboard"
+        usageButton.title = model.isRefreshing ? "Refreshing…" : "Refresh"
+        let profile = model.profiles.first(where: { $0.id == selectedID })
+        consoleButton.isEnabled = canSave && profile?.provider == .claude
+        platformItem.isEnabled = consoleButton.isEnabled
+        platformItem.isHidden = profile?.provider != .claude
+        detailsItem.isEnabled = selectedID != nil
+        billingItem.isEnabled = selectedID != nil
+        billingItem.title = monthlyGrantNeedsLink ? "Open Claude Billing" : "Open Billing Dashboard"
         manualDisclosure.isEnabled = selectedID != nil
         let index = manualCategory.indexOfSelectedItem
         let hasCredit = displayedCredits.indices.contains(index)
@@ -520,47 +536,54 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private func updateSelectionDescription() {
         guard let id = selectedID, let profile = model.profiles.first(where: { $0.id == id }) else { return }
         accountTitle.stringValue = "\(InterfaceFormatting.provider(profile.provider)) · \(InterfaceFormatting.accountIdentity(profile))"
-        loginButton.isHidden = false
-        loginButton.title = profile.provider == .claude ? "Reconnect Subscription…" : "Sign In Again…"
-        loginButton.toolTip = profile.provider == .claude ? "Claude subscription sign-in at claude.ai. This does not sign in to Claude Platform." : "Sign in through the Codex CLI."
-        consoleButton.isHidden = profile.provider != .claude
+        accountTitle.toolTip = accountTitle.stringValue
+        loginItem.title = profile.provider == .claude ? "Reconnect Subscription…" : "Sign In Again…"
         let snapshot = model.snapshots[id]
-        var description: [String] = []
-        if profile.provider == .claude { description.append("Subscription usage uses claude.ai. Platform credits require a separate platform.claude.com sign-in.") }
-        if InterfaceFormatting.accountEmail(profile) == "Email unavailable" { description.append("Login email unavailable.") }
-        if model.isDemo {
-            description.append("Example account. Connect your own account to receive readings.")
-        } else if let snapshot {
-            switch snapshot.state {
-            case .available: description.append("Connected. Usage is available.")
-            case .unavailable: description.append("Usage unavailable.")
-            case .stale: description.append("The last reading is out of date.")
-            case .authenticationRequired:
-                description.append("Subscription usage needs access or sign-in.")
-                if profile.source == .claudeOAuth {
-                    description.append("If Keychain permission was denied, open Connection Details → Allow Keychain Access… to use the saved sign-in. Reconnect Subscription only when a new sign-in is needed.")
-                }
-            }
-            if let detail = snapshot.detail, !detail.isEmpty { description.append(detail) }
-        } else {
-            description.append("No usage reading yet. Sign in or check usage.")
-        }
+        let now = Date()
+        let windows = snapshot?.windows ?? []
+        usageReadings.render(windows.isEmpty
+            ? [AccountReadingView.Reading(label: "Quota", value: "Unavailable", timing: "", detail: snapshot?.detail ?? "No usage reading yet.")]
+            : windows.map { usage in
+                AccountReadingView.Reading(label: InterfaceFormatting.usageTitle(usage), value: InterfaceFormatting.used(usage),
+                                           timing: usage.isActive == false ? "" : InterfaceFormatting.compactReset(usage.resetsAt, now: now),
+                                           detail: "\(usage.title): \(InterfaceFormatting.used(usage)). \(InterfaceFormatting.reset(usage, now: now))")
+            })
+        let credits = snapshot?.credits ?? UsageService.unavailableCredits(for: profile.provider)
+        creditReadings.render(credits.map { credit in
+            AccountReadingView.Reading(label: InterfaceFormatting.compactCreditTitle(credit), value: credit.amount == nil && !credit.isUnlimited && credit.status == "available" ? "Unknown" : InterfaceFormatting.credit(credit),
+                                       timing: InterfaceFormatting.compactCreditTiming(credit, now: now),
+                                       detail: InterfaceFormatting.creditDetail(credit, now: now))
+        })
+        var message = ""
+        recoveryButton.isHidden = true
         if let snapshot {
-            for window in snapshot.windows {
-                description.append("\(window.title): \(InterfaceFormatting.used(window)). \(InterfaceFormatting.reset(window)).")
+            switch snapshot.state {
+            case .authenticationRequired:
+                message = profile.provider == .claude ? "Subscription access required." : "Sign-in required."
+                if !windows.isEmpty { message += " Last reading retained." }
+                recoveryButton.isHidden = false
+                recoveryButton.title = profile.source == .claudeOAuth ? "Review Access…" : "Sign In…"
+                recoveryButton.action = profile.source == .claudeOAuth ? #selector(showConnectionDetails(_:)) : #selector(signIn(_:))
+            case .unavailable: message = "Usage unavailable."
+            case .stale: message = "Last usage reading is stale."
+            case .available:
+                if snapshot.fetchedAt.map({ now.timeIntervalSince($0) >= 300 }) == true
+                    || snapshot.currentWindows.contains(where: { $0.resetsAt.map { $0 <= now } == true }) {
+                    message = "Last usage reading is stale."
+                } else if snapshot.fetchedAt == nil && !windows.isEmpty { message = "Usage observation time unknown." }
             }
-            if let date = snapshot.fetchedAt { description.append("Last reading: \(InterfaceFormatting.exactDate(date)).") }
-            else { description.append("Last reading: unavailable.") }
-        }
-        accountDescription.stringValue = description.joined(separator: "\n")
-        creditDescription.stringValue = profile.provider == .claude
-            ? (model.consoleConnections[id] == nil
-               ? "Connect Claude Platform to read monthly grants and purchased API credits. platform.claude.com uses separate authentication from your Claude subscription. Select the organization with your grant. Linking and claiming stay on the official billing page. This connection is experimental."
-               : "Claude Platform uses its own saved sign-in for monthly grants and purchased API credits. Manage Claude Platform to check your organization or sign-in. This connection is experimental.")
-            : "View API billing or enter a dated balance manually."
-        if !(model.pendingManualCredits[id] ?? []).isEmpty {
-            creditDescription.stringValue += " Saved manual balances await confirmation. Open Manual balance to confirm before use."
-        }
+        } else { message = "No usage reading yet." }
+        if message.isEmpty && model.consoleMessages[id] != nil { message = "API credits need attention." }
+        if message.isEmpty && !(model.pendingManualCredits[id] ?? []).isEmpty { message = "Manual balances need confirmation." }
+        attention.stringValue = message
+        attention.toolTip = [snapshot?.detail, model.consoleMessages[id]].compactMap { $0 }.joined(separator: "\n")
+        attention.isHidden = message.isEmpty
+        attention.superview?.isHidden = message.isEmpty
+        consoleButton.isHidden = profile.provider != .claude || model.consoleConnections[id] != nil
+        consoleButton.title = "Connect API Credits…"
+        consoleButton.toolTip = "Sign in separately to Claude Platform at platform.claude.com."
+        creditHelp.stringValue = consoleButton.isHidden ? "" : "Uses a separate Claude Platform sign-in."
+        creditHelp.isHidden = creditHelp.stringValue.isEmpty
     }
 
     @objc private func toggleManualEditor(_ sender: NSButton) {

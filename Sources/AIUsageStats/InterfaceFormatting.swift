@@ -105,6 +105,19 @@ enum InterfaceFormatting {
         return lines.joined(separator: "\n")
     }
 
+    static func compactCreditTiming(_ balance: CreditBalance, now: Date = Date()) -> String {
+        var parts: [String] = []
+        if balance.source == .manual { parts.append("Manual") }
+        if let date = balance.expiresAt { parts.append(compactExpiry(date, now: now)) }
+        else if balance.doesNotExpire { parts.append("No expiry") }
+        else if balance.amount != nil { parts.append("Expiry unknown") }
+        if balance.source != .manual,
+           balance.status == "Stale" || balance.asOf.map({ now.timeIntervalSince($0) >= 300 }) == true {
+            parts.append("Stale")
+        }
+        return parts.joined(separator: " · ")
+    }
+
     static func provider(_ provider: Provider) -> String {
         switch provider { case .claude: "Claude"; case .codex: "Codex" }
     }
