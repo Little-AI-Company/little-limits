@@ -23,11 +23,21 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
     private let profile: AccountProfile
     private let model: ApplicationModel
     private let webView: WKWebView
-    private let status = InterfaceControls.label("Sign in to Claude Platform (platform.claude.com), select the organization with your monthly grant, then read credits.")
+    private let status = InterfaceControls.label("")
+    private let headingTitle = InterfaceControls.label("Connect API Credits", size: 17, weight: .semibold)
+    private let instruction = InterfaceControls.label("", size: 12)
+    private let accountContext = InterfaceControls.label("", size: 12)
+    private var platformEmail: String?
+    private var hasDiscoveredAccount = false
+    private let organizationControls = NSStackView()
+    private let connectionActions = NSPopUpButton(frame: .zero, pullsDown: true)
+    private let reloadItem = NSMenuItem(title: "Reload Sign-in", action: #selector(showSignIn(_:)), keyEquivalent: "")
+    private let detailsItem = NSMenuItem(title: "Connection Details…", action: #selector(showDetails(_:)), keyEquivalent: "")
+    private let disconnectItem = NSMenuItem(title: "Disconnect", action: #selector(disconnect(_:)), keyEquivalent: "")
+    private var statusDetail: String?
+    private var needsSignIn = false
     private let organization = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let readButton = NSButton(title: "Read Monthly/API Credits", target: nil, action: nil)
-    private let signInButton = NSButton(title: "Open Sign-In", target: nil, action: nil)
-    private let disconnectButton = NSButton(title: "Disconnect", target: nil, action: nil)
+    private let readButton = NSButton(title: "Continue", target: nil, action: nil)
     private var organizations: [ClaudeConsoleOrganization] = []
     private var isFetching = false
     private var navigationWaiter: CheckedContinuation<Void, Error>?
@@ -64,45 +74,99 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
         view = root
         readButton.target = self
         readButton.action = #selector(readCredits(_:))
-        signInButton.target = self
-        signInButton.action = #selector(showSignIn(_:))
-        disconnectButton.target = self
-        disconnectButton.action = #selector(disconnect(_:))
+        organization.target = self
+        organization.action = #selector(selectOrganization(_:))
         organization.setAccessibilityLabel("Claude Platform organization")
-        if organization.numberOfItems == 0 { organization.addItem(withTitle: "Organization appears after sign-in") }
-        let back = NSButton(title: "Back to Account", target: self, action: #selector(backToAccount(_:)))
-        let controls = NSStackView(views: [organization, readButton, signInButton, disconnectButton])
-        let title = InterfaceControls.label("Claude Platform · \(InterfaceFormatting.accountIdentity(profile))", size: 16, weight: .semibold)
-        let heading = NSStackView(views: [back, NSView(), title])
-        heading.orientation = .horizontal
-        heading.spacing = 12
-        controls.orientation = .horizontal
-        controls.spacing = 8
-        let explanation = InterfaceControls.label("Sign in to Claude Platform (platform.claude.com) to read monthly grants and purchased API credits. This is separate from your Claude subscription sign-in. Choose the organization linked to this Claude account.")
-        do {
-            for component in [heading, explanation, controls, status, webView] {
-                component.translatesAutoresizingMaskIntoConstraints = false
-                root.addSubview(component)
-            }
-            NSLayoutConstraint.activate([
-                explanation.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
-                explanation.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
-                heading.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
-                heading.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
-                heading.topAnchor.constraint(equalTo: root.topAnchor, constant: 16),
-                explanation.topAnchor.constraint(equalTo: heading.bottomAnchor, constant: 12),
-                controls.leadingAnchor.constraint(equalTo: explanation.leadingAnchor),
-                controls.trailingAnchor.constraint(equalTo: explanation.trailingAnchor),
-                controls.topAnchor.constraint(equalTo: explanation.bottomAnchor, constant: 10),
-                status.leadingAnchor.constraint(equalTo: explanation.leadingAnchor),
-                status.trailingAnchor.constraint(equalTo: explanation.trailingAnchor),
-                status.topAnchor.constraint(equalTo: controls.bottomAnchor, constant: 8),
-                webView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
-                webView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-                webView.topAnchor.constraint(equalTo: status.bottomAnchor, constant: 12),
-                webView.bottomAnchor.constraint(equalTo: root.bottomAnchor)
-            ])
+        organization.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        organization.widthAnchor.constraint(lessThanOrEqualToConstant: 340).isActive = true
+        connectionActions.addItem(withTitle: "Connection")
+        connectionActions.setAccessibilityLabel("Platform connection actions")
+        connectionActions.menu?.autoenablesItems = false
+        for item in [reloadItem, detailsItem, disconnectItem] {
+            item.target = self
+            connectionActions.menu?.addItem(item)
         }
+        let back = NSButton(title: "Back", target: self, action: #selector(backToAccount(_:)))
+        back.setAccessibilityLabel("Back to account overview")
+        let heading = NSStackView(views: [back, headingTitle])
+        heading.orientation = .horizontal
+        heading.alignment = .firstBaseline
+        heading.spacing = 16
+        accountContext.lineBreakMode = .byTruncatingMiddle
+        accountContext.maximumNumberOfLines = 2
+        organizationControls.orientation = .horizontal
+        organizationControls.alignment = .firstBaseline
+        organizationControls.spacing = 8
+        organizationControls.addArrangedSubview(InterfaceControls.label("Organization", size: 12))
+        organizationControls.addArrangedSubview(organization)
+        let controls = NSStackView(views: [organizationControls, readButton, connectionActions])
+        controls.orientation = .horizontal
+        controls.alignment = .firstBaseline
+        controls.spacing = 12
+        controls.detachesHiddenViews = true
+        let chrome = InterfaceControls.stack([heading, accountContext, instruction, controls, status], spacing: 8)
+        chrome.detachesHiddenViews = true
+        for component in [chrome, webView] {
+            component.translatesAutoresizingMaskIntoConstraints = false
+            root.addSubview(component)
+        }
+        for label in [accountContext, instruction, status] {
+            label.widthAnchor.constraint(equalTo: chrome.widthAnchor).isActive = true
+        }
+        NSLayoutConstraint.activate([
+            chrome.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
+            chrome.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
+            chrome.topAnchor.constraint(equalTo: root.topAnchor, constant: 16),
+            webView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            webView.topAnchor.constraint(equalTo: chrome.bottomAnchor, constant: 12),
+            webView.bottomAnchor.constraint(equalTo: root.bottomAnchor)
+        ])
+        status.isHidden = status.stringValue.isEmpty
+        updateControls()
+    }
+
+    private func updateControls() {
+        let connected = model.consoleConnections[profile.id] != nil
+        headingTitle.stringValue = connected ? "API Credits" : "Connect API Credits"
+        let intendedAccount = "Claude account: \(InterfaceFormatting.accountIdentity(profile))"
+        if hasDiscoveredAccount {
+            var context = ["Platform login: \(platformEmail ?? "Email unavailable")"]
+            if platformEmail != InterfaceFormatting.accountEmail(profile) { context.append(intendedAccount) }
+            accountContext.stringValue = context.joined(separator: "\n")
+        } else { accountContext.stringValue = intendedAccount }
+        accountContext.toolTip = accountContext.stringValue
+        let discovered = !organizations.isEmpty && !needsSignIn
+        instruction.stringValue = discovered
+            ? "Choose the organization linked to this Claude account."
+            : "Use your separate Claude Platform sign-in below, then choose Continue."
+        organizationControls.isHidden = !discovered
+        organization.isEnabled = discovered && !isFetching
+        readButton.title = discovered ? (connected ? "Refresh Credits" : "Connect") : "Continue"
+        readButton.isEnabled = !isFetching && (!discovered || selectedOrganizationID != nil)
+        reloadItem.isEnabled = !isFetching
+        disconnectItem.isHidden = !connected
+        disconnectItem.isEnabled = connected && !isFetching
+        detailsItem.isEnabled = statusDetail != nil
+    }
+
+    private func setStatus(_ message: String, detail: String? = nil) {
+        status.stringValue = message
+        status.isHidden = message.isEmpty
+        statusDetail = detail
+        status.toolTip = detail
+        detailsItem.isEnabled = detail != nil
+    }
+
+    @objc private func selectOrganization(_ sender: Any?) { updateControls() }
+
+    @objc private func showDetails(_ sender: Any?) {
+        guard let statusDetail, let window = view.window else { return }
+        let alert = NSAlert()
+        alert.messageText = "API Credit Connection"
+        alert.informativeText = statusDetail
+        alert.addButton(withTitle: "Done")
+        alert.beginSheetModal(for: window)
     }
 
     func presentPane() {
@@ -112,6 +176,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
         isPaneVisible = true
         isPaused = false
         webView.isHidden = false
+        updateControls()
         if !isFetching, !wasVisible { webView.load(URLRequest(url: billingURL)) }
     }
 
@@ -135,32 +200,34 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
         guard !isFetching else { return }
         webView.isHidden = false
         webView.load(URLRequest(url: billingURL))
-        status.stringValue = "Sign in to Claude Platform (platform.claude.com), select your grant organization, then read credits."
+        needsSignIn = true
+        hasDiscoveredAccount = false
+        platformEmail = nil
+        setStatus("")
+        updateControls()
     }
 
     private func startFetch(isInteractive: Bool) {
         guard !isFetching else { return }
         isPaused = false
         isFetching = true
-        readButton.isEnabled = false
-        signInButton.isEnabled = false
-        disconnectButton.isEnabled = false
-        organization.isEnabled = false
-        status.stringValue = "Reading Claude Console balances and monthly grant details…"
+        updateControls()
+        setStatus("Reading credits…")
         refreshTask = Task { [weak self] in
             guard let self else { return }
             defer {
                 isFetching = false
-                readButton.isEnabled = true
-                signInButton.isEnabled = true
-                disconnectButton.isEnabled = true
-                organization.isEnabled = true
+                updateControls()
                 refreshTask = nil
                 if !isPaused, !isPaneVisible { parkBrowser() }
             }
             do {
                 try await prepareBrowser()
                 let account = try ClaudeConsoleAccount.decode(try await get(ClaudeConsoleClient.accountURL))
+                needsSignIn = false
+                hasDiscoveredAccount = true
+                let email = account.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+                platformEmail = email?.isEmpty == false ? email : nil
                 let previouslySelected = selectedOrganizationID
                 organizations = account.organizations.filter { $0.capabilities.isEmpty || $0.capabilities.contains("api") || $0.capabilities.contains("api_individual") }
                 guard !organizations.isEmpty else { throw UsageError.providerFailure("This Console login has no API organization.") }
@@ -170,10 +237,10 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
                 if selectedID == nil, organizations.count == 1 { selectedID = organizations[0].id; organization.selectItem(at: 1) }
                 guard let selectedID, organizations.contains(where: { $0.id == selectedID }) else {
                     if isInteractive {
-                        status.stringValue = "Signed in\(account.email.map { " as \($0)" } ?? ""). Select your API organization, then read credits."
+                        setStatus("Select an organization to continue.")
                         return
                     }
-                    throw UsageError.authenticationRequired("The saved Console login no longer has access to the connected organization. Open Connect Claude Platform in Manage Accounts to sign in again.")
+                    throw UsageError.authenticationRequired("The saved Console login no longer has access to the connected organization. Open Account → Manage Claude Platform… to sign in again.")
                 }
                 let url = try ClaudeConsoleClient.balanceURL(organizationID: selectedID)
                 let response = try await get(url)
@@ -199,12 +266,19 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
                                                      expectedIdentity: profile.providerAccountID, linkStateData: linkStateData,
                                                      invoicesData: invoicesData, observedAt: observedAt,
                                                      monthlyMetadataError: monthlyErrors.isEmpty ? nil : monthlyErrors.joined(separator: " "))
-                status.stringValue = "Connected\(account.email.map { " as \($0)" } ?? "") · Read \(InterfaceFormatting.exactDate(observedAt)). Credits refresh every 5 minutes."
-                if !monthlyErrors.isEmpty { status.stringValue += " Monthly plan or invoice details could not be fully checked." }
+                let detail = "Read \(InterfaceFormatting.exactDate(observedAt)). Credits refresh every 5 minutes."
+                    + (monthlyErrors.isEmpty ? "" : " " + monthlyErrors.joined(separator: " "))
+                setStatus(monthlyErrors.isEmpty ? "Credits updated." : "Credits updated; monthly details need attention.", detail: detail)
+                let intendedEmail = profile.providerEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+                if isInteractive, isPaneVisible, monthlyErrors.isEmpty,
+                   let platformEmail, !platformEmail.isEmpty, let intendedEmail, !intendedEmail.isEmpty,
+                   platformEmail.caseInsensitiveCompare(intendedEmail) == .orderedSame { onBack?() }
             } catch {
-                if Task.isCancelled || error is CancellationError { status.stringValue = "Credits refresh paused."; return }
+                if Task.isCancelled || error is CancellationError { setStatus("Credit refresh paused."); return }
                 let message = error.localizedDescription
-                status.stringValue = message
+                needsSignIn = if case .authenticationRequired = error as? UsageError { true } else { false }
+                if needsSignIn { hasDiscoveredAccount = false; platformEmail = nil }
+                setStatus(needsSignIn ? "Sign-in required." : "Could not read credits.", detail: message)
                 model.recordConsoleError(accountID: profile.id, message: message)
             }
         }
@@ -268,7 +342,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
             throw UsageError.authenticationRequired("Sign in on the official Claude Platform page, then read credits again.")
         }
         guard (200..<300).contains(response.status) else {
-            throw UsageError.providerFailure("Claude Console could not read credits (HTTP \(response.status)). Open Sign-In and try again.")
+            throw UsageError.providerFailure("Claude Console could not read credits (HTTP \(response.status)). Choose Connection → Reload Sign-in and try again.")
         }
         guard response.body.utf8.count <= 1_048_576 else { throw UsageError.providerFailure("Claude Console returned too much credit data.") }
         return Data(response.body.utf8)
@@ -282,7 +356,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
     }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         if navigation === awaitedNavigation { completeNavigation(error: error) }
-        if !isFetching { status.stringValue = "Could not load Claude Console: \(error.localizedDescription)" }
+        if !isFetching { setStatus("Could not load sign-in.", detail: error.localizedDescription) }
     }
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
@@ -300,15 +374,15 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
     }
 
     @objc private func navigationTimedOut(_ sender: Timer) {
-        completeNavigation(error: UsageError.providerFailure("Claude Console did not load within 20 seconds. Open Sign-In and try again."))
+        completeNavigation(error: UsageError.providerFailure("Claude Console did not load within 20 seconds. Choose Connection → Reload Sign-in and try again."))
         webView.stopLoading()
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        let error = UsageError.providerFailure("The Console browser stopped. Open Sign-In and try again.")
+        let error = UsageError.providerFailure("The Console browser stopped. Choose Connection → Reload Sign-in and try again.")
         completeNavigation(error: error)
         completeResponse(error: error)
-        status.stringValue = error.localizedDescription
+        setStatus("Connection interrupted.", detail: error.localizedDescription)
     }
 
     func pause() {
@@ -332,7 +406,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
 
     private func responseFromOfficialPage(for url: URL) async throws -> Data {
         try Task.checkCancellation()
-        status.stringValue = "Reading the official Console page. If you have several organizations, select the same organization on that page."
+        setStatus("Reading the official billing page…", detail: "If you have several organizations, select the same organization on the provider page.")
         return try await withCheckedThrowingContinuation { continuation in
             responseWaiter = (url.path, continuation)
             responseTimer = Timer.scheduledTimer(timeInterval: 20, target: self,
@@ -417,8 +491,9 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
             do {
                 try await model.setConsoleConnection(accountID: profile.id, organizationID: nil, expectedIdentity: profile.providerAccountID)
                 await model.load()
-                status.stringValue = "Automatic API credits disconnected. Saved manual balances are available again."
-            } catch { status.stringValue = error.localizedDescription }
+                setStatus("API credits disconnected.", detail: "Saved manual balances are available again.")
+                updateControls()
+            } catch { setStatus("Could not disconnect.", detail: error.localizedDescription) }
         }
     }
 }
