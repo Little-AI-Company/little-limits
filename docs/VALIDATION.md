@@ -366,3 +366,21 @@ f145352038c25fa89a3babe055254a5d37820d796bea52be9ee88854c060b008
 | `open -n "dist/AI Usage Stats.app" --args --show-panel` | Passed; packaged app launched in normal account mode. |
 
 The packaged executable SHA-256 is `fea47f437af66be7d3c2af3ab6bcbfcb4ee10dd71c51dd951d1c6009069a4fe8`. No previous development instance was running when packaging began. The email UI source is unchanged from the visually inspected build. No additional real-mode visual check, provider sign-in, reconnect, removal, or quota probe was performed for this parser correction. The existing live-account, native-automation, Intel, minimum-macOS, VoiceOver, and distribution limits still apply.
+
+### Preserve known account data during same-identity reconnect
+
+Review of `6a0fbcd211e70f1801840329fa4a24f788ada138` identified unconditional snapshot deletion and replacement of a saved email with an omitted optional email in `UsageService.completeClaudeSignIn`. The existing `bindingLegacyIdentityIsolatesConsoleDataAndRequiresManualBalanceConfirmation` fixture was expanded to reconnect the same verified identity without email while its immediate usage request failed. `swift test --filter bindingLegacyIdentityIsolatesConsoleDataAndRequiresManualBalanceConfirmation` failed against baseline production with four assertion issues: lost email, unavailable instead of stale state, lost windows, and lost observation timestamp; build 4.69 seconds.
+
+Same-identity reconnect now keeps the previous snapshot and falls back to its known verified email when the new email is missing or blank. Initial unverified legacy binding still clears the old snapshot and separate Console data and cannot inherit an unverified email. The final fixture also exercises a whitespace-only email and a second failed immediate usage request while preserving independently confirmed balances.
+
+On October 11, 2026, on the same Apple silicon Mac with macOS 27.0.1, the final 24-file source digest was `4743b9daa1113446a5860451a3e4046c4e036ca3e3868a8c99800cedcc31ff50`.
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test` | Passed: 35 tests, zero failures, comprising 13 XCTest and 22 Swift Testing tests; build 5.61 seconds. The expanded reconnect fixture passed. |
+| `swift build -c release` | Passed; 8.43 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build 0.48 seconds. |
+| Packaged plist lint, deep strict signature verification, both executable architectures, icon resource, and `git diff --check` | Passed; local ad hoc signed arm64 app and helper. |
+| `open -n "dist/AI Usage Stats.app" --args --show-panel` | Passed after quitting the exact prior development process; normal account mode. |
+
+The final packaged executable SHA-256 is `138e0dfa4ceef4efb568d9141b1e87a824fce3ca110ca4b5c63800e3b0a36a2c`. These reconnect failures were exercised with synthetic fixtures. No real sign-in, reconnect, removal, or quota probe was performed. The email UI source and existing visual-check and runtime limits are unchanged.

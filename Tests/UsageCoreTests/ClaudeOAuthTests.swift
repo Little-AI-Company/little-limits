@@ -298,8 +298,13 @@ import Testing
 }
 
 @Test func bindingLegacyIdentityIsolatesConsoleDataAndRequiresManualBalanceConfirmation() async throws {
+    let profileWithoutEmail = ClaudeHTTPResponse(status: 200, contentType: "application/json",
+        body: Data(#"{"account":{"uuid":"AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"},"organization":{"uuid":"BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"}}"#.utf8))
+    let profileWithBlankEmail = ClaudeHTTPResponse(status: 200, contentType: "application/json",
+        body: Data(#"{"account":{"uuid":"AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA","email":" "},"organization":{"uuid":"BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"}}"#.utf8))
     let fixture = try OAuthFixture(steps: [.response(tokenResponse), .response(profileResponse), .response(profileResponse), .response(usageResponse),
-                                         .response(tokenResponse), .response(profileResponse), .response(profileResponse), .response(usageResponse)])
+                                         .response(tokenResponse), .response(profileWithoutEmail), .response(profileWithoutEmail), .failure,
+                                         .response(tokenResponse), .response(profileWithBlankEmail), .response(profileWithBlankEmail), .failure])
     defer { fixture.removeDirectory() }
     let legacy = AccountProfile(provider: .claude, label: "Personal", source: .claudeCLI)
     let oldAPI = CreditBalance(id: "api_balance", title: "API balance", amount: 9, source: .manual, asOf: Date(timeIntervalSince1970: 1_000))
@@ -333,8 +338,16 @@ import Testing
     // A same-identity reconnect preserves independently confirmed financial data.
     try await fixture.service.setClaudeConsoleConnection(accountID: profile.id, organizationID: organization, expectedIdentity: profile.providerAccountID)
     try await fixture.service.updateClaudeConsoleCredits(accountID: profile.id, organizationID: organization, responseData: response, expectedIdentity: profile.providerAccountID)
-    let reconnect = try await fixture.service.prepareClaudeSignIn(existingProfileID: profile.id)
-    _ = try await fixture.service.completeClaudeSignIn(requestID: reconnect.id, callbackURL: callback(reconnect))
+    let previousSnapshot = try #require(await fixture.service.snapshot(for: profile.id))
+    for _ in 0..<2 {
+        let reconnect = try await fixture.service.prepareClaudeSignIn(existingProfileID: profile.id)
+        let reconnected = try await fixture.service.completeClaudeSignIn(requestID: reconnect.id, callbackURL: callback(reconnect))
+        #expect(reconnected.providerEmail == profile.providerEmail)
+        let staleSnapshot = try #require(await fixture.service.snapshot(for: profile.id))
+        #expect(staleSnapshot.state == .stale)
+        #expect(staleSnapshot.windows == previousSnapshot.windows)
+        #expect(staleSnapshot.fetchedAt == previousSnapshot.fetchedAt)
+    }
     #expect(await fixture.service.consoleConnection(for: profile.id) != nil)
     #expect(await fixture.service.snapshot(for: profile.id)?.credits.first { $0.id == "api_balance_USD" }?.amount == 25)
     #expect(await fixture.service.manualCredits(for: profile.id).first?.amount == 5)

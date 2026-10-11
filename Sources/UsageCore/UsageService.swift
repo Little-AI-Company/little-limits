@@ -96,10 +96,12 @@ public actor UsageService {
         }) {
             throw UsageError.invalidConfiguration("This Claude account is already listed. Select it and connect again.")
         }
+        let reportedEmail = providerProfile.account.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let verifiedEmail = existing?.providerAccountID == nil ? nil : existing?.providerEmail
         let profile = AccountProfile(id: pending.profileID, provider: .claude,
                                      label: existing?.label ?? pending.label ?? providerProfile.account.email ?? "Claude Account",
                                      source: .claudeOAuth, providerAccountID: identity,
-                                     providerEmail: providerProfile.account.email)
+                                     providerEmail: reportedEmail?.isEmpty == false ? reportedEmail : verifiedEmail)
         let credentials = try token.credentials(identity: identity)
         let previousCredentials = try claudeCredentials.read(accountID: profile.id, allowInteraction: true)
         // Keep the generated identifier durable before writing an otherwise unlisted grant.
@@ -109,7 +111,9 @@ public actor UsageService {
         if let index = updated.profiles.firstIndex(where: { $0.id == profile.id }) { updated.profiles[index] = profile }
         else { updated.profiles.append(profile) }
         // A legacy capture cannot establish the identity of this new authorization.
-        updated.snapshots.removeAll { $0.profileID == profile.id }
+        if existing?.providerAccountID == nil {
+            updated.snapshots.removeAll { $0.profileID == profile.id }
+        }
         if let existing, existing.providerAccountID == nil {
             updated.consoleConnections.removeValue(forKey: profile.id.uuidString)
             updated.consoleObservations.removeValue(forKey: profile.id.uuidString)
