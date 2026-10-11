@@ -129,6 +129,168 @@ final class ClaudeConsoleClientTests: XCTestCase {
         XCTAssertEqual(ClaudeConsoleClient.accountURL.absoluteString, "https://platform.claude.com/api/account")
     }
 
+    func testLinkedMonthlyAllowanceIsNotAConfirmedRemainingGrant() throws {
+        let link = try ClaudeConsoleLinkState.decode(Data(#"{"status":"linked","plan":"max_20x","monthly_credit_usd_cents":20000}"#.utf8),
+                                                     organizationID: organizationID)
+        let balance = try ClaudeConsoleBalance.decode(Data(#"""
+        {"promo_tranches":[{"id":"other-promotion","currency":"USD","granted_amount_minor_units":20000,
+          "remaining_amount_minor_units":0,"expires_at":"2027-01-01T00:00:00Z",
+          "scope":{"kind":"scoped","applies_to":[{"product":"api"}]}}]}
+        """#.utf8), organizationID: organizationID, observedAt: now, linkState: link)
+        XCTAssertEqual(link.monthlyAllowance?.amount, 200)
+        let monthly = try XCTUnwrap(balance.credits.first { $0.id == "monthly_grant" })
+        XCTAssertNil(monthly.amount)
+        XCTAssertNil(monthly.originalAmount)
+        XCTAssertNil(monthly.expiresAt)
+        XCTAssertEqual(monthly.asOf, now)
+        XCTAssertEqual(monthly.status, "Balance unidentified")
+        XCTAssertEqual(balance.credits.first?.amount, 0)
+        XCTAssertEqual(balance.credits.first?.title, "Promotional API grant")
+    }
+
+    func testMonthlyLinkStatesPreserveMissingAllowanceAndUnlinkedStatus() throws {
+        for (json, expectedStatus) in [
+            (#"{"status":"eligible","plan":"team","monthly_credit_usd_cents":null}"#, "Not linked"),
+            (#"{"status":"ineligible"}"#, "Not eligible"),
+            (#"{"status":"linked","plan":null}"#, "Balance unidentified")
+        ] {
+            let link = try ClaudeConsoleLinkState.decode(Data(json.utf8), organizationID: organizationID)
+            XCTAssertNil(link.monthlyAllowance)
+            let balance = try ClaudeConsoleBalance.decode(Data(#"{"promo_tranches":[]}"#.utf8),
+                                                         organizationID: organizationID, observedAt: now, linkState: link)
+            XCTAssertEqual(balance.credits.first?.status, expectedStatus)
+            XCTAssertNil(balance.credits.first?.amount)
+        }
+        for json in [#"{"status":"unexpected"}"#, #"{"status":"eligible"}"#,
+                     #"{"status":"linked","monthly_credit_usd_cents":-1}"#,
+                     #"{"status":"linked","monthly_credit_usd_cents":1.5}"#] {
+            XCTAssertThrowsError(try ClaudeConsoleLinkState.decode(Data(json.utf8), organizationID: organizationID))
+        }
+    }
+
+    func testMonthlyLinkStateCannotBeAttachedToAnotherOrganization() throws {
+        let other = "1A87EB9D-F00B-4173-83A2-0DB7689280E8"
+        let link = try ClaudeConsoleLinkState.decode(Data(#"{"status":"linked"}"#.utf8), organizationID: other)
+        XCTAssertThrowsError(try ClaudeConsoleBalance.decode(Data(#"{"promo_tranches":[]}"#.utf8),
+                                                            organizationID: organizationID, linkState: link))
+        let endpoint = try ClaudeConsoleClient.linkStateURL(organizationID: organizationID)
+        XCTAssertEqual(endpoint.host, "platform.claude.com")
+        XCTAssertEqual(endpoint.path, "/api/quirky-lollipop/organizations/\(organizationID.lowercased())/link-state")
+        XCTAssertNil(endpoint.query)
+        XCTAssertThrowsError(try ClaudeConsoleClient.linkStateURL(organizationID: "../account"))
+    }
+
+    func testMonthlyInvoiceIdentifiesActualRemainingGrantWithoutRenamingOtherPromotions() throws {
+        let invoices = try monthlyInvoices()
+        let balance = try ClaudeConsoleBalance.decode(Data(monthlyGrantFixture.utf8), organizationID: organizationID,
+                                                     observedAt: now, invoices: invoices)
+        XCTAssertEqual(balance.credits.map(\.id), ["monthly_grant_monthly", "console_grant_other"])
+        XCTAssertEqual(balance.credits.first?.amount, Decimal(string: "123.45"))
+        XCTAssertEqual(balance.credits.first?.originalAmount, 200)
+        XCTAssertEqual(balance.credits.first?.expiresAt, isoDate("2026-11-08T12:00:00Z"))
+        XCTAssertEqual(balance.credits.first?.title, "Monthly included API grant")
+        XCTAssertEqual(balance.credits.last?.title, "Promotional API grant")
+        let exhausted = monthlyGrantFixture.replacingOccurrences(of: "\"remaining_amount_minor_units\":12345",
+                                                                 with: "\"remaining_amount_minor_units\":0")
+        let exhaustedBalance = try ClaudeConsoleBalance.decode(Data(exhausted.utf8), organizationID: organizationID,
+                                                              observedAt: now, invoices: invoices)
+        XCTAssertEqual(exhaustedBalance.credits.first?.id, "monthly_grant_monthly")
+        XCTAssertEqual(exhaustedBalance.credits.first?.amount, 0)
+        let endpoint = try ClaudeConsoleClient.invoicesURL(organizationID: organizationID)
+        XCTAssertEqual(endpoint.path, "/api/organizations/\(organizationID.lowercased())/invoices")
+        XCTAssertEqual(endpoint.query, "limit=25")
+        XCTAssertThrowsError(try ClaudeConsoleClient.invoicesURL(organizationID: "../account"))
+    }
+
+    func testMonthlyInvoiceRequiresCompleteExactOriginMatch() throws {
+        let fixture = monthlyGrantFixture
+        for invoices in [
+            try monthlyInvoices(name: "Credit grant"),
+            try monthlyInvoices(name: "API credit (Unknown plan)"),
+            try monthlyInvoices(amount: 10000),
+            try monthlyInvoices(grantedAt: "2026-10-08T12:00:01Z"),
+            try monthlyInvoices(expiresAt: "2026-11-09T12:00:00Z"),
+            try ClaudeConsoleInvoices.decode(Data("{\"invoices\":[\(monthlyInvoiceFixture.dropLast()),\"currency\":\"EUR\"}]}".utf8),
+                                            organizationID: organizationID),
+            try ClaudeConsoleInvoices.decode(Data(#"{"invoices":[{"name":"API credit (Max 20x)","amount":20000}]}"#.utf8),
+                                            organizationID: organizationID)
+        ] {
+            let balance = try ClaudeConsoleBalance.decode(Data(fixture.utf8), organizationID: organizationID,
+                                                         observedAt: now, invoices: invoices)
+            XCTAssertTrue(balance.credits.allSatisfy { $0.id.hasPrefix("console_grant_") })
+        }
+        let differentCurrency = fixture.replacingOccurrences(of: #""currency":"USD""#, with: #""currency":"EUR""#)
+        let unknownScope = fixture.replacingOccurrences(of: #""scope":{"kind":"unscoped"}"#, with: #""scope":null"#)
+        for grants in [differentCurrency, unknownScope] {
+            let balance = try ClaudeConsoleBalance.decode(Data(grants.utf8), organizationID: organizationID,
+                                                         observedAt: now, invoices: monthlyInvoices())
+            XCTAssertTrue(balance.credits.allSatisfy { $0.id.hasPrefix("console_grant_") })
+        }
+    }
+
+    func testAmbiguousMonthlyInvoiceOrTrancheLeavesPromotionsGeneric() throws {
+        let repeatedInvoices = try ClaudeConsoleInvoices.decode(Data("{\"invoices\":[\(monthlyInvoiceFixture),\(monthlyInvoiceFixture)]}".utf8),
+                                                               organizationID: organizationID)
+        let duplicatedGrant = monthlyGrantFixture.replacingOccurrences(of: #""granted_at":"2026-10-07T12:00:00Z""#,
+                                                                      with: #""granted_at":"2026-10-08T12:00:00Z""#)
+        for (grants, invoices) in [(monthlyGrantFixture, repeatedInvoices), (duplicatedGrant, try monthlyInvoices())] {
+            let balance = try ClaudeConsoleBalance.decode(Data(grants.utf8), organizationID: organizationID,
+                                                         observedAt: now, invoices: invoices)
+            XCTAssertEqual(balance.credits.count, 2)
+            XCTAssertTrue(balance.credits.allSatisfy { $0.id.hasPrefix("console_grant_") })
+        }
+    }
+
+    func testGrantWithoutProviderIdentifierCannotBecomeCachedMonthlyIdentity() throws {
+        let withoutIdentifier = monthlyGrantFixture.replacingOccurrences(of: "\"id\":\"monthly\",", with: "")
+        let initial = try ClaudeConsoleBalance.decode(Data(withoutIdentifier.utf8), organizationID: organizationID,
+                                                     observedAt: now, invoices: monthlyInvoices())
+        XCTAssertEqual(initial.credits.first?.id, "console_grant_observation-0")
+        XCTAssertEqual(initial.credits.first?.title, "Promotional API grant")
+        XCTAssertFalse(initial.credits.contains { $0.id.hasPrefix("monthly_grant_") })
+        let replacement = #"""
+        {"promo_tranches":[{"currency":"USD","granted_amount_minor_units":5000,"remaining_amount_minor_units":4000,
+          "granted_at":"2026-10-07T12:00:00Z","expires_at":"2026-11-09T12:00:00Z","scope":{"kind":"unscoped"}}]}
+        """#
+        let refreshed = try ClaudeConsoleBalance.decode(Data(replacement.utf8), organizationID: organizationID, observedAt: now)
+        XCTAssertEqual(refreshed.credits.first?.id, "console_grant_observation-0")
+        XCTAssertEqual(refreshed.credits.first?.amount, 40)
+    }
+
+    func testMonthlyInvoicesPreserveOrganizationBoundaryAndRejectMalformedResponses() throws {
+        let invoices = try ClaudeConsoleInvoices.decode(Data("{\"invoices\":[\(monthlyInvoiceFixture)]}".utf8),
+                                                       organizationID: "1A87EB9D-F00B-4173-83A2-0DB7689280E8")
+        XCTAssertThrowsError(try ClaudeConsoleBalance.decode(Data(monthlyGrantFixture.utf8), organizationID: organizationID,
+                                                            observedAt: now, invoices: invoices))
+        for fixture in ["{}", "<html>Sign in</html>", monthlyInvoiceFixture] {
+            XCTAssertThrowsError(try ClaudeConsoleInvoices.decode(Data(fixture.utf8), organizationID: organizationID))
+        }
+        XCTAssertThrowsError(try monthlyInvoices(grantedAt: "not-a-date"))
+    }
+
+    private var monthlyGrantFixture: String {
+        #"""
+        {"promo_tranches":[
+          {"id":"monthly","currency":"USD","granted_amount_minor_units":20000,"remaining_amount_minor_units":12345,
+           "granted_at":"2026-10-08T12:00:00.000Z","expires_at":"2026-11-08T12:00:00Z","scope":{"kind":"unscoped"}},
+          {"id":"other","currency":"USD","granted_amount_minor_units":20000,"remaining_amount_minor_units":500,
+           "granted_at":"2026-10-07T12:00:00Z","expires_at":"2026-11-08T12:00:00Z","scope":{"kind":"unscoped"}}]}
+        """#
+    }
+
+    private var monthlyInvoiceFixture: String {
+        #"{"name":"API credit (Max 20x)","amount":20000,"effective_at":"2026-10-08T12:00:00Z","expires_at":"2026-11-08T12:00:00Z"}"#
+    }
+
+    private func monthlyInvoices(name: String = "API credit (Max 20x)", amount: Int = 20000,
+                                 grantedAt: String = "2026-10-08T12:00:00Z",
+                                 expiresAt: String = "2026-11-08T12:00:00Z") throws -> ClaudeConsoleInvoices {
+        let fixture = """
+        {"invoices":[{"name":"\(name)","amount":\(amount),"effective_at":"\(grantedAt)","expires_at":"\(expiresAt)"}]}
+        """
+        return try ClaudeConsoleInvoices.decode(Data(fixture.utf8), organizationID: organizationID)
+    }
+
     private func decode(_ json: String) throws -> ClaudeConsoleBalance {
         try ClaudeConsoleBalance.decode(Data(json.utf8), organizationID: organizationID, observedAt: now)
     }

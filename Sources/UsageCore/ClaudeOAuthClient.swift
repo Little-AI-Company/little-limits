@@ -90,6 +90,29 @@ protocol ClaudeCredentialStore: Sendable {
     func remove(accountID: UUID, allowInteraction: Bool) throws
 }
 
+enum ClaudeKeychainAccess {
+    private static let lock = NSLock()
+
+    static func perform<Value>(allowInteraction: Bool, _ operation: () throws -> Value) throws -> Value {
+        try lock.withLock {
+            guard !allowInteraction else { return try operation() }
+            // This store uses the file-based Keychain. LAContext alone does not
+            // suppress its ACL dialogs. Serialize the brief process-local setting
+            // with every store operation, including explicitly interactive ones.
+            var previous = DarwinBoolean(false)
+            guard SecKeychainGetUserInteractionAllowed(&previous) == errSecSuccess,
+                  SecKeychainSetUserInteractionAllowed(false) == errSecSuccess else {
+                throw UsageError.authenticationRequired("Claude Keychain access could not run without a prompt. Your saved sign-in is preserved.")
+            }
+            let result = Result(catching: operation)
+            guard SecKeychainSetUserInteractionAllowed(previous.boolValue) == errSecSuccess else {
+                throw UsageError.authenticationRequired("Claude Keychain access could not restore its interaction setting. Quit and reopen the app.")
+            }
+            return try result.get()
+        }
+    }
+}
+
 struct ClaudeKeychainStore: ClaudeCredentialStore {
     private let service = "AI Usage Stats Claude OAuth"
 
@@ -101,6 +124,7 @@ struct ClaudeKeychainStore: ClaudeCredentialStore {
             let context = LAContext()
             context.interactionNotAllowed = true
             query[kSecUseAuthenticationContext as String] = context
+            query[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUIFail
         }
         return query
     }
@@ -110,10 +134,14 @@ struct ClaudeKeychainStore: ClaudeCredentialStore {
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = try ClaudeKeychainAccess.perform(allowInteraction: allowInteraction) {
+            SecItemCopyMatching(query as CFDictionary, &result)
+        }
         if status == errSecItemNotFound { return nil }
         guard status == errSecSuccess, let data = result as? Data else {
-            throw UsageError.authenticationRequired("Claude credentials are unavailable in Keychain. Connect this account again.")
+            throw UsageError.authenticationRequired(status == errSecInteractionNotAllowed || status == errSecAuthFailed
+                ? "Claude Keychain access needs permission. Your saved sign-in is preserved; allow Keychain access for this account."
+                : "Claude credentials are unavailable in Keychain. Connect this account again.")
         }
         do { return try JSONDecoder().decode(ClaudeCredentials.self, from: data) }
         catch { throw UsageError.authenticationRequired("Saved Claude credentials are incomplete. Connect this account again.") }
@@ -123,12 +151,13 @@ struct ClaudeKeychainStore: ClaudeCredentialStore {
         let data = try JSONEncoder().encode(credentials)
         let query = query(accountID: accountID, allowInteraction: allowInteraction)
         let changes = [kSecValueData as String: data]
-        var status = SecItemUpdate(query as CFDictionary, changes as CFDictionary)
-        if status == errSecItemNotFound {
+        let status = try ClaudeKeychainAccess.perform(allowInteraction: allowInteraction) {
+            let status = SecItemUpdate(query as CFDictionary, changes as CFDictionary)
+            guard status == errSecItemNotFound else { return status }
             var entry = query
             entry[kSecValueData as String] = data
             entry[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-            status = SecItemAdd(entry as CFDictionary, nil)
+            return SecItemAdd(entry as CFDictionary, nil)
         }
         guard status == errSecSuccess else {
             throw UsageError.authenticationRequired("Could not save Claude credentials in Keychain. Connect this account again.")
@@ -136,7 +165,9 @@ struct ClaudeKeychainStore: ClaudeCredentialStore {
     }
 
     func remove(accountID: UUID, allowInteraction: Bool) throws {
-        let status = SecItemDelete(query(accountID: accountID, allowInteraction: allowInteraction) as CFDictionary)
+        let status = try ClaudeKeychainAccess.perform(allowInteraction: allowInteraction) {
+            SecItemDelete(query(accountID: accountID, allowInteraction: allowInteraction) as CFDictionary)
+        }
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw UsageError.providerFailure("Could not remove this account's Claude credentials from Keychain.")
         }

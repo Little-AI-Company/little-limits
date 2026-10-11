@@ -2,8 +2,15 @@ import AppKit
 import UsageCore
 
 @MainActor
-final class AccountsWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate {
+final class AccountsWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate {
+    private enum Section: Equatable { case account, general, platform }
     private let model: ApplicationModel
+    private var section = Section.account
+    private let detailContainer = NSView()
+    private let detailScroll = NSScrollView()
+    private let general = GeneralSettingsViewController()
+    private var platform: ClaudePlatformViewController?
+    private var accountWindowSize: NSSize?
     private let table = NSTableView()
     private let nameField = NSTextField(string: "")
     private let accountTitle = InterfaceControls.label("", size: 20, weight: .semibold)
@@ -37,7 +44,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private let loginButton = NSButton(title: "Sign In Again…", target: nil, action: nil)
     private let usageButton = NSButton(title: "Check Usage", target: nil, action: nil)
     var onClaudeConnection: ((UUID?, String) -> Void)?
-    private let consoleButton = NSButton(title: "Connect API Credits…", target: nil, action: nil)
+    private let consoleButton = NSButton(title: "Connect Claude Platform…", target: nil, action: nil)
     var onConsoleConnection: ((UUID) -> Void)?
 
     init(model: ApplicationModel) {
@@ -48,6 +55,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         window.isReleasedWhenClosed = false
         window.contentMinSize = NSSize(width: 660, height: 460)
         super.init(window: window)
+        window.delegate = self
         configure()
         window.center()
     }
@@ -72,9 +80,9 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         table.style = .sourceList
         table.rowHeight = 48
         table.intercellSpacing = NSSize(width: 0, height: 2)
-        table.allowsEmptySelection = false
+        table.allowsEmptySelection = true
         table.backgroundColor = .clear
-        table.setAccessibilityLabel("Connected AI accounts")
+        table.setAccessibilityLabel("Accounts and General settings")
         let accountScroll = NSScrollView()
         accountScroll.documentView = table
         accountScroll.hasVerticalScroller = true
@@ -84,7 +92,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         sidebar.addSubview(accountScroll)
 
         addAccountButton.addItem(withTitle: "Add Account")
-        let addClaude = NSMenuItem(title: "Connect Claude…", action: #selector(connectClaude(_:)), keyEquivalent: "")
+        let addClaude = NSMenuItem(title: "Connect Claude Subscription…", action: #selector(connectClaude(_:)), keyEquivalent: "")
         addClaude.target = self
         let addCodex = NSMenuItem(title: "Connect Codex…", action: #selector(connectCodex(_:)), keyEquivalent: "")
         addCodex.target = self
@@ -122,7 +130,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         nameField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         nameField.widthAnchor.constraint(greaterThanOrEqualToConstant: 160).isActive = true
         let connectionActions = NSStackView(views: [loginButton, usageButton, detailsButton])
-        connectionActions.orientation = .horizontal
+        connectionActions.orientation = .vertical
+        connectionActions.alignment = .leading
         connectionActions.spacing = 8
         connectionActions.detachesHiddenViews = true
 
@@ -202,7 +211,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             view.widthAnchor.constraint(equalTo: accountEditor.widthAnchor).isActive = true
         }
         let detailDocument = AccountDetailDocumentView()
-        let detailScroll = NSScrollView()
         detailScroll.documentView = detailDocument
         detailScroll.hasVerticalScroller = true
         detailScroll.autohidesScrollers = true
@@ -213,7 +221,9 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         detailStack.detachesHiddenViews = true
         detailStack.translatesAutoresizingMaskIntoConstraints = false
         detailDocument.addSubview(detailStack)
-        root.addSubview(detailScroll)
+        detailContainer.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(detailContainer)
+        detailContainer.addSubview(detailScroll)
         for view in [accountEditor, emptyState, status] {
             view.widthAnchor.constraint(equalTo: detailStack.widthAnchor).isActive = true
         }
@@ -233,10 +243,14 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             divider.topAnchor.constraint(equalTo: root.topAnchor),
             divider.bottomAnchor.constraint(equalTo: root.bottomAnchor),
             divider.widthAnchor.constraint(equalToConstant: 1),
-            detailScroll.leadingAnchor.constraint(equalTo: divider.trailingAnchor),
-            detailScroll.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-            detailScroll.topAnchor.constraint(equalTo: root.topAnchor),
-            detailScroll.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            detailContainer.leadingAnchor.constraint(equalTo: divider.trailingAnchor),
+            detailContainer.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            detailContainer.topAnchor.constraint(equalTo: root.topAnchor),
+            detailContainer.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            detailScroll.leadingAnchor.constraint(equalTo: detailContainer.leadingAnchor),
+            detailScroll.trailingAnchor.constraint(equalTo: detailContainer.trailingAnchor),
+            detailScroll.topAnchor.constraint(equalTo: detailContainer.topAnchor),
+            detailScroll.bottomAnchor.constraint(equalTo: detailContainer.bottomAnchor),
             detailDocument.widthAnchor.constraint(equalTo: detailScroll.contentView.widthAnchor),
             detailStack.topAnchor.constraint(equalTo: detailDocument.topAnchor, constant: 22),
             detailStack.leadingAnchor.constraint(equalTo: detailDocument.leadingAnchor, constant: 24),
@@ -250,23 +264,29 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
 
     func render() {
         let previousID = selectedID
+        if model.profiles.isEmpty, section != .general { selectedID = nil; showGeneral() }
         isUpdatingSelection = true
         if displayedProfiles != model.profiles {
             displayedProfiles = model.profiles
             table.reloadData()
         }
-        if let selectedID, let index = model.profiles.firstIndex(where: { $0.id == selectedID }) {
+        if section == .general {
+            table.selectRowIndexes(IndexSet(integer: model.profiles.count), byExtendingSelection: false)
+        } else if let selectedID, let index = model.profiles.firstIndex(where: { $0.id == selectedID }) {
             table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
         } else if !model.profiles.isEmpty {
             table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
             selectedID = model.profiles[0].id
-        } else { selectedID = nil }
+        } else { selectedID = nil; table.deselectAll(nil) }
         isUpdatingSelection = false
+        if section == .platform, previousID != selectedID { showAccountDetail() }
+        if let platform, !model.profiles.contains(where: { $0.id == platform.accountID }) { showAccountDetail() }
         let available = !model.isDemo && !model.isChangingAccounts && !model.isRefreshing
         addAccountButton.isEnabled = available
         saveNameButton.isEnabled = available && selectedID != nil
         removeButton.isEnabled = available && selectedID != nil
         status.stringValue = model.isDemo ? "Demo accounts cannot be changed."
+            : model.isAllowingKeychainAccess ? "Allowing Keychain access…"
             : model.isSigningInClaude ? "Claude sign-in is in progress."
             : model.isChangingAccounts ? "Updating account…" : ""
         status.isHidden = status.stringValue.isEmpty
@@ -280,8 +300,86 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         updateEditorAvailability()
     }
 
-    func numberOfRows(in tableView: NSTableView) -> Int { model.profiles.count }
+    func showGeneral() {
+        guard window?.attachedSheet == nil else { return }
+        leavePlatform()
+        section = .general
+        detailScroll.isHidden = true
+        installDetailView(general.view)
+        general.refresh()
+        isUpdatingSelection = true
+        table.selectRowIndexes(IndexSet(integer: model.profiles.count), byExtendingSelection: false)
+        isUpdatingSelection = false
+        window?.recalculateKeyViewLoop()
+    }
+
+    func showPlatform(_ controller: ClaudePlatformViewController, accountID: UUID) {
+        guard window?.attachedSheet == nil else { return }
+        leavePlatform()
+        section = .platform
+        selectedID = accountID
+        platform = controller
+        controller.onBack = { [weak self] in self?.showAccountDetail(); self?.render() }
+        if general.isViewLoaded { general.view.removeFromSuperview() }
+        detailScroll.isHidden = true
+        accountWindowSize = window?.contentView?.frame.size
+        window?.contentMinSize = NSSize(width: 960, height: 600)
+        window?.setContentSize(NSSize(width: max(1000, accountWindowSize?.width ?? 0), height: max(700, accountWindowSize?.height ?? 0)))
+        installDetailView(controller.view)
+        controller.presentPane()
+        render()
+        window?.recalculateKeyViewLoop()
+    }
+
+    private func installDetailView(_ view: NSView) {
+        if view.superview === detailContainer { return }
+        view.translatesAutoresizingMaskIntoConstraints = false
+        detailContainer.addSubview(view)
+        NSLayoutConstraint.activate([
+            view.leadingAnchor.constraint(equalTo: detailContainer.leadingAnchor),
+            view.trailingAnchor.constraint(equalTo: detailContainer.trailingAnchor),
+            view.topAnchor.constraint(equalTo: detailContainer.topAnchor),
+            view.bottomAnchor.constraint(equalTo: detailContainer.bottomAnchor)
+        ])
+    }
+
+    private func leavePlatform() {
+        platform?.hidePane()
+        platform?.onBack = nil
+        if let platform, platform.isViewLoaded { platform.view.removeFromSuperview() }
+        platform = nil
+        if let size = accountWindowSize {
+            window?.contentMinSize = NSSize(width: 660, height: 460)
+            window?.setContentSize(size)
+            accountWindowSize = nil
+        }
+    }
+
+    private func showAccountDetail() {
+        leavePlatform()
+        section = .account
+        if general.isViewLoaded { general.view.removeFromSuperview() }
+        detailScroll.isHidden = false
+        window?.recalculateKeyViewLoop()
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        platform?.hidePane(pauseRefresh: true)
+    }
+
+    override func showWindow(_ sender: Any?) {
+        if section == .platform { platform?.presentPane() }
+        super.showWindow(sender)
+    }
+
+    func numberOfRows(in tableView: NSTableView) -> Int { model.profiles.count + 1 }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        if row == model.profiles.count {
+            let label = NSTextField(labelWithString: "General")
+            label.font = .systemFont(ofSize: 13, weight: .medium)
+            label.setAccessibilityLabel("General settings")
+            return label
+        }
         guard model.profiles.indices.contains(row) else { return nil }
         let profile = model.profiles[row]
         let cell = NSTableCellView()
@@ -315,8 +413,12 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard !isUpdatingSelection else { return }
         let index = table.selectedRow
-        selectedID = model.profiles.indices.contains(index) ? model.profiles[index].id : nil
-        renderSelection()
+        if index == model.profiles.count { showGeneral(); return }
+        let accountID = model.profiles.indices.contains(index) ? model.profiles[index].id : nil
+        let changedAccount = selectedID != accountID
+        showAccountDetail()
+        selectedID = accountID
+        if changedAccount { renderSelection() }
         updateEditorAvailability()
     }
 
@@ -360,9 +462,10 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         usageButton.isEnabled = canSave
         usageButton.title = model.isRefreshing ? "Checking Usage…" : "Check Usage"
         consoleButton.isEnabled = canSave && model.profiles.first(where: { $0.id == selectedID })?.provider == .claude
-        consoleButton.title = selectedID.flatMap { model.consoleConnections[$0] } == nil ? "Connect API Credits…" : "Manage API Credits…"
+        consoleButton.title = selectedID.flatMap { model.consoleConnections[$0] } == nil ? "Connect Claude Platform…" : "Manage Claude Platform…"
         detailsButton.isEnabled = selectedID != nil
         billingButton.isEnabled = selectedID != nil
+        billingButton.title = monthlyGrantNeedsLink ? "Open Claude Billing" : "Open Billing Dashboard"
         manualDisclosure.isEnabled = selectedID != nil
         let index = manualCategory.indexOfSelectedItem
         let hasCredit = displayedCredits.indices.contains(index)
@@ -419,9 +522,9 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     func connect(_ provider: Provider) {
         guard !model.isDemo, !model.isChangingAccounts, !model.isRefreshing else { return }
         let alert = NSAlert()
-        alert.messageText = "Connect \(InterfaceFormatting.provider(provider)) Account"
+        alert.messageText = provider == .claude ? "Connect Claude Subscription" : "Connect Codex Account"
         alert.informativeText = provider == .claude
-            ? "Sign in through Claude in your browser. Each account keeps a separate connection in AI Usage Stats. Subscription usage updates after sign-in. This connection is experimental."
+            ? "Sign in to your Claude subscription at claude.ai in your browser. This updates subscription usage only. Monthly grants and API balances use a separate Claude Platform sign-in at platform.claude.com."
             : "Creates a separate Codex CLI login for this account and opens Terminal to sign in through the official browser flow. Each account keeps its own login. Your existing CLI login is preserved."
         let field = NSTextField(string: "\(InterfaceFormatting.provider(provider)) Account")
         field.setAccessibilityLabel("New account name")
@@ -430,11 +533,13 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         alert.addButton(withTitle: provider == .claude ? "Sign In…" : "Connect")
         alert.addButton(withTitle: "Cancel")
         alert.window.initialFirstResponder = field
-        if alert.runModal() == .alertFirstButtonReturn {
+        guard let window else { return }
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self, response == .alertFirstButtonReturn else { return }
             let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !name.isEmpty else { showError("Enter an account name."); return }
-            if provider == .claude { onClaudeConnection?(nil, name) }
-            else { model.importAccount(provider: provider, label: name) }
+            guard !name.isEmpty else { self.showError("Enter an account name."); return }
+            if provider == .claude { self.onClaudeConnection?(nil, name) }
+            else { self.model.importAccount(provider: provider, label: name) }
         }
     }
 
@@ -442,10 +547,12 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         guard let id = selectedID, let profile = model.profiles.first(where: { $0.id == id }) else { return }
         accountTitle.stringValue = InterfaceFormatting.provider(profile.provider)
         loginButton.isHidden = false
-        loginButton.title = profile.provider == .claude ? "Reconnect…" : "Sign In Again…"
+        loginButton.title = profile.provider == .claude ? "Reconnect Subscription…" : "Sign In Again…"
+        loginButton.toolTip = profile.provider == .claude ? "Claude subscription sign-in at claude.ai. This does not sign in to Claude Platform." : "Sign in through the Codex CLI."
         consoleButton.isHidden = profile.provider != .claude
         let snapshot = model.snapshots[id]
         var description: [String] = []
+        if profile.provider == .claude { description.append("Subscription usage uses claude.ai. Platform credits require a separate platform.claude.com sign-in.") }
         if let email = profile.providerEmail { description.append("Signed in as \(email).") }
         if model.isDemo {
             description.append("Example account. Connect your own account to receive readings.")
@@ -454,7 +561,11 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             case .available: description.append("Connected. Usage is available.")
             case .unavailable: description.append("Usage unavailable.")
             case .stale: description.append("The last reading is out of date.")
-            case .authenticationRequired: description.append("Sign-in required. Reconnect to restore usage readings.")
+            case .authenticationRequired:
+                description.append("Subscription usage needs access or sign-in.")
+                if profile.source == .claudeOAuth {
+                    description.append("If Keychain permission was denied, open Connection Details → Allow Keychain Access… to use the saved sign-in. Reconnect Subscription only when a new sign-in is needed.")
+                }
             }
             if let detail = snapshot.detail, !detail.isEmpty { description.append(detail) }
         } else {
@@ -462,7 +573,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         }
         if let snapshot {
             for window in snapshot.windows {
-                description.append("\(window.title): \(InterfaceFormatting.remaining(window)). \(InterfaceFormatting.reset(window)).")
+                description.append("\(window.title): \(InterfaceFormatting.used(window)). \(InterfaceFormatting.reset(window)).")
             }
             if let date = snapshot.fetchedAt { description.append("Last reading: \(InterfaceFormatting.exactDate(date)).") }
             else { description.append("Last reading: unavailable.") }
@@ -470,8 +581,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         accountDescription.stringValue = description.joined(separator: "\n")
         creditDescription.stringValue = profile.provider == .claude
             ? (model.consoleConnections[id] == nil
-               ? "Connect Claude Console to read credits. This connection is experimental."
-               : "Claude Console is linked to this account. This connection is experimental.")
+               ? "Connect Claude Platform to read monthly grants and purchased API credits. platform.claude.com uses separate authentication from your Claude subscription. Select the organization with your grant. Linking and claiming stay on the official billing page. This connection is experimental."
+               : "Claude Platform uses its own saved sign-in for monthly grants and purchased API credits. Manage Claude Platform to check your organization or sign-in. This connection is experimental.")
             : "View API billing or enter a dated balance manually."
         if !(model.pendingManualCredits[id] ?? []).isEmpty {
             creditDescription.stringValue += " Saved manual balances await confirmation. Open Manual balance to confirm before use."
@@ -489,7 +600,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         let alert = NSAlert()
         alert.messageText = "\(InterfaceFormatting.provider(profile.provider)) Connection"
         var details = ["Account identity: \(profile.providerAccountID ?? "Unavailable")"]
-        if let email = profile.providerEmail { details.append("Verified account email: \(email)") }
+        details.append("Verified account email: \(InterfaceFormatting.accountEmail(profile))")
         if let path = profile.sourcePath { details.append("Configuration: \(path)") }
         if let organization = model.consoleConnections[id] { details.append("Claude Console organization: \(organization)") }
         details.append(profile.provider == .claude
@@ -497,9 +608,27 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
                ? "Subscription usage uses this account’s separate browser sign-in. The usage endpoint is experimental. Claude Console API credits use a separate connection."
                : "This older profile reads captured Claude Code quota. Reconnect to enable direct subscription usage. Claude Console API credits use a separate connection.")
             : "This account has a separate Codex CLI login. Your existing CLI login is preserved.")
+        if let snapshot = model.snapshots[id] {
+            if let date = snapshot.fetchedAt { details.append("Last usage reading: \(InterfaceFormatting.exactDate(date)).") }
+            for window in snapshot.windows {
+                details.append("\(window.title): \(InterfaceFormatting.used(window)). \(InterfaceFormatting.reset(window)).")
+            }
+            for credit in snapshot.credits { details.append(InterfaceFormatting.creditDetail(credit)) }
+            if let detail = snapshot.detail { details.append(detail) }
+        }
+        if let message = model.consoleMessages[id] { details.append("API billing: \(message)") }
         alert.informativeText = details.joined(separator: "\n\n")
         alert.addButton(withTitle: "Done")
-        alert.runModal()
+        let canAllowKeychain = profile.source == .claudeOAuth && !model.isDemo && !model.isChangingAccounts && !model.isRefreshing
+        if canAllowKeychain {
+            alert.addButton(withTitle: "Allow Keychain Access…")
+            alert.informativeText += "\n\nAllow Keychain Access reads this account’s existing saved subscription credential. It may show one macOS permission dialog. It does not start sign-in or replace credentials."
+        }
+        if let window {
+            alert.beginSheetModal(for: window) { [weak self] response in
+                if canAllowKeychain, response == .alertSecondButtonReturn { self?.model.allowKeychainAccess(id) }
+            }
+        }
     }
 
     @objc private func connectClaude(_ sender: Any?) { connect(.claude) }
@@ -528,7 +657,9 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         alert.informativeText = "Removes this profile and its saved usage from AI Usage Stats."
         alert.addButton(withTitle: "Remove")
         alert.addButton(withTitle: "Cancel")
-        if alert.runModal() == .alertFirstButtonReturn { model.removeAccount(id) }
+        if let window { alert.beginSheetModal(for: window) { [weak self] response in
+            if response == .alertFirstButtonReturn { self?.model.removeAccount(id) }
+        } }
     }
     @objc private func selectCredit(_ sender: Any?) {
         if displayedCredits.indices.contains(manualCategory.indexOfSelectedItem) {
@@ -561,16 +692,22 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         editorReloadRevision = model.completedAccountChanges + 1
         model.setManualCredit(accountID: id, credit: credit)
     }
+    private var monthlyGrantNeedsLink: Bool {
+        guard let id = selectedID, model.profiles.first(where: { $0.id == id })?.provider == .claude else { return false }
+        return model.snapshots[id]?.credits.contains { $0.id == "monthly_grant" && $0.status == "Not linked" } == true
+    }
+
     @objc private func openBilling(_ sender: Any?) {
         let provider = model.profiles.first(where: { $0.id == selectedID })?.provider
-        let address = provider == .claude ? "https://platform.claude.com/settings/billing" : "https://platform.openai.com/settings/organization/billing/overview"
+        let address = monthlyGrantNeedsLink ? "https://claude.ai/settings/billing"
+            : provider == .claude ? "https://platform.claude.com/settings/billing" : "https://platform.openai.com/settings/organization/billing/overview"
         if let url = URL(string: address) { NSWorkspace.shared.open(url) }
     }
     private func showError(_ message: String) {
         let alert = NSAlert()
         alert.messageText = "Could Not Save Account"
         alert.informativeText = message
-        alert.runModal()
+        if let window { alert.beginSheetModal(for: window) }
     }
 }
 

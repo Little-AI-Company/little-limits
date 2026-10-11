@@ -8,10 +8,18 @@ enum InterfaceFormatting {
         return email
     }
 
-    static func remaining(_ window: UsageWindow) -> String {
+    static func usageTitle(_ window: UsageWindow) -> String {
+        if window.title == "5 hours" { return "5-hour" }
+        if window.title == "7 days" { return "Weekly" }
+        if window.title.hasPrefix("5 hours (") { return window.title.replacingOccurrences(of: "5 hours", with: "5-hour") }
+        if window.title.hasPrefix("7 days (") { return window.title.replacingOccurrences(of: "7 days", with: "Weekly") }
+        return window.title
+    }
+
+    static func used(_ window: UsageWindow) -> String {
         if window.isActive == false { return "Inactive" }
         guard let used = window.utilizationPercent, used.isFinite else { return "Unavailable" }
-        return "\(Int((100 - min(100, max(0, used))).rounded()))% remaining"
+        return "\(UsageFormatting.percentage(used)) used"
     }
 
     static func reset(_ window: UsageWindow, now: Date = Date()) -> String {
@@ -35,26 +43,22 @@ enum InterfaceFormatting {
     static func compactReset(_ date: Date?, now: Date = Date()) -> String {
         guard let date else { return "Reset unknown" }
         guard date > now else { return "Reset due" }
-        return "Reset \(UsageFormatting.countdown(to: date, now: now))"
+        return "Resets in \(UsageFormatting.countdown(to: date, now: now))"
     }
 
     static func compactExpiry(_ date: Date, now: Date = Date()) -> String {
         guard date > now else { return "Expired" }
-        return "Expires \(UsageFormatting.countdown(to: date, now: now))"
-    }
-
-    static func shortExpiry(_ date: Date, now: Date = Date()) -> String {
-        let calendarDate = date.formatted(.dateTime.month(.abbreviated).day())
-        guard date > now else { return "Expired \(calendarDate)" }
-        return "\(calendarDate) · \(UsageFormatting.countdown(to: date, now: now)) left"
+        return "Expires in \(UsageFormatting.countdown(to: date, now: now))"
     }
 
     static func compactCreditTitle(_ balance: CreditBalance) -> String {
         switch balance.id {
-        case "monthly_grant": return "Monthly API grant"
-        case "api_balance": return balance.title
+        case "monthly_grant": return "Monthly grant"
+        case "api_balance": return balance.title == "Purchased API credits" ? "Purchased credits" : "API credits"
+        case "provider_credits": return "Credits"
         default:
-            if balance.id.hasPrefix("api_balance_") { return "Purchased API credits" }
+            if balance.id.hasPrefix("monthly_grant_") { return "Monthly grant" }
+            if balance.id.hasPrefix("api_balance_") { return "Purchased credits" }
             return balance.title
         }
     }
@@ -79,10 +83,19 @@ enum InterfaceFormatting {
         }
     }
 
-    static func expiry(_ date: Date) -> String {
-        let resetText = reset(date)
-        return resetText.replacingOccurrences(of: "Resets in", with: "Expires in")
-            .replacingOccurrences(of: "Reset due", with: "Expired")
+    static func creditDetail(_ balance: CreditBalance, now: Date = Date()) -> String {
+        var lines = ["\(balance.title): \(credit(balance))"]
+        if balance.source == .manual { lines.append("Manual balance.") }
+        if let original = balance.originalAmount {
+            lines.append("Original grant: \(formatAmount(original, unit: balance.unit, currencyCode: balance.currencyCode)).")
+        }
+        if let date = balance.asOf { lines.append("Observed \(exactDate(date)).") }
+        else { lines.append("Observation time unavailable.") }
+        if let date = balance.expiresAt { lines.append("\(compactExpiry(date, now: now)) · \(exactDate(date)).") }
+        else { lines.append(balance.doesNotExpire ? "Does not expire." : "Expiration date unavailable.") }
+        if let status = balance.status { lines.append("Status: \(status)") }
+        if let detail = balance.detail { lines.append(detail) }
+        return lines.joined(separator: "\n")
     }
 
     static func provider(_ provider: Provider) -> String {

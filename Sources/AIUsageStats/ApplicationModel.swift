@@ -9,6 +9,7 @@ final class ApplicationModel {
     private(set) var snapshots: [UUID: AccountSnapshot] = [:]
     private(set) var isRefreshing = false
     private(set) var isChangingAccounts = false
+    private(set) var isAllowingKeychainAccess = false
     private(set) var message: String?
     private(set) var completedAccountChanges = 0
     private(set) var consoleConnections: [UUID: String] = [:]
@@ -105,6 +106,25 @@ final class ApplicationModel {
         }
     }
 
+    func allowKeychainAccess(_ id: UUID) {
+        guard !isDemo, !isChangingAccounts, !isRefreshing,
+              profiles.contains(where: { $0.id == id && $0.source == .claudeOAuth }) else { return }
+        isChangingAccounts = true
+        isAllowingKeychainAccess = true
+        onChange?()
+        Task { [weak self, service] in
+            var failure: Error?
+            do { try await service.allowClaudeKeychainAccess(id: id) }
+            catch { failure = error }
+            guard let self else { return }
+            isChangingAccounts = false
+            isAllowingKeychainAccess = false
+            onChange?()
+            if let failure { onError?(failure.localizedDescription) }
+            else { refresh() }
+        }
+    }
+
     func renameAccount(_ id: UUID, label: String) {
         changeAccounts { service in try await service.renameAccount(id: id, label: label) }
     }
@@ -180,8 +200,11 @@ final class ApplicationModel {
         consoleConnections[accountID] = organizationID
     }
 
-    func updateConsoleCredits(accountID: UUID, organizationID: String, responseData: Data, expectedIdentity: String?) async throws {
-        try await service.updateClaudeConsoleCredits(accountID: accountID, organizationID: organizationID, responseData: responseData, expectedIdentity: expectedIdentity)
+    func updateConsoleCredits(accountID: UUID, organizationID: String, responseData: Data, expectedIdentity: String?,
+                              linkStateData: Data? = nil, invoicesData: Data? = nil, observedAt: Date = Date(), monthlyMetadataError: String? = nil) async throws {
+        try await service.updateClaudeConsoleCredits(accountID: accountID, organizationID: organizationID, responseData: responseData,
+                                                    expectedIdentity: expectedIdentity, linkStateData: linkStateData,
+                                                    invoicesData: invoicesData, observedAt: observedAt, monthlyMetadataError: monthlyMetadataError)
         try validateConsoleIdentity(accountID: accountID, expectedIdentity: expectedIdentity)
         consoleMessages[accountID] = nil
         await load()

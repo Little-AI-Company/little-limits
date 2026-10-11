@@ -1,50 +1,58 @@
 # Native design
 
-AI Usage Stats is an AppKit menu bar utility. A status item opens a standard native menu when no accounts are connected, and a focused account overview once accounts exist. Native windows handle account setup and settings. `LSUIElement` keeps ordinary use out of the Dock.
+AI Usage Stats is an AppKit menu bar utility. A status item opens one standard native menu for first run and connected accounts. One native management window handles account setup, Claude Platform connections, and General settings. Subscription sign-in uses an attached sheet and the external browser. `LSUIElement` keeps ordinary use out of the Dock.
 
 ## First run
 
-Use an actual `NSMenu` with direct Add Claude Account… and Add Codex Account… commands, followed by Accounts…, Settings…, and Quit. AppKit owns its appearance, keyboard selection, sizing, and dismissal. Explain Claude browser sign-in and Codex CLI sign-in in the corresponding setup dialog, rather than a technical paragraph in the menu.
+Use an actual `NSMenu` with direct Add Claude Account… and Add Codex Account… commands, followed by Manage Accounts… and Quit. AppKit owns its appearance, keyboard selection, sizing, and dismissal. Explain Claude browser sign-in and Codex CLI sign-in in the corresponding setup dialog, rather than a technical paragraph in the menu.
 
 Do not show a title banner, disabled Refresh control, generic Actions dropdown, empty dashboard, or refresh footer. A load failure has its own error and retry commands; it is not treated as a fresh account list. After removing the last account, the next ordinary click returns to this menu.
 
-## Account panel
+## Account usage menu
 
-The populated overview is 440 points wide and fits its content up to a maximum height of 540 points. Direct native Refresh, Accounts…, Settings…, and Quit controls precede compact aligned account rows. Percentages explicitly show capacity left. Reset countdowns sit beside each quota; credit amounts retain their currency or unit and known expiry.
+Use the actual status item's `NSMenu` for populated accounts. Each account begins with `NSMenuItem.sectionHeader(title:)`, available on macOS 14, displaying a 16-point provider logo, provider name, and verified email, such as `Claude • personal@example.invalid`. This native gray section label is an explicit exception to the general restriction on gray subtitles. When email is absent, show the saved account name and put `Email unavailable` in its tooltip and Connection Details. Missing email does not imply an unverified account identity. Never present an alias or account identifier as a verified email. Preserve stored account order and separate each account with a standard menu separator.
 
-Keep subscription quota, API money, Codex credit units, and earned reset counts separate. Missing values remain unavailable. Manual amounts retain a visible Manual label. Preserve old readings with their stale or sign-in state when a refresh fails.
+Readings are ordinary, noninteractive menu items with semantic label text. Use no custom menu views, progress bars, cards, pills, dashboard controls, or custom backgrounds. Indent data beneath each heading. Native attributed titles use shared tab stops to align compact labels, semibold values, and secondary timing: `5-hour   12% used   Resets in 1h 1m`. Weekly and model-scoped readings use the same percentage meaning. Keep unknown expiry in tooltip and Connection Details instead of repeating it on every unavailable credit row. Retain known expiry, manual status, financial units, and at most one concise usage state plus one Console attention row. The compact status-item summary retains its existing remaining-capacity meaning. It shows only provider template logos and percentages, with no written provider names; full names and quota meaning remain in tooltip and accessibility text.
 
-A visible Details control exposes exact time-zone-aware dates, observation sources, grant scope, original amounts, and recovery instructions. Show one concise freshness state per account rather than repeating full timestamps beside every value. Authentication failures and stale values remain visible without expanding Details.
+Keep subscription quota, API money, Codex credit units, and earned reset counts separate. Preserve unknown values, inactive quotas, reset countdowns, expiry, original grant amounts, manual labels, stale readings, authentication failures, and recovery instructions. Freshness and provider details remain available in native item tooltips and the existing Accounts window's Connection Details. Exact dates include the time zone. One Manage Accounts… command opens the single existing Accounts window; Refresh and Quit remain standard status-menu commands. The standard app-menu Settings… command and Command-comma select General inside Manage Accounts.
 
-Main readings use compact rows. Demo accounts exercise distinct Claude emails, a long email, and an unavailable email alongside Codex readings. Scrolling accommodates additional accounts and expanded details. Account sections and controls retain their identity during countdown updates; only the displayed values change. Keyboard focus on Details or its dashboard action scrolls that control into view when expansion places it below the viewport. Validate focus and scroll behavior in the running app instead of inferring it from the source.
+Build the menu's current readings and countdowns immediately before AppKit begins tracking. Keep that menu unchanged while open, including during provider refresh and account changes, so keyboard selection remains stable. The next opening applies current model data. There is no countdown repaint timer. AppKit supplies keyboard selection, scrolling for long menus, Escape, and outside-click dismissal.
 
-Use semantic AppKit colors, modest text weights, and separators. No decorative cards, pills, gray subtitles above sections, or continuous animations. Demo mode is explicitly labelled and used for public captures.
+## Compact status preview
+
+Use one native status-item button with a composed template image: 14-point provider logos, 12-point monospaced percentages, a 3-point icon/value gap, and a 9-point gap between providers. The button title is empty when accounts exist. Unknown quota remains `?`, stale or sign-in state retains `!`, and no-account fallback remains `AI`.
+
+Aggregate the lowest remaining quota across current windows and all accounts for each provider, preserving the existing calculation. A typed summary of provider, remaining percentage, and stale state is compared with the displayed summary before drawing; unchanged refresh results do not recreate the image. Draw 1x and 2x bitmap representations once per changed summary. The final image is a template so the native button supplies light, dark, and selected tint. The same shared ProviderIcons loader supplies account headings and the preview.
+
+## Provider logo resources
+
+The Claude asterisk and OpenAI knot used for Codex come from the local opencode UI assets, with their source SVGs preserved alongside offline-rendered transparent PNGs. AppKit displays the PNG alpha silhouettes as template menu images. On macOS 27+, request `preferredImageVisibility = .visible` because AppKit otherwise typically hides menu-item images. This availability check leaves the macOS 14 deployment target intact.
+
+SwiftPM includes the ProviderIcons resource directory. Packaging copies its generated resource bundle into the app's Contents/Resources. Loading first discovers that bundle through Bundle.main; Bundle.module is a lazy fallback for SwiftPM development. The bundle includes the opencode MIT license, copyright, original source paths, and source commit in NOTICE.txt. Packaging and runtime need no SVG renderer. See [RELEASING.md](RELEASING.md).
 
 ## System controls and appearance
 
-`NSMenu` owns the first-run command surface, and `NSPopover` owns the populated overview's presentation and material. Use standard AppKit controls and their system appearance. Do not add custom glass control enclosures, popover backgrounds, gradients, or blur animations.
+`NSMenu` owns status-item presentation and tracking in every account state. Use standard AppKit controls and system appearance for the single Accounts window and its General section. System components handle Reduce Transparency, Increase Contrast, and Reduce Motion. The app adds no custom spatial animation.
 
-System components handle Reduce Transparency, Increase Contrast, and Reduce Motion. The app-only `--increase-contrast` launch flag selects a high-contrast appearance without changing system settings; it does not establish that a real preference transition was tested.
+The app-only `--increase-contrast` launch flag selects a high-contrast appearance without changing system settings; it does not establish that a real preference transition was tested. `--dark-appearance` requests the app's dark appearance for validation. The runtime target remains macOS 14+. Building requires Swift 6; the current verification environment uses the macOS 27 SDK and Swift 6.4. Older runtime execution remains unverified.
 
-The runtime target remains macOS 14+. Building requires Swift 6; the current verification environment uses the macOS 27 SDK and Swift 6.4. Older runtime execution remains unverified.
-
-Use current intrinsic Mac control sizes and Auto Layout. System components supply ordinary interaction and Reduce Motion behavior; the app adds no custom spatial animation. Appearance and accessibility results belong in [VALIDATION.md](VALIDATION.md).
+Appearance and accessibility results belong in [VALIDATION.md](VALIDATION.md).
 
 ## Account editing
 
-Accounts uses a sidebar for stable account selection and an Add Account menu. The editor separates the account name, relevant connection actions, and manual credit records. Connection Details keeps configuration paths and identity information available without crowding the main form. Settings keeps launch-at-login and refresh behavior in a small native window.
+Accounts uses a sidebar for stable account selection and an Add Account menu. The editor separates the account name, relevant connection actions, and manual credit records. Connection Details keeps configuration paths and identity information available without crowding the main form. General keeps launch-at-login and refresh behavior inside this same management window. Reading its startup state does not register or unregister a login item. Subscription confirmation and ordinary dialogs are attached sheets; the OAuth callback listener and account guards remain unchanged.
 
 The Manual balance disclosure has persistent field labels for Category, Amount, Confirmed, and optional expiration. Automatic provider readings remain distinct from stored manual fallback records. Refresh must preserve an unfinished edit and the selected category. Remove Account remains separate from routine Save actions and uses the existing confirmation.
 
-The experimental Claude Console connection uses a separate browser window for official sign-in and its isolated billing session. The monitoring interface remains native. Keep organization selection, experimental status, authentication failure, and the recovery action understandable.
+The experimental Claude Platform connection uses an embedded browser pane inside Manage Accounts for official sign-in and its isolated billing session. The monitoring interface remains native. Keep organization selection, experimental status, authentication failure, and the recovery action understandable. Connect Claude Platform… makes monthly-grant setup explicit and names platform.claude.com authentication as separate from Claude subscription sign-in at claude.ai. The per-profile Platform controller is embedded in the existing detail area with Back to Account, which preserves the selected account and unfinished edits. The same window expands for the browser and restores its earlier size on Back. Closing it pauses/parks the visible browser without changing its persistent WebKit session. General is a native sidebar choice; an empty account list opens General. No separate Settings or Platform window is retained. When the provider reports an eligible plan as Not linked, the existing billing command opens Claude Settings > Billing for human linking or claiming; the app performs only reads. The same isolated Platform session reads selected-organization balance, plan linkage, and invoices, preserving invoice query parameters. Supplemental failures preserve good purchased balances and a visibly stale, dated last verified monthly reading. Unrelated promotions cannot suppress a monthly placeholder or saved manual fallback.
 
 ## Interaction and accessibility
 
-Test first-run commands through an ordinary status-item click, including arrow-key/Return selection, Escape and outside-click dismissal, provider-dialog cancellation, and account loading failure. Keep the populated popover anchored to the status item and close it before opening account or settings windows. Test reopening after the app becomes inactive and placement near screen edges. Preserve keyboard focus and scroll position during timer and refresh updates.
+Test ordinary status-item clicks for populated and first-run menus, including arrow-key/Return command selection, Escape, outside-click dismissal, provider-dialog cancellation, and account loading failure. Test reopening after the app becomes inactive, placement near screen edges, long/missing emails, and preservation of the selected command while a refresh completes.
 
-Symbol-only controls need accessible names and tooltips. Details must have a readable title and expose its account and expanded state. Quotas, units, dates, unavailable readings, and errors need text equivalents. Standard controls must remain reachable by keyboard; source labels alone do not establish VoiceOver behavior.
+Quotas, units, dates, unavailable readings, and errors have native text equivalents. Menu items retain exact values and dates in tooltips. Connection Details in Accounts supplies the extended readings and recovery diagnostics through a standard native dialog for keyboard access. Source text alone does not establish VoiceOver behavior.
 
-Inspect light and dark appearances, Reduce Transparency, Increase Contrast, Reduce Motion, long names, empty/error states, disclosure, and keyboard traversal. Record which checks actually ran. `--show-panel` follows the same state selection as ordinary use. `--show-window` is explicitly labeled a validation window; it is not evidence of the real first-run surface. A window-mode capture or successful build does not prove menu-bar behavior or measured contrast.
+Inspect light and dark appearances, Reduce Transparency, Increase Contrast, Reduce Motion, empty/error states, and keyboard navigation. Record which checks actually ran. `--show-menu` opens the real status menu; `--show-panel` remains an alias. `--show-accounts` opens the existing Accounts window for inspection. The obsolete custom `--show-window` overview host is removed. A window capture or successful build does not prove menu-bar behavior or measured contrast.
 
 ## Design references
 

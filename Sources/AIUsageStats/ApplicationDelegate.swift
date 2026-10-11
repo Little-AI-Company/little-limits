@@ -2,46 +2,32 @@ import AppKit
 import UsageCore
 
 @MainActor
-final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowDelegate, NSMenuItemValidation {
+final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
     private let model = ApplicationModel(isDemo: CommandLine.arguments.contains("--demo"))
-    private let popover = NSPopover()
+    private let statusMenu = NSMenu(title: "AI Usage Stats")
+    private var isMenuTracking = false
     private var statusItem: NSStatusItem?
-    private var panel: UsagePanelController?
+    private var displayedStatusSummary: StatusItemSummary?
     private var accounts: AccountsWindowController?
-    private var settings: SettingsWindowController?
-    private var validationWindow: NSWindow?
     private var refreshTimer: Timer?
-    private var countdownTimer: Timer?
     private var sleeping = false
-    private var consoleWindows: [UUID: ClaudeConsoleWindowController] = [:]
+    private var platformControllers: [UUID: ClaudePlatformViewController] = [:]
     private var claudeSignIn: ClaudeSignInWindowController?
     private var accountsLoaded = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMenu()
-        let panel = UsagePanelController(model: model)
-        panel.onClose = { [weak self] in self?.closePanel() }
-        panel.onAccounts = { [weak self] in self?.showAccounts(nil) }
-        panel.onSettings = { [weak self] in self?.showSettings(nil) }
-        panel.onImport = { [weak self] provider in self?.addAccount(provider) }
-        panel.onContentSizeChange = { [weak self] in self?.synchronizePanelSize() }
-        self.panel = panel
-        popover.contentViewController = panel
-        popover.contentSize = panel.preferredContentSize
-        popover.behavior = .transient
-        popover.delegate = self
+        statusMenu.delegate = self
+        statusMenu.autoenablesItems = false
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
             button.title = "AI"
             button.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-            button.target = self
-            button.action = #selector(togglePanel(_:))
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             button.setAccessibilityLabel("AI Usage Stats")
             button.setAccessibilityHelp("Open account usage and remaining quota")
         }
         statusItem = item
-        updateStatusMenu()
+        item.menu = statusMenu
         model.onChange = { [weak self] in self?.render() }
         model.onError = { [weak self] message in self?.showError(message) }
         model.onLoginCommand = { [weak self] command, id in self?.openLogin(command: command, accountID: id) }
@@ -49,19 +35,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
         let notifications = NSWorkspace.shared.notificationCenter
         notifications.addObserver(self, selector: #selector(willSleep(_:)), name: NSWorkspace.willSleepNotification, object: nil)
         notifications.addObserver(self, selector: #selector(didWake(_:)), name: NSWorkspace.didWakeNotification, object: nil)
-        if CommandLine.arguments.contains("--show-window") {
-            popover.contentViewController = nil
-            let window = NSWindow(contentRect: NSRect(origin: .zero, size: panel.preferredContentSize),
-                                  styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-            window.title = "AI Usage Stats · Validation Window"
-            window.contentViewController = panel
-            window.setContentSize(panel.preferredContentSize)
-            window.isReleasedWhenClosed = false
-            window.delegate = self
-            window.center()
-            validationWindow = window
-            showValidationWindow()
-        }
         Task { [weak self] in
             guard let self else { return }
             await model.load()
@@ -69,45 +42,37 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
             render()
             model.refreshIfNeeded()
             startRefreshTimer()
-            if CommandLine.arguments.contains("--show-panel"), validationWindow == nil || model.profiles.isEmpty {
-                // Let AppKit finish placing the status item before anchoring a validation popover.
+            if CommandLine.arguments.contains("--show-accounts") { showAccounts(nil) }
+            if CommandLine.arguments.contains("--show-menu") || CommandLine.arguments.contains("--show-panel") {
+                // Let AppKit finish placing the status item before opening the real menu.
                 try? await Task.sleep(for: .milliseconds(200))
-                togglePanel(nil)
+                showStatusMenu()
             }
         }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         refreshTimer?.invalidate()
-        countdownTimer?.invalidate()
         model.cancelRefresh()
         claudeSignIn?.stop()
-        consoleWindows.values.forEach { $0.pause() }
+        platformControllers.values.forEach { $0.pause() }
         NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 
-    private var isPanelVisible: Bool {
-        if let window = validationWindow { return window.isVisible && !window.isMiniaturized }
-        return popover.isShown
-    }
-
-    private func render(updateAccounts: Bool = true, updatePanel: Bool = true) {
+    private func render() {
         let activeAccountIDs = Set(model.profiles.map(\.id))
-        for id in consoleWindows.keys.filter({ !activeAccountIDs.contains($0) }) {
-            consoleWindows.removeValue(forKey: id)?.retire()
+        for id in platformControllers.keys.filter({ !activeAccountIDs.contains($0) }) {
+            platformControllers.removeValue(forKey: id)?.retire()
         }
-        updateStatusMenu()
-        if model.profiles.isEmpty, popover.isShown { popover.performClose(nil) }
-        if updatePanel, isPanelVisible { panel?.render(); synchronizePanelSize() }
-        if updateAccounts, accounts?.window?.isVisible == true { accounts?.render() }
-        var summaries: [String] = []
+        if accounts?.window?.isVisible == true { accounts?.render() }
+        var readings: [StatusItemSummary.Reading] = []
         var descriptions: [String] = []
         for provider in [Provider.claude, .codex] {
             let profiles = model.profiles.filter { $0.provider == provider }
             guard !profiles.isEmpty else { continue }
             let values = profiles.flatMap { model.snapshots[$0.id]?.currentWindows ?? [] }.compactMap(\.utilizationPercent).filter(\.isFinite)
             let remaining = values.max().map { Int((100 - min(100, max(0, $0))).rounded()) }
-            summaries.append("\(InterfaceFormatting.provider(provider)) \(remaining.map { "\($0)%" } ?? "?")")
+            readings.append(StatusItemSummary.Reading(provider: provider, remainingPercent: remaining))
             descriptions.append("\(InterfaceFormatting.provider(provider)): \(remaining.map { "\($0)% lowest remaining quota" } ?? "usage unavailable") across \(profiles.count) account\(profiles.count == 1 ? "" : "s")")
         }
         let stale = model.profiles.contains {
@@ -116,104 +81,45 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
                 || snapshot.fetchedAt.map { Date().timeIntervalSince($0) >= 300 } == true
                 || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= Date() } == true }
         }
-        let title = summaries.isEmpty ? "AI" : summaries.joined(separator: " · ") + (stale ? " !" : "")
-        if statusItem?.button?.title != title { statusItem?.button?.title = title }
+        let summary = StatusItemSummary(readings: readings, isStale: stale)
+        if displayedStatusSummary != summary, let button = statusItem?.button {
+            button.title = readings.isEmpty ? "AI" : ""
+            button.image = readings.isEmpty ? nil : StatusItemImage.render(summary)
+            button.imagePosition = readings.isEmpty ? .noImage : .imageOnly
+            button.imageScaling = .scaleProportionallyDown
+            displayedStatusSummary = summary
+        }
         let help = "AI Usage Stats\n" + descriptions.joined(separator: "\n") + (stale ? "\nSome usage is stale or needs sign-in. Open for details." : "")
-        statusItem?.button?.toolTip = help
-        statusItem?.button?.setAccessibilityValue(descriptions.joined(separator: ". "))
+        if statusItem?.button?.toolTip != help {
+            statusItem?.button?.toolTip = help
+            statusItem?.button?.setAccessibilityValue(descriptions.joined(separator: ". ") + (stale ? ". Some usage is stale or needs sign-in." : ""))
+        }
     }
 
-    @objc private func togglePanel(_ sender: Any?) {
+    private func showStatusMenu() {
         guard let button = statusItem?.button else { return }
-        if !accountsLoaded || model.profiles.isEmpty {
-            popover.performClose(nil)
-            let menu = statusItem?.menu ?? makeStatusMenu()
-            if sender == nil, model.profiles.isEmpty,
-               CommandLine.arguments.contains("--show-window"), CommandLine.arguments.contains("--show-panel"),
-               let content = validationWindow?.contentView {
-                recordPanelDiagnostics(surface: "native-menu-component-validation")
-                menu.popUp(positioning: nil, at: NSPoint(x: 16, y: content.bounds.maxY - 8), in: content)
-            } else {
-                recordPanelDiagnostics(surface: "native-menu")
-                menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
-            }
-            return
-        }
-        if NSApp.currentEvent?.type == .rightMouseUp {
-            closePanel()
-            makeApplicationMenu().popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
-            return
-        }
-        if let window = validationWindow {
-            if window.isVisible && !window.isMiniaturized { window.performClose(sender) }
-            else { showValidationWindow() }
-            return
-        }
-        if popover.isShown { closePanel() }
-        else {
-            _ = panel?.view
-            panel?.render()
-            synchronizePanelSize()
-            NSApp.activate(ignoringOtherApps: true)
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            panel?.focus()
-            recordPanelDiagnostics()
+        statusMenu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard menu === statusMenu, !isMenuTracking else { return }
+        rebuildStatusMenu()
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        guard menu === statusMenu else { return }
+        isMenuTracking = true
+        if !sleeping { model.refreshIfNeeded() }
+        if CommandLine.arguments.contains("--panel-diagnostics") || CommandLine.arguments.contains("--menu-diagnostics") {
+            let window = statusItem?.button?.window
+            let providerIconCount = statusMenu.items.filter { $0.isSectionHeader && $0.image != nil }.count
+            let message = "AI Usage Stats surface: native-menu, providerIcons=\(providerIconCount)/\(model.profiles.count), statusImageWidth=\(Int(statusItem?.button?.image?.size.width ?? 0)), statusButtonFrame=\(NSStringFromRect(statusItem?.button?.frame ?? .zero)), statusItemVisible=\(statusItem?.isVisible == true), statusButtonWindowVisible=\(window?.isVisible == true), anchorFrame=\(NSStringFromRect(window?.frame ?? .zero))\n"
+            FileHandle.standardError.write(Data(message.utf8))
         }
     }
 
-    private func recordPanelDiagnostics(surface: String = "popover") {
-        guard CommandLine.arguments.contains("--panel-diagnostics") else { return }
-        let window = statusItem?.button?.window
-        let message = "AI Usage Stats surface: \(surface), popoverShown=\(popover.isShown), statusItemVisible=\(statusItem?.isVisible == true), statusButtonWindowVisible=\(window?.isVisible == true), anchorFrame=\(NSStringFromRect(window?.frame ?? .zero))\n"
-        FileHandle.standardError.write(Data(message.utf8))
-    }
-
-    private func closePanel() {
-        if let window = validationWindow { window.performClose(nil) }
-        else { popover.performClose(nil) }
-    }
-
-    func popoverWillShow(_ notification: Notification) { panelOpened() }
-    func popoverDidClose(_ notification: Notification) { stopCountdownTimer() }
-    func windowWillClose(_ notification: Notification) { stopCountdownTimer() }
-    func windowDidMiniaturize(_ notification: Notification) { stopCountdownTimer() }
-    func windowDidDeminiaturize(_ notification: Notification) { panelOpened() }
-
-    private func showValidationWindow() {
-        validationWindow?.deminiaturize(nil)
-        validationWindow?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        panelOpened()
-        panel?.focus()
-    }
-
-    private func panelOpened() {
-        panel?.render()
-        synchronizePanelSize()
-        if !sleeping, !model.profiles.isEmpty { model.refreshIfNeeded(); scheduleCountdown() }
-    }
-
-    private func scheduleCountdown() {
-        stopCountdownTimer()
-        let delay = 60 - Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 60)
-        countdownTimer = Timer.scheduledTimer(timeInterval: delay, target: self,
-                                             selector: #selector(countdownElapsed(_:)), userInfo: nil, repeats: false)
-        countdownTimer?.tolerance = 1
-    }
-    @objc private func countdownElapsed(_ sender: Timer) {
-        guard isPanelVisible && !sleeping else { return }
-        panel?.updateCountdowns()
-        render(updateAccounts: false, updatePanel: false)
-        scheduleCountdown()
-    }
-    private func stopCountdownTimer() { countdownTimer?.invalidate(); countdownTimer = nil }
-
-    private func synchronizePanelSize() {
-        guard let size = panel?.desiredSize else { return }
-        if popover.contentSize != size { popover.contentSize = size }
-        if let window = validationWindow, window.contentView?.frame.size != size {
-            window.setContentSize(size)
-        }
+    func menuDidClose(_ menu: NSMenu) {
+        if menu === statusMenu { isMenuTracking = false }
     }
 
     private func startRefreshTimer() {
@@ -227,24 +133,22 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
     @objc private func willSleep(_ notification: Notification) {
         sleeping = true
         refreshTimer?.invalidate()
-        stopCountdownTimer()
         model.cancelRefresh()
-        consoleWindows.values.forEach { $0.pause() }
-        popover.performClose(nil)
+        platformControllers.values.forEach { $0.pause() }
+        statusMenu.cancelTracking()
     }
     @objc private func didWake(_ notification: Notification) {
         sleeping = false
         startRefreshTimer()
         model.refreshIfNeeded()
         refreshConsoleCredits()
-        if isPanelVisible { panelOpened() }
     }
 
     @objc private func showAccounts(_ sender: Any?) {
-        popover.performClose(nil)
+        statusMenu.cancelTracking()
         if accounts == nil {
             accounts = AccountsWindowController(model: model)
-            accounts?.onConsoleConnection = { [weak self] id in self?.showConsoleCredits(id) }
+            accounts?.onConsoleConnection = { [weak self] id in self?.showClaudePlatform(id) }
             accounts?.onClaudeConnection = { [weak self] id, label in self?.showClaudeSignIn(id: id, label: label) }
         }
         accounts?.render()
@@ -253,11 +157,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
         NSApp.activate(ignoringOtherApps: true)
     }
     @objc private func showSettings(_ sender: Any?) {
-        popover.performClose(nil)
-        if settings == nil { settings = SettingsWindowController() }
-        settings?.showWindow(sender)
-        settings?.window?.makeKeyAndOrderFront(sender)
-        NSApp.activate(ignoringOtherApps: true)
+        showAccounts(sender)
+        accounts?.showGeneral()
     }
     @objc private func refreshAccounts(_ sender: Any?) { model.refresh() }
 
@@ -274,7 +175,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
     @objc private func reloadAccounts(_ sender: Any?) {
         guard accountsLoaded else { return }
         accountsLoaded = false
-        updateStatusMenu()
         Task { [weak self] in
             guard let self else { return }
             await model.load()
@@ -297,68 +197,80 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
         }
     }
 
-    private func updateStatusMenu() {
-        guard let statusItem else { return }
-        statusItem.menu = !accountsLoaded || model.profiles.isEmpty ? makeStatusMenu() : nil
-        statusItem.button?.setAccessibilityHelp(model.profiles.isEmpty ? "Add an account or open settings" : "Open account usage and remaining quota")
-    }
-
-    private func makeStatusMenu() -> NSMenu {
+    private func rebuildStatusMenu() {
+        statusMenu.removeAllItems()
+        statusItem?.button?.setAccessibilityHelp(model.profiles.isEmpty ? "Add an account or open settings" : "Open account usage and remaining quota")
         guard accountsLoaded else {
-            let menu = makeApplicationMenu(includeRefresh: false)
-            let loading = NSMenuItem(title: "Loading Accounts…", action: nil, keyEquivalent: "")
-            loading.isEnabled = false
-            menu.insertItem(loading, at: 0)
-            menu.insertItem(.separator(), at: 1)
-            return menu
+            statusMenu.addItem(UsageMenu.reading("Loading Accounts…"))
+            statusMenu.addItem(.separator())
+            appendApplicationCommands(includeRefresh: false)
+            return
         }
         if model.profiles.isEmpty, model.message != nil {
-            let menu = makeApplicationMenu(includeRefresh: false)
-            menu.insertItem(command(title: "Accounts Could Not Be Loaded…", action: #selector(showAccountLoadError(_:))), at: 0)
-            menu.insertItem(command(title: "Retry Loading Accounts", action: #selector(reloadAccounts(_:))), at: 1)
-            menu.insertItem(.separator(), at: 2)
-            return menu
+            statusMenu.addItem(command(title: "Accounts Could Not Be Loaded…", action: #selector(showAccountLoadError(_:))))
+            statusMenu.addItem(command(title: "Retry Loading Accounts", action: #selector(reloadAccounts(_:))))
+            statusMenu.addItem(.separator())
+            appendApplicationCommands(includeRefresh: false)
+            return
         }
-        return makeApplicationMenu(includeRefresh: !model.profiles.isEmpty, includeSetup: model.profiles.isEmpty)
+        if model.isDemo {
+            statusMenu.addItem(.sectionHeader(title: "Demo · Fictional accounts and balances"))
+            statusMenu.addItem(.separator())
+        }
+        let now = Date()
+        for item in UsageMenu.accountItems(profiles: model.profiles, snapshots: model.snapshots,
+                                           consoleMessages: model.consoleMessages, now: now) {
+            statusMenu.addItem(item)
+        }
+        if let message = model.message { statusMenu.addItem(UsageMenu.reading(message)) }
+        if model.isChangingAccounts { statusMenu.addItem(UsageMenu.reading("Saving account…")) }
+        appendApplicationCommands(includeRefresh: !model.profiles.isEmpty, includeSetup: model.profiles.isEmpty)
+    }
+
+    private func appendApplicationCommands(includeRefresh: Bool, includeSetup: Bool = false) {
+        let commands = makeApplicationMenu(includeRefresh: includeRefresh, includeSetup: includeSetup, includeSettings: false)
+        for item in commands.items {
+            commands.removeItem(item)
+            statusMenu.addItem(item)
+        }
     }
 
     private func command(title: String, action: Selector, key: String = "") -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.target = self
+        item.isEnabled = validateMenuItem(item)
         return item
     }
 
-    private func consoleController(_ id: UUID) -> ClaudeConsoleWindowController? {
-        if let controller = consoleWindows[id] { return controller }
+    private func platformController(_ id: UUID) -> ClaudePlatformViewController? {
+        if let controller = platformControllers[id] { return controller }
         guard let profile = model.profiles.first(where: { $0.id == id && $0.provider == .claude }) else { return nil }
-        let controller = ClaudeConsoleWindowController(profile: profile, model: model)
-        consoleWindows[id] = controller
+        let controller = ClaudePlatformViewController(profile: profile, model: model)
+        platformControllers[id] = controller
         return controller
     }
-    private func showConsoleCredits(_ id: UUID) {
-        guard let controller = consoleController(id) else { return }
-        controller.showWindow(nil)
-        controller.window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+    private func showClaudePlatform(_ id: UUID) {
+        guard let controller = platformController(id) else { return }
+        showAccounts(nil)
+        accounts?.showPlatform(controller, accountID: id)
     }
     private func showClaudeSignIn(id: UUID?, label: String) {
-        if let controller = claudeSignIn, controller.window?.isVisible == true {
-            controller.window?.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+        showAccounts(nil)
+        guard let parent = accounts?.window else { return }
+        if let controller = claudeSignIn, controller.window?.sheetParent != nil {
+            parent.makeKeyAndOrderFront(nil)
             return
         }
-        if let id { consoleWindows.removeValue(forKey: id)?.retire() }
+        guard parent.attachedSheet == nil else { return }
+        if let id { platformControllers.removeValue(forKey: id)?.retire() }
         let controller = ClaudeSignInWindowController(model: model, existingProfileID: id, label: label)
         claudeSignIn = controller
-        controller.showWindow(nil)
-        controller.window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        controller.start()
+        controller.presentSheet(in: parent)
     }
     private func refreshConsoleCredits() {
         guard !sleeping, !model.isDemo else { return }
         for profile in model.profiles where profile.provider == .claude && model.consoleConnections[profile.id] != nil {
-            consoleController(profile.id)?.refreshInBackground()
+            platformController(profile.id)?.refreshInBackground()
         }
     }
 
@@ -376,8 +288,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
         let alert = NSAlert()
         alert.messageText = "AI Usage Stats"
         alert.informativeText = message
-        NSApp.activate(ignoringOtherApps: true)
-        alert.runModal()
+        showAccounts(nil)
+        if let window = accounts?.window { alert.beginSheetModal(for: window) }
     }
 
     private func installMenu() {
@@ -397,16 +309,16 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSPopoverDeleg
         menu.addItem(edit)
         NSApp.mainMenu = menu
     }
-    private func makeApplicationMenu(includeRefresh: Bool = true, includeSetup: Bool = false) -> NSMenu {
+    private func makeApplicationMenu(includeRefresh: Bool = true, includeSetup: Bool = false, includeSettings: Bool = true) -> NSMenu {
         let menu = NSMenu(title: "AI Usage Stats")
         if includeSetup {
             menu.addItem(command(title: "Add Claude Account…", action: #selector(addClaudeAccount(_:))))
             menu.addItem(command(title: "Add Codex Account…", action: #selector(addCodexAccount(_:))))
             menu.addItem(.separator())
         }
-        if includeRefresh { menu.addItem(command(title: "Refresh", action: #selector(refreshAccounts(_:)), key: "r")) }
-        menu.addItem(command(title: "Accounts…", action: #selector(showAccounts(_:))))
-        menu.addItem(command(title: "Settings…", action: #selector(showSettings(_:)), key: ","))
+        if includeRefresh { menu.addItem(command(title: model.isRefreshing ? "Refreshing…" : "Refresh", action: #selector(refreshAccounts(_:)), key: "r")) }
+        menu.addItem(command(title: "Manage Accounts…", action: #selector(showAccounts(_:))))
+        if includeSettings { menu.addItem(command(title: "Settings…", action: #selector(showSettings(_:)), key: ",")) }
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit AI Usage Stats", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         return menu
