@@ -342,3 +342,27 @@ The final 24-file source digest is:
 No real account was removed or reconnected. The email UI source is unchanged from the inspected build, and the existing native automation and runtime coverage limits still apply.
 
 The packaged executable SHA-256 is `2bd4ed41976a66788cb2b9b89f127a40dbef85fefc436dd2c4b8e22b0dd1b53e`. The final packaged app was returned to normal real-account mode.
+
+### Preserve valid quota when a limit has no kind
+
+Verified October 11, 2026 on Apple silicon with macOS 27.0.1. Review of `6f008f6d19444c888ae96a2e00d5a4b35369bf2c` identified a required `ClaudeUsageResponse.Limit.kind` field that rejected valid canonical quota windows when an experimental limit omitted that field. The existing overlapping-response fixture was expanded with missing, null, and blank kinds. Against that baseline production code, `swift test --filter claudeOverlappingQuotaShapesOmitMetadataAndUsePrimaryLimitsOnlyAsFallback` failed with `DecodingError.keyNotFound(kind)` after a 3.86-second build. The correction decodes kind optionally and skips incomplete entries before classifying them. Valid canonical and model-scoped readings retain their values, including unknown versus zero.
+
+The tested working source uses the 24-file digest method above:
+
+```text
+f145352038c25fa89a3babe055254a5d37820d796bea52be9ee88854c060b008
+```
+
+| Command or check | Observed result |
+| --- | --- |
+| `swift test --filter claudeOverlappingQuotaShapesOmitMetadataAndUsePrimaryLimitsOnlyAsFallback` after the correction | Passed: one test, zero failures; build 3.00 seconds. |
+| `swift test` | Passed: 35 tests, zero failures, comprising 13 XCTest and 22 Swift Testing tests; build 0.33 seconds. |
+| `swift build -c release` | Passed; 13.90 seconds. |
+| `scripts/package_app.sh` | Passed; cached Release build 0.49 seconds. |
+| `plutil -lint "dist/AI Usage Stats.app/Contents/Info.plist"` and `plutil -p` | Passed; version 0.1.0/build 1, bundle ID, menu-bar behavior, and minimum macOS 14 retained. |
+| `codesign --verify --deep --strict --verbose=2 "dist/AI Usage Stats.app"` and `codesign -d --verbose=2` | Passed on the moved app and helper; ad hoc signature with no TeamIdentifier. |
+| `lipo -archs` for both packaged executables and icon resource inspection | Both report `arm64`; icon is present. |
+| `git diff --check` | Passed. |
+| `open -n "dist/AI Usage Stats.app" --args --show-panel` | Passed; packaged app launched in normal account mode. |
+
+The packaged executable SHA-256 is `fea47f437af66be7d3c2af3ab6bcbfcb4ee10dd71c51dd951d1c6009069a4fe8`. No previous development instance was running when packaging began. The email UI source is unchanged from the visually inspected build. No additional real-mode visual check, provider sign-in, reconnect, removal, or quota probe was performed for this parser correction. The existing live-account, native-automation, Intel, minimum-macOS, VoiceOver, and distribution limits still apply.

@@ -39,7 +39,7 @@ import Testing
 }
 
 @Test func claudeOverlappingQuotaShapesOmitMetadataAndUsePrimaryLimitsOnlyAsFallback() throws {
-    let overlapping = Data(#"{"five_hour":{"utilization":0,"resets_at":null},"seven_day":{"utilization":null},"seven_day_breakdown":{"models":{"example":12}},"limits":[{"kind":"session","group":"session","percent":0},{"kind":"weekly_all","group":"weekly","percent":37},{"kind":"weekly_scoped","percent":12,"scope":{"model":{"display_name":"Example"}}}]}"#.utf8)
+    let overlapping = Data(#"{"five_hour":{"utilization":0,"resets_at":null},"seven_day":{"utilization":null},"seven_day_breakdown":{"models":{"example":12}},"limits":[{"percent":99},{"kind":null,"percent":99},{"kind":" ","percent":99},{"kind":"session","group":"session","percent":0},{"kind":"weekly_all","group":"weekly","percent":37},{"kind":"weekly_scoped","percent":12,"scope":{"model":{"display_name":"Example"}}}]}"#.utf8)
     let snapshot = try JSONDecoder().decode(ClaudeUsageResponse.self, from: overlapping).snapshot(profileID: UUID())
     #expect(snapshot.windows.map(\.title) == ["5 hours", "7 days", "7 days (Example)"])
     #expect(snapshot.windows.map(\.utilizationPercent) == [0, nil, 12])

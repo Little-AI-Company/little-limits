@@ -253,7 +253,7 @@ struct ClaudeUsageResponse: Decodable, Sendable {
             struct Model: Decodable, Sendable { let id: String?; let display_name: String? }
             let model: Model?
         }
-        let kind: String
+        let kind: String?
         let group: String?
         let percent: Double?
         let resets_at: String?
@@ -304,10 +304,11 @@ struct ClaudeUsageResponse: Decodable, Sendable {
             return UsageWindow(id: id, title: title, utilizationPercent: try percent(window.utilization), resetsAt: try reset(window.resets_at))
         }
         for (index, limit) in limits.enumerated() {
+            guard let kind = limit.kind?.trimmingCharacters(in: .whitespacesAndNewlines), !kind.isEmpty else { continue }
             let model = limit.scope?.model?.display_name ?? limit.scope?.model?.id
             let canonicalID: String?
-            if model == nil, ["five_hour", "session"].contains(limit.kind) { canonicalID = "five_hour" }
-            else if model == nil, ["seven_day", "weekly", "weekly_all"].contains(limit.kind) { canonicalID = "seven_day" }
+            if model == nil, ["five_hour", "session"].contains(kind) { canonicalID = "five_hour" }
+            else if model == nil, ["seven_day", "weekly", "weekly_all"].contains(kind) { canonicalID = "seven_day" }
             else { canonicalID = nil }
             if let canonicalID, let index = result.firstIndex(where: { $0.id == canonicalID }) {
                 if let isActive = limit.is_active {
@@ -319,13 +320,13 @@ struct ClaudeUsageResponse: Decodable, Sendable {
                 continue
             }
             let windowTitle: String
-            switch limit.kind {
+            switch kind {
             case "five_hour", "session": windowTitle = "5 hours"
             case "seven_day", "weekly", "weekly_all", "weekly_scoped": windowTitle = "7 days"
-            default: windowTitle = limit.kind.replacingOccurrences(of: "_", with: " ")
+            default: windowTitle = kind.replacingOccurrences(of: "_", with: " ")
             }
             let title = model.map { windowTitle + " (" + $0 + ")" } ?? windowTitle
-            result.append(UsageWindow(id: canonicalID ?? "limit_\(index)_\(limit.kind)", title: title,
+            result.append(UsageWindow(id: canonicalID ?? "limit_\(index)_\(kind)", title: title,
                                       utilizationPercent: try percent(limit.percent), resetsAt: try reset(limit.resets_at), isActive: limit.is_active))
         }
         let current = result.filter { $0.isActive != false }
