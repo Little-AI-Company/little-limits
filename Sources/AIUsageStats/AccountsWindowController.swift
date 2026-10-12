@@ -54,7 +54,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         self.model = model
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 540),
                               styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-        window.title = "Accounts"
+        window.title = "AI Usage Stats"
         window.isReleasedWhenClosed = false
         window.contentMinSize = NSSize(width: 660, height: 460)
         super.init(window: window)
@@ -232,13 +232,13 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             sidebar.topAnchor.constraint(equalTo: root.topAnchor),
             sidebar.bottomAnchor.constraint(equalTo: root.bottomAnchor),
             sidebar.widthAnchor.constraint(equalToConstant: 200),
-            addAccountButton.topAnchor.constraint(equalTo: sidebar.topAnchor, constant: 16),
+            addAccountButton.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: -16),
             addAccountButton.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 12),
             addAccountButton.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: -12),
-            accountScroll.topAnchor.constraint(equalTo: addAccountButton.bottomAnchor, constant: 12),
+            accountScroll.topAnchor.constraint(equalTo: sidebar.topAnchor, constant: 12),
             accountScroll.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor),
             accountScroll.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor),
-            accountScroll.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor),
+            accountScroll.bottomAnchor.constraint(equalTo: addAccountButton.topAnchor, constant: -12),
             divider.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor),
             divider.topAnchor.constraint(equalTo: root.topAnchor),
             divider.bottomAnchor.constraint(equalTo: root.bottomAnchor),
