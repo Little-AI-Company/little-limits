@@ -4,6 +4,11 @@ import UsageCore
 @MainActor
 final class AccountsWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate {
     private enum Section: Equatable { case account, settings, platform }
+    private static let accountWindowMinimumSize = NSSize(width: 660, height: 460)
+    private static let accountWindowMaximumSize = NSSize(width: 960, height: 760)
+    private static let platformWindowMinimumSize = NSSize(width: 960, height: 600)
+    private static let platformWindowMaximumSize = NSSize(width: 1280, height: 900)
+    private static let platformWindowDefaultSize = NSSize(width: 1000, height: 700)
     private let model: ApplicationModel
     private var section = Section.account
     private let detailContainer = NSView()
@@ -60,7 +65,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
                               styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "AI Usage Stats"
         window.isReleasedWhenClosed = false
-        window.contentMinSize = NSSize(width: 660, height: 460)
+        window.contentMinSize = Self.accountWindowMinimumSize
+        window.contentMaxSize = Self.accountWindowMaximumSize
         super.init(window: window)
         window.delegate = self
         configure()
@@ -399,8 +405,10 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         if settings.isViewLoaded { settings.view.removeFromSuperview() }
         detailScroll.isHidden = true
         accountWindowSize = window?.contentView?.frame.size
-        window?.contentMinSize = NSSize(width: 960, height: 600)
-        window?.setContentSize(NSSize(width: max(1000, accountWindowSize?.width ?? 0), height: max(700, accountWindowSize?.height ?? 0)))
+        window?.contentMaxSize = Self.platformWindowMaximumSize
+        window?.contentMinSize = Self.platformWindowMinimumSize
+        window?.setContentSize(NSSize(width: max(Self.platformWindowDefaultSize.width, accountWindowSize?.width ?? 0),
+                                      height: max(Self.platformWindowDefaultSize.height, accountWindowSize?.height ?? 0)))
         installDetailView(controller.view)
         controller.presentPane()
         render()
@@ -425,7 +433,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         if let platform, platform.isViewLoaded { platform.view.removeFromSuperview() }
         platform = nil
         if let size = accountWindowSize {
-            window?.contentMinSize = NSSize(width: 660, height: 460)
+            window?.contentMinSize = Self.accountWindowMinimumSize
+            window?.contentMaxSize = Self.accountWindowMaximumSize
             window?.setContentSize(size)
             accountWindowSize = nil
         }
