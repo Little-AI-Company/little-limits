@@ -30,6 +30,9 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private let manualHelp = InterfaceControls.label("Enter the amount shown in billing. This dated record does not update automatically.")
     private let accountEditor = NSStackView()
     private let emptyState = InterfaceControls.label("Add a Claude or Codex account to view its usage.", size: 13)
+    private let accountLoadError = NSStackView()
+    private let accountLoadMessage = InterfaceControls.label("", size: 13)
+    private let retryAccountLoadButton = NSButton(title: "Retry Loading Accounts", target: nil, action: nil)
     private var displayedProfiles: [AccountProfile] = []
     private let manualCategory = NSPopUpButton(frame: .zero, pullsDown: false)
     private let balanceField = NSTextField(string: "")
@@ -50,6 +53,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     var onClaudeConnection: ((UUID?, String) -> Void)?
     private let consoleButton = NSButton(title: "Connect Claude Platform…", target: nil, action: nil)
     var onConsoleConnection: ((UUID) -> Void)?
+    var isAccountLoadComplete: () -> Bool = { false }
+    var onRetryAccountLoad: (() -> Void)?
 
     init(model: ApplicationModel) {
         self.model = model
@@ -228,14 +233,24 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         detailScroll.drawsBackground = false
         detailScroll.translatesAutoresizingMaskIntoConstraints = false
         detailDocument.translatesAutoresizingMaskIntoConstraints = false
-        let detailStack = InterfaceControls.stack([accountEditor, emptyState, status], spacing: 16)
+        retryAccountLoadButton.target = self
+        retryAccountLoadButton.action = #selector(retryAccountLoad(_:))
+        accountLoadError.orientation = .vertical
+        accountLoadError.alignment = .leading
+        accountLoadError.spacing = 12
+        let loadErrorTitle = InterfaceControls.label("Accounts Could Not Be Loaded", size: 16, weight: .semibold)
+        for component in [loadErrorTitle, accountLoadMessage, retryAccountLoadButton] {
+            accountLoadError.addArrangedSubview(component)
+        }
+        accountLoadMessage.widthAnchor.constraint(equalTo: accountLoadError.widthAnchor).isActive = true
+        let detailStack = InterfaceControls.stack([accountEditor, accountLoadError, emptyState, status], spacing: 16)
         detailStack.detachesHiddenViews = true
         detailStack.translatesAutoresizingMaskIntoConstraints = false
         detailDocument.addSubview(detailStack)
         detailContainer.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(detailContainer)
         detailContainer.addSubview(detailScroll)
-        for view in [accountEditor, emptyState, status] {
+        for view in [accountEditor, accountLoadError, emptyState, status] {
             view.widthAnchor.constraint(equalTo: detailStack.widthAnchor).isActive = true
         }
         NSLayoutConstraint.activate([
@@ -297,7 +312,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         if section == .platform, previousID != selectedID { showAccountDetail() }
         if let platform, !model.profiles.contains(where: { $0.id == platform.accountID }) { showAccountDetail() }
         let available = !model.isDemo && !model.isChangingAccounts && !model.isRefreshing
-        addAccountButton.isEnabled = available
+        addAccountButton.isEnabled = available && isAccountLoadComplete() && model.message == nil
         status.stringValue = model.isDemo ? "Demo accounts cannot be changed."
             : model.isAllowingKeychainAccess ? "Allowing Keychain access…"
             : model.isSigningInClaude ? "Claude sign-in is in progress."
@@ -311,7 +326,31 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         }
         updateSelectionDescription()
         updateEditorAvailability()
+        renderAccountLoadState()
         updateWindowTitle()
+    }
+
+    private func renderAccountLoadState() {
+        let hasLoadError = model.profiles.isEmpty && model.message != nil
+        accountLoadError.isHidden = !hasLoadError
+        accountLoadMessage.stringValue = hasLoadError ? model.message ?? "" : ""
+        retryAccountLoadButton.isEnabled = hasLoadError && isAccountLoadComplete() && onRetryAccountLoad != nil
+        emptyState.isHidden = !model.profiles.isEmpty || hasLoadError
+        emptyState.stringValue = isAccountLoadComplete()
+            ? "Add a Claude or Codex account to view its usage."
+            : "Loading accounts…"
+        window?.recalculateKeyViewLoop()
+    }
+
+    @objc private func retryAccountLoad(_ sender: Any?) {
+        guard isAccountLoadComplete(), model.profiles.isEmpty, model.message != nil else { return }
+        onRetryAccountLoad?()
+    }
+
+    func showAccounts() {
+        guard window?.attachedSheet == nil else { return }
+        showAccountDetail()
+        render()
     }
 
     func showSettings() {
@@ -540,7 +579,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     }
 
     func connect(_ provider: Provider) {
-        guard !model.isDemo, !model.isChangingAccounts, !model.isRefreshing else { return }
+        guard isAccountLoadComplete(), model.message == nil,
+              !model.isDemo, !model.isChangingAccounts, !model.isRefreshing else { return }
         let alert = NSAlert()
         alert.messageText = provider == .claude ? "Connect Claude Subscription" : "Connect Codex Account"
         alert.informativeText = provider == .claude
@@ -550,7 +590,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         alert.addButton(withTitle: "Cancel")
         guard let window else { return }
         alert.beginSheetModal(for: window) { [weak self] response in
-            guard let self, response == .alertFirstButtonReturn else { return }
+            guard let self, response == .alertFirstButtonReturn,
+                  self.isAccountLoadComplete(), self.model.message == nil else { return }
             if provider == .claude { self.onClaudeConnection?(nil, "Claude Account") }
             else { self.model.importAccount(provider: provider, label: "Codex Account") }
         }

@@ -23,14 +23,26 @@ final class ApplicationModel {
     private var refreshTask: Task<Void, Never>?
     private var refreshRequested = false
     private var claudeAuthorizationID: UUID?
+    private var hasPresentedDemoLoadError = false
     var isSigningInClaude: Bool { claudeAuthorizationID != nil }
 
     init(isDemo: Bool) { self.isDemo = isDemo }
 
     func load() async {
         if isDemo {
-            profiles = DemoFixtures.profiles
-            snapshots = Dictionary(uniqueKeysWithValues: DemoFixtures.snapshots.map { ($0.profileID, $0) })
+            message = nil
+            if CommandLine.arguments.contains("--demo-load-error"), !hasPresentedDemoLoadError {
+                hasPresentedDemoLoadError = true
+                profiles = []
+                snapshots = [:]
+                message = "Could not load accounts: Demonstration load failure."
+            } else if CommandLine.arguments.contains("--demo-empty") {
+                profiles = []
+                snapshots = [:]
+            } else {
+                profiles = DemoFixtures.profiles
+                snapshots = Dictionary(uniqueKeysWithValues: DemoFixtures.snapshots.map { ($0.profileID, $0) })
+            }
             onChange?()
             return
         }
