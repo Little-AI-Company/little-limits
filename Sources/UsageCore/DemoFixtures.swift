@@ -39,6 +39,11 @@ public enum DemoFixtures {
                                       CreditBalance(id: "quota_reset_example", title: "Example reset grant", amount: nil,
                                                     unit: .resets, expiresAt: now.addingTimeInterval(86_400),
                                                     asOf: now, status: "available")],
+                            state: .available, detail: "Fictional demonstration data."),
+            AccountSnapshot(profileID: profiles[2].id, fetchedAt: now,
+                            windows: [UsageWindow(id: "five_hour", title: "5 hours", utilizationPercent: 100,
+                                                  resetsAt: now.addingTimeInterval(3_600))],
+                            credits: UsageService.unavailableCredits(for: .claude),
                             state: .available, detail: "Fictional demonstration data.")
         ]
     }
