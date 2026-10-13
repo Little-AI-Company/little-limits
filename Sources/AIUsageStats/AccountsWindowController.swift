@@ -553,7 +553,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         let profile = model.profiles.first(where: { $0.id == selectedID })
         consoleButton.isEnabled = canSave && profile?.provider == .claude
         detailsButton.isEnabled = profile != nil
-        billingButton.isEnabled = canSave
+        billingButton.isEnabled = profile != nil
         billingButton.toolTip = monthlyGrantNeedsLink ? "Open Claude subscription billing" : "Open account billing dashboard"
         manualDisclosure.isEnabled = selectedID != nil
         let index = manualCategory.indexOfSelectedItem
@@ -826,7 +826,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     }
 
     @objc private func openBilling(_ sender: Any?) {
-        guard canModifyAccounts, window?.attachedSheet == nil,
+        guard window?.attachedSheet == nil,
               let provider = model.profiles.first(where: { $0.id == selectedID })?.provider else { return }
         let address = monthlyGrantNeedsLink ? "https://claude.ai/settings/billing"
             : provider == .claude ? "https://platform.claude.com/settings/billing" : "https://platform.openai.com/settings/organization/billing/overview"
