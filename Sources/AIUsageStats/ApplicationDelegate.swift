@@ -62,7 +62,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        showAccounts(nil)
+        presentAccountsWindow(nil, selectOverview: false)
         return false
     }
 
@@ -152,11 +152,17 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
 
     @objc private func showAccounts(_ sender: Any?) {
+        presentAccountsWindow(sender, selectOverview: true)
+    }
+
+    private func presentAccountsWindow(_ sender: Any?, selectOverview: Bool) {
         statusMenu.cancelTracking()
         if accounts == nil {
             accounts = AccountsWindowController(model: model)
             accounts?.onConsoleConnection = { [weak self] id in self?.showClaudePlatform(id) }
             accounts?.onClaudeConnection = { [weak self] id, label in self?.showClaudeSignIn(id: id, label: label) }
+            accounts?.isAccountLoadComplete = { [weak self] in self?.accountsLoaded == true }
+            accounts?.onRetryAccountLoad = { [weak self] in self?.reloadAccounts(nil) }
             if let window = accounts?.window {
                 let notifications = NotificationCenter.default
                 notifications.addObserver(self, selector: #selector(accountsWindowWillClose(_:)),
@@ -167,7 +173,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
         isAccountsWindowOpen = true
         updateActivationPolicy()
-        accounts?.render()
+        if selectOverview { accounts?.showAccounts() }
+        else { accounts?.render() }
         if accounts?.window?.isMiniaturized == true { accounts?.window?.deminiaturize(sender) }
         accounts?.showWindow(sender)
         accounts?.window?.makeKeyAndOrderFront(sender)
@@ -187,13 +194,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
     @objc private func showSettings(_ sender: Any?) {
         showAccounts(sender)
-        accounts?.showGeneral()
+        accounts?.showSettings()
     }
     @objc private func refreshAccounts(_ sender: Any?) { model.refresh() }
 
     @objc private func addClaudeAccount(_ sender: Any?) { addAccount(.claude) }
     @objc private func addCodexAccount(_ sender: Any?) { addAccount(.codex) }
     private func addAccount(_ provider: Provider) {
+        guard accountsLoaded, !model.hasAccountLoadFailure, !model.isDemo,
+              !model.isRefreshing, !model.isChangingAccounts else { return }
         showAccounts(nil)
         accounts?.connect(provider)
     }
@@ -204,6 +213,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     @objc private func reloadAccounts(_ sender: Any?) {
         guard accountsLoaded else { return }
         accountsLoaded = false
+        render()
         Task { [weak self] in
             guard let self else { return }
             await model.load()
@@ -218,7 +228,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         case #selector(refreshAccounts(_:)):
             return accountsLoaded && !model.profiles.isEmpty && !model.isDemo && !model.isRefreshing && !model.isChangingAccounts
         case #selector(addClaudeAccount(_:)), #selector(addCodexAccount(_:)):
-            return accountsLoaded && model.message == nil && !model.isDemo && !model.isChangingAccounts
+            return accountsLoaded && !model.hasAccountLoadFailure && !model.isDemo
+                && !model.isRefreshing && !model.isChangingAccounts
         case #selector(reloadAccounts(_:)):
             return accountsLoaded
         default:
@@ -235,7 +246,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             appendApplicationCommands(includeRefresh: false)
             return
         }
-        if model.profiles.isEmpty, model.message != nil {
+        if model.hasAccountLoadFailure {
             statusMenu.addItem(command(title: "Accounts Could Not Be Loaded…", action: #selector(showAccountLoadError(_:))))
             statusMenu.addItem(command(title: "Retry Loading Accounts", action: #selector(reloadAccounts(_:))))
             statusMenu.addItem(.separator())

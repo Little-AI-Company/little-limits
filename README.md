@@ -4,7 +4,7 @@ Claude and Codex usage, reset countdowns, and API credits in your menu bar. Keep
 
 **Native AppKit · macOS 14+ runtime · Swift 6 · No external Swift dependencies**
 
-Clicking the menu bar item opens a standard macOS menu. Each account has a native section heading with its provider logo and verified email, followed by aligned usage and credit readings. Quota rows explicitly show the percentage used and a reset countdown; the compact menu bar preview shows provider logos with remaining-quota percentages. Full provider names and remaining-capacity meaning stay in its tooltip and accessibility text. **Manage Accounts…** opens the existing Accounts window. Tooltips and **Connection Details…** keep exact dates and sources available. First-run account setup, Refresh, and Quit use standard status-menu commands. Settings opens the General section inside Manage Accounts through the app menu or Command-comma.
+Clicking the menu bar item opens a standard macOS menu. Each account has a native section heading with its provider logo and verified email, followed by aligned usage and credit readings. Quota rows explicitly show the percentage used and a reset countdown; the compact menu bar preview shows provider logos with remaining-quota percentages. Full provider names and remaining-capacity meaning stay in its tooltip and accessibility text. **Manage Accounts…** opens the existing Accounts window. Tooltips and **Connection Details…** keep exact dates and sources available. First-run account setup, Refresh, and Quit use standard status-menu commands. The bottom-left settings icon, app-menu Settings command, and Command-comma open App Settings inside the same window. Its title follows the selected account or settings screen. Open windows are available through Command-Tab; closing the window returns to menu-bar-only use.
 
 ## What it reads
 
@@ -49,7 +49,7 @@ The experimental subscription connection stores its own OAuth grant in a separat
 
 When an older profile first receives a verified identity, its earlier Console credit connection is cleared. Saved manual balances remain available in the editor for confirmation through **Save Balance**, and stay out of the current readings until confirmed. Reconnecting an already verified account preserves its confirmed balances.
 
-The Claude Platform connection keeps its login in a separate persistent WebKit store for each app account. Its browser is embedded in Manage Accounts; General settings share that same window. Closing the window parks browser activity without signing out. It does not export cookies into the saved account file. Disconnecting stops automatic reads while retaining the browser login for reconnecting. Removing a Codex profile removes monitoring data and leaves the CLI login intact.
+The Claude Platform connection keeps its login in a separate persistent WebKit store for each app account. Its browser is embedded in Manage Accounts; App Settings shares that same window. Closing the window parks browser activity without signing out. It does not export cookies into the saved account file. Disconnecting stops automatic reads while retaining the browser login for reconnecting. Removing a Codex profile removes monitoring data and leaves the CLI login intact.
 
 The app only monitors usage. It does not purchase credits or send model requests as a probe. There is no telemetry.
 

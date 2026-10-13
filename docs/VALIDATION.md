@@ -2,7 +2,28 @@
 
 This file records observed results, not intended behavior. Update the tested revision and relevant checks when the implementation changes.
 
+## App Settings navigation, October 13, 2026
+
+The baseline `9309a7f26139ffae21545240fd60196186258277` was inspected live before editing: General appeared as an account-list row and its screen retained the AI Usage Stats title. The changed app has an App Settings icon in the sidebar footer, no General row, native Startup/Usage form rows, and a title matching App Settings or the selected account. Settings remains inside the same window, as requested.
+
+Initial settings code/test source SHA-256: `c97d9a5e3d417a2d348c35612e6f9011c0eacd78b49b74e2b75b33ed878577f2` (commit `57f43ab87a19afd705842f1e42864b74e5c6e637`). Corrected source SHA-256: `c1adca533036d6e38285ce99018390bb6dc0d160b7b06fff4bd67d88989ddf09`. Digests cover `Package.swift` and all Swift files in `Sources` and `Tests`, sorted by relative path, with UTF-8 path, NUL, contents, NUL for each file.
+
+- `swift test`: passed 50 tests (21 XCTest and 29 Swift Testing), zero failures.
+- `swift build -c release`: passed in 13.25 seconds; existing Keychain warnings retained.
+- `scripts/package_app.sh`: passed with the existing local signer.
+- Packaged `.app` inspected with Computer on Apple silicon, macOS 27.0.1: footer icon and settings layout, account-specific titles, return to both provider views, Command-comma, Tab focus on the settings icon and launch-at-login checkbox. Launch-at-login remained off and was not toggled. One native automation pipe interruption recovered with a fresh app-state read; the final state confirmed App Settings.
+- An unsaved manual amount survived settings navigation and return to the same real account. The field was restored to its original empty value and collapsed without Save or Clear; no stored balance changed.
+- `git diff --check` and every changed source/documentation line reviewed. No layout-only tests added.
+
+Review correction: an initial load failure now has its own wrapped error and Retry Loading Accounts control, with Add Account disabled until loading succeeds. Manage Accounts returns from Settings to the account/error view; reopening a minimized window preserves its current screen. `--demo --demo-load-error --show-accounts` simulated a first load failure in the packaged app, without touching real storage. Computer verified the error, Settings navigation, Command-M and packaged-app reopen retaining App Settings, Manage Accounts returning to the error, Tab focus on Retry, and Space restoring fictional accounts. `--demo --demo-empty --show-accounts` showed successful empty setup with no error and no automatic settings navigation. Both fixture modes remain inside the existing demo path. Corrected source passed `swift test` (50 tests, zero failures), `swift build -c release` (12.48 seconds), and canonical packaging with the configured local signer.
+
+Further review correction, source SHA-256 `2539baa18c3b8d92be061219bafce5d5494c60c2d6d2be0f2055a682bd7af41a`: Add Account and initial error/retry state now share the precise empty-accounts load-failure condition. A transient refresh error with retained profiles does not disable Add indefinitely; successful refresh loading clears its earlier diagnostic. Status-menu validation and execution reject active refresh/account changes as well as demo mode. `swift test` passed 50 tests, `swift build -c release` passed in 12.37 seconds, and canonical packaging passed. Real filesystem recovery was source-reviewed without inducing a storage failure; synthetic fixtures do not establish that provider/storage recovery path.
+
+Apple's [Settings](https://developer.apple.com/design/human-interface-guidelines/settings) and [Sidebars](https://developer.apple.com/design/human-interface-guidelines/sidebars) guidance informed native navigation and form layout. No credentials, real account storage, provider sessions, purchases, or login settings were changed. Failed storage loading itself is covered by source review rather than corrupting real files; the UI failure and retry evidence is synthetic. Minimum-size resizing, live Platform return, VoiceOver, Intel, and macOS 14 remain unverified.
+
 ## Window activation, October 13, 2026
+
+Tested code/test source SHA-256: `08f44ba2357bc2093b7f18cecf62b67d70405e0fe6610e166b506866b2e7ec35` (submitted commit `b4174fd620b990aeac6d4657e8520518efb54106`, merged as `b5330db61fe9bd287f042c360ebf7cc093a8dfd9`). Digest procedure is described above.
 
 Baseline `9309a7f26139ffae21545240fd60196186258277` was packaged and opened with `open -n "dist/AI Usage Stats.app" --args --demo --show-accounts` on Apple silicon, macOS 27.0.1 (26A434). Computer inspection showed the existing Accounts and General screens; their title remained AI Usage Stats. The running baseline was absent from Computer's regular-app inventory after Command-Tab. Source inspection located the unconditional accessory policy in `AIUsageStatsApplication.main` and missing promotion in `ApplicationDelegate.showAccounts`. This inventory observation supports the reported app-switching problem; no screenshot of the switcher itself was captured.
 

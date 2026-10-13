@@ -3,12 +3,12 @@ import UsageCore
 
 @MainActor
 final class AccountsWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate {
-    private enum Section: Equatable { case account, general, platform }
+    private enum Section: Equatable { case account, settings, platform }
     private let model: ApplicationModel
     private var section = Section.account
     private let detailContainer = NSView()
     private let detailScroll = NSScrollView()
-    private let general = GeneralSettingsViewController()
+    private let settings = GeneralSettingsViewController()
     private var platform: ClaudePlatformViewController?
     private var accountWindowSize: NSSize?
     private let table = NSTableView()
@@ -24,11 +24,15 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private let billingItem = NSMenuItem(title: "Open Billing Dashboard", action: #selector(openBilling(_:)), keyEquivalent: "")
     private let removeItem = NSMenuItem(title: "Remove Account…", action: #selector(removeAccount(_:)), keyEquivalent: "")
     private let addAccountButton = NSPopUpButton(frame: .zero, pullsDown: true)
+    private let settingsButton = NSButton(title: "", target: nil, action: nil)
     private let manualDisclosure = NSButton(title: "", target: nil, action: nil)
     private let manualEditor = NSStackView()
     private let manualHelp = InterfaceControls.label("Enter the amount shown in billing. This dated record does not update automatically.")
     private let accountEditor = NSStackView()
     private let emptyState = InterfaceControls.label("Add a Claude or Codex account to view its usage.", size: 13)
+    private let accountLoadError = NSStackView()
+    private let accountLoadMessage = InterfaceControls.label("", size: 13)
+    private let retryAccountLoadButton = NSButton(title: "Retry Loading Accounts", target: nil, action: nil)
     private var displayedProfiles: [AccountProfile] = []
     private let manualCategory = NSPopUpButton(frame: .zero, pullsDown: false)
     private let balanceField = NSTextField(string: "")
@@ -49,6 +53,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     var onClaudeConnection: ((UUID?, String) -> Void)?
     private let consoleButton = NSButton(title: "Connect Claude Platform…", target: nil, action: nil)
     var onConsoleConnection: ((UUID) -> Void)?
+    var isAccountLoadComplete: () -> Bool = { false }
+    var onRetryAccountLoad: (() -> Void)?
 
     init(model: ApplicationModel) {
         self.model = model
@@ -85,7 +91,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         table.intercellSpacing = NSSize(width: 0, height: 2)
         table.allowsEmptySelection = true
         table.backgroundColor = .clear
-        table.setAccessibilityLabel("Accounts and General settings")
+        table.setAccessibilityLabel("Accounts")
         let accountScroll = NSScrollView()
         accountScroll.documentView = table
         accountScroll.hasVerticalScroller = true
@@ -105,6 +111,16 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         addAccountButton.setAccessibilityLabel("Add account")
         addAccountButton.translatesAutoresizingMaskIntoConstraints = false
         sidebar.addSubview(addAccountButton)
+        settingsButton.target = self
+        settingsButton.action = #selector(selectSettings(_:))
+        settingsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "App Settings")
+        settingsButton.imagePosition = .imageOnly
+        settingsButton.bezelStyle = .texturedRounded
+        settingsButton.showsBorderOnlyWhileMouseInside = true
+        settingsButton.toolTip = "App Settings"
+        settingsButton.setAccessibilityLabel("App Settings")
+        settingsButton.translatesAutoresizingMaskIntoConstraints = false
+        sidebar.addSubview(settingsButton)
         let divider = InterfaceControls.separator()
         divider.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(divider)
@@ -217,14 +233,24 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         detailScroll.drawsBackground = false
         detailScroll.translatesAutoresizingMaskIntoConstraints = false
         detailDocument.translatesAutoresizingMaskIntoConstraints = false
-        let detailStack = InterfaceControls.stack([accountEditor, emptyState, status], spacing: 16)
+        retryAccountLoadButton.target = self
+        retryAccountLoadButton.action = #selector(retryAccountLoad(_:))
+        accountLoadError.orientation = .vertical
+        accountLoadError.alignment = .leading
+        accountLoadError.spacing = 12
+        let loadErrorTitle = InterfaceControls.label("Accounts Could Not Be Loaded", size: 16, weight: .semibold)
+        for component in [loadErrorTitle, accountLoadMessage, retryAccountLoadButton] {
+            accountLoadError.addArrangedSubview(component)
+        }
+        accountLoadMessage.widthAnchor.constraint(equalTo: accountLoadError.widthAnchor).isActive = true
+        let detailStack = InterfaceControls.stack([accountEditor, accountLoadError, emptyState, status], spacing: 16)
         detailStack.detachesHiddenViews = true
         detailStack.translatesAutoresizingMaskIntoConstraints = false
         detailDocument.addSubview(detailStack)
         detailContainer.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(detailContainer)
         detailContainer.addSubview(detailScroll)
-        for view in [accountEditor, emptyState, status] {
+        for view in [accountEditor, accountLoadError, emptyState, status] {
             view.widthAnchor.constraint(equalTo: detailStack.widthAnchor).isActive = true
         }
         NSLayoutConstraint.activate([
@@ -232,7 +258,11 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             sidebar.topAnchor.constraint(equalTo: root.topAnchor),
             sidebar.bottomAnchor.constraint(equalTo: root.bottomAnchor),
             sidebar.widthAnchor.constraint(equalToConstant: 200),
-            addAccountButton.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: -16),
+            settingsButton.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: -12),
+            settingsButton.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 12),
+            settingsButton.widthAnchor.constraint(equalToConstant: 28),
+            settingsButton.heightAnchor.constraint(equalToConstant: 28),
+            addAccountButton.bottomAnchor.constraint(equalTo: settingsButton.topAnchor, constant: -12),
             addAccountButton.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 12),
             addAccountButton.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: -12),
             accountScroll.topAnchor.constraint(equalTo: sidebar.topAnchor, constant: 12),
@@ -264,14 +294,14 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
 
     func render() {
         let previousID = selectedID
-        if model.profiles.isEmpty, section != .general { selectedID = nil; showGeneral() }
         isUpdatingSelection = true
         if displayedProfiles != model.profiles {
             displayedProfiles = model.profiles
             table.reloadData()
         }
-        if section == .general {
-            table.selectRowIndexes(IndexSet(integer: model.profiles.count), byExtendingSelection: false)
+        if section == .settings {
+            if !model.profiles.contains(where: { $0.id == selectedID }) { selectedID = nil }
+            table.deselectAll(nil)
         } else if let selectedID, let index = model.profiles.firstIndex(where: { $0.id == selectedID }) {
             table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
         } else if !model.profiles.isEmpty {
@@ -282,7 +312,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         if section == .platform, previousID != selectedID { showAccountDetail() }
         if let platform, !model.profiles.contains(where: { $0.id == platform.accountID }) { showAccountDetail() }
         let available = !model.isDemo && !model.isChangingAccounts && !model.isRefreshing
-        addAccountButton.isEnabled = available
+        addAccountButton.isEnabled = available && isAccountLoadComplete() && !model.hasAccountLoadFailure
         status.stringValue = model.isDemo ? "Demo accounts cannot be changed."
             : model.isAllowingKeychainAccess ? "Allowing Keychain access…"
             : model.isSigningInClaude ? "Claude sign-in is in progress."
@@ -296,20 +326,48 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         }
         updateSelectionDescription()
         updateEditorAvailability()
+        renderAccountLoadState()
+        updateWindowTitle()
     }
 
-    func showGeneral() {
-        guard window?.attachedSheet == nil else { return }
-        leavePlatform()
-        section = .general
-        detailScroll.isHidden = true
-        installDetailView(general.view)
-        general.refresh()
-        isUpdatingSelection = true
-        table.selectRowIndexes(IndexSet(integer: model.profiles.count), byExtendingSelection: false)
-        isUpdatingSelection = false
+    private func renderAccountLoadState() {
+        let hasLoadError = model.hasAccountLoadFailure
+        accountLoadError.isHidden = !hasLoadError
+        accountLoadMessage.stringValue = hasLoadError ? model.message ?? "" : ""
+        retryAccountLoadButton.isEnabled = hasLoadError && isAccountLoadComplete() && onRetryAccountLoad != nil
+        emptyState.isHidden = !model.profiles.isEmpty || hasLoadError
+        emptyState.stringValue = isAccountLoadComplete()
+            ? "Add a Claude or Codex account to view its usage."
+            : "Loading accounts…"
         window?.recalculateKeyViewLoop()
     }
+
+    @objc private func retryAccountLoad(_ sender: Any?) {
+        guard isAccountLoadComplete(), model.hasAccountLoadFailure else { return }
+        onRetryAccountLoad?()
+    }
+
+    func showAccounts() {
+        guard window?.attachedSheet == nil else { return }
+        showAccountDetail()
+        render()
+    }
+
+    func showSettings() {
+        guard window?.attachedSheet == nil else { return }
+        leavePlatform()
+        section = .settings
+        detailScroll.isHidden = true
+        installDetailView(settings.view)
+        settings.refresh()
+        isUpdatingSelection = true
+        table.deselectAll(nil)
+        isUpdatingSelection = false
+        updateWindowTitle()
+        window?.recalculateKeyViewLoop()
+    }
+
+    @objc private func selectSettings(_ sender: Any?) { showSettings() }
 
     func showPlatform(_ controller: ClaudePlatformViewController, accountID: UUID) {
         guard window?.attachedSheet == nil else { return }
@@ -318,7 +376,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         selectedID = accountID
         platform = controller
         controller.onBack = { [weak self] in self?.showAccountDetail(); self?.render() }
-        if general.isViewLoaded { general.view.removeFromSuperview() }
+        if settings.isViewLoaded { settings.view.removeFromSuperview() }
         detailScroll.isHidden = true
         accountWindowSize = window?.contentView?.frame.size
         window?.contentMinSize = NSSize(width: 960, height: 600)
@@ -356,9 +414,19 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private func showAccountDetail() {
         leavePlatform()
         section = .account
-        if general.isViewLoaded { general.view.removeFromSuperview() }
+        if settings.isViewLoaded { settings.view.removeFromSuperview() }
         detailScroll.isHidden = false
+        updateWindowTitle()
         window?.recalculateKeyViewLoop()
+    }
+
+    private func updateWindowTitle() {
+        let title: String
+        if section == .settings { title = "App Settings" }
+        else if let profile = model.profiles.first(where: { $0.id == selectedID }) {
+            title = "\(InterfaceFormatting.provider(profile.provider)) · \(InterfaceFormatting.accountIdentity(profile))"
+        } else { title = "AI Usage Stats" }
+        if window?.title != title { window?.title = title }
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -370,14 +438,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         super.showWindow(sender)
     }
 
-    func numberOfRows(in tableView: NSTableView) -> Int { model.profiles.count + 1 }
+    func numberOfRows(in tableView: NSTableView) -> Int { model.profiles.count }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        if row == model.profiles.count {
-            let label = NSTextField(labelWithString: "General")
-            label.font = .systemFont(ofSize: 13, weight: .medium)
-            label.setAccessibilityLabel("General settings")
-            return label
-        }
         guard model.profiles.indices.contains(row) else { return nil }
         let profile = model.profiles[row]
         let cell = NSTableCellView()
@@ -411,12 +473,12 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard !isUpdatingSelection else { return }
         let index = table.selectedRow
-        if index == model.profiles.count { showGeneral(); return }
         let accountID = model.profiles.indices.contains(index) ? model.profiles[index].id : nil
         let changedAccount = selectedID != accountID
         showAccountDetail()
         selectedID = accountID
         if changedAccount { renderSelection() }
+        updateWindowTitle()
         updateEditorAvailability()
     }
 
@@ -517,7 +579,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     }
 
     func connect(_ provider: Provider) {
-        guard !model.isDemo, !model.isChangingAccounts, !model.isRefreshing else { return }
+        guard isAccountLoadComplete(), !model.hasAccountLoadFailure,
+              !model.isDemo, !model.isChangingAccounts, !model.isRefreshing else { return }
         let alert = NSAlert()
         alert.messageText = provider == .claude ? "Connect Claude Subscription" : "Connect Codex Account"
         alert.informativeText = provider == .claude
@@ -527,7 +590,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         alert.addButton(withTitle: "Cancel")
         guard let window else { return }
         alert.beginSheetModal(for: window) { [weak self] response in
-            guard let self, response == .alertFirstButtonReturn else { return }
+            guard let self, response == .alertFirstButtonReturn,
+                  self.isAccountLoadComplete(), !self.model.hasAccountLoadFailure else { return }
             if provider == .claude { self.onClaudeConnection?(nil, "Claude Account") }
             else { self.model.importAccount(provider: provider, label: "Codex Account") }
         }

@@ -23,14 +23,27 @@ final class ApplicationModel {
     private var refreshTask: Task<Void, Never>?
     private var refreshRequested = false
     private var claudeAuthorizationID: UUID?
+    private var hasPresentedDemoLoadError = false
     var isSigningInClaude: Bool { claudeAuthorizationID != nil }
+    var hasAccountLoadFailure: Bool { profiles.isEmpty && message != nil }
 
     init(isDemo: Bool) { self.isDemo = isDemo }
 
     func load() async {
         if isDemo {
-            profiles = DemoFixtures.profiles
-            snapshots = Dictionary(uniqueKeysWithValues: DemoFixtures.snapshots.map { ($0.profileID, $0) })
+            message = nil
+            if CommandLine.arguments.contains("--demo-load-error"), !hasPresentedDemoLoadError {
+                hasPresentedDemoLoadError = true
+                profiles = []
+                snapshots = [:]
+                message = "Could not load accounts: Demonstration load failure."
+            } else if CommandLine.arguments.contains("--demo-empty") {
+                profiles = []
+                snapshots = [:]
+            } else {
+                profiles = DemoFixtures.profiles
+                snapshots = Dictionary(uniqueKeysWithValues: DemoFixtures.snapshots.map { ($0.profileID, $0) })
+            }
             onChange?()
             return
         }
@@ -69,8 +82,10 @@ final class ApplicationModel {
             guard let self else { return }
             if !Task.isCancelled {
                 self.snapshots = Dictionary(uniqueKeysWithValues: results.map { ($0.profileID, $0) })
-                do { self.profiles = try await service.load() }
-                catch { self.message = "Could not reload accounts: \(error.localizedDescription)" }
+                do {
+                    self.profiles = try await service.load()
+                    self.message = nil
+                } catch { self.message = "Could not reload accounts: \(error.localizedDescription)" }
             }
             self.isRefreshing = false
             self.refreshTask = nil
