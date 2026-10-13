@@ -115,4 +115,3 @@ final class AccountSidebarTableView: NSTableView {
         } else { super.keyDown(with: event) }
     }
 }
-
