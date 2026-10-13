@@ -1,6 +1,6 @@
 # Native design
 
-AI Usage Stats is an AppKit menu bar utility. A status item opens one standard native menu for first run and connected accounts. One native management window handles account setup, Claude Platform connections, and General settings. Subscription sign-in uses an attached sheet and the external browser. `LSUIElement` keeps ordinary use out of the Dock.
+AI Usage Stats is an AppKit menu bar utility. A status item opens one standard native menu for first run and connected accounts. One native management window handles account setup, Claude Platform connections, and General settings. Subscription sign-in uses an attached sheet and the external browser. `LSUIElement` keeps menu-only use out of the Dock. Opening the management window promotes the app to regular activation so Command-Tab can return to it after another app takes focus. Minimized windows remain open; closing the window returns the app to accessory activation after any attached sheet ends. Command-W closes the window, Command-M minimizes it, and reopening restores the same window.
 
 ## First run
 

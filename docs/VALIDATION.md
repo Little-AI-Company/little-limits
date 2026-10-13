@@ -2,6 +2,19 @@
 
 This file records observed results, not intended behavior. Update the tested revision and relevant checks when the implementation changes.
 
+## Window activation, October 13, 2026
+
+Baseline `9309a7f26139ffae21545240fd60196186258277` was packaged and opened with `open -n "dist/AI Usage Stats.app" --args --demo --show-accounts` on Apple silicon, macOS 27.0.1 (26A434). Computer inspection showed the existing Accounts and General screens; their title remained AI Usage Stats. The running baseline was absent from Computer's regular-app inventory after Command-Tab. Source inspection located the unconditional accessory policy in `AIUsageStatsApplication.main` and missing promotion in `ApplicationDelegate.showAccounts`. This inventory observation supports the reported app-switching problem; no screenshot of the switcher itself was captured.
+
+The changed app appears in the regular-app inventory while Accounts is open, remains available after Command-M, and disappears from that inventory after Command-W without exiting. Reopening the packaged app restores the same account selection. Command-Tab from another app was exercised and the Accounts window remained available. Computer's subsequent app-state read can reopen a closed accessory app, so the close check used Finder state and the regular-app inventory without querying the closed target. Settings, credentials, and provider sessions were not changed. Attached-sheet closure is source-reviewed, not a tested authentication interaction.
+
+- `swift test`: passed 50 tests (21 XCTest and 29 Swift Testing), zero failures.
+- `swift build -c release`: passed in 13.64 seconds; existing Keychain deprecation warnings retained.
+- `scripts/package_app.sh`: passed with the configured local signer. `plutil -lint`, `lipo -archs`, and `codesign --verify --deep --strict --verbose=2` passed for the packaged app; arm64, local development signing.
+- `git diff --check`: passed. Every changed source line was reviewed. No layout-only tests were added.
+
+Apple's [Windows guidance](https://developer.apple.com/design/human-interface-guidelines/windows) informed native close, minimize, and reopen behavior. Intel execution, macOS 14 execution, VoiceOver, authentication-sheet closure, and notarized distribution remain unverified.
+
 ## Initial implementation baseline
 
 Verified October 9, 2026 on Apple silicon with macOS 27.0.1 (26A434), Apple Swift 6.4, and no external Swift package dependencies. These results describe the initial implementation before its first Git commit. Later changes require a new verification record; the digest below identifies this historical baseline.

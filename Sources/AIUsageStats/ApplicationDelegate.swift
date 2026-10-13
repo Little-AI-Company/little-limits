@@ -9,6 +9,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private var statusItem: NSStatusItem?
     private var displayedStatusSummary: StatusItemSummary?
     private var accounts: AccountsWindowController?
+    private var isAccountsWindowOpen = false
     private var refreshTimer: Timer?
     private var sleeping = false
     private var platformControllers: [UUID: ClaudePlatformViewController] = [:]
@@ -57,6 +58,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         claudeSignIn?.stop()
         platformControllers.values.forEach { $0.pause() }
         NSWorkspace.shared.notificationCenter.removeObserver(self)
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showAccounts(nil)
+        return false
     }
 
     private func render() {
@@ -150,11 +157,33 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             accounts = AccountsWindowController(model: model)
             accounts?.onConsoleConnection = { [weak self] id in self?.showClaudePlatform(id) }
             accounts?.onClaudeConnection = { [weak self] id, label in self?.showClaudeSignIn(id: id, label: label) }
+            if let window = accounts?.window {
+                let notifications = NotificationCenter.default
+                notifications.addObserver(self, selector: #selector(accountsWindowWillClose(_:)),
+                                          name: NSWindow.willCloseNotification, object: window)
+                notifications.addObserver(self, selector: #selector(accountsWindowDidEndSheet(_:)),
+                                          name: NSWindow.didEndSheetNotification, object: window)
+            }
         }
+        isAccountsWindowOpen = true
+        updateActivationPolicy()
         accounts?.render()
+        if accounts?.window?.isMiniaturized == true { accounts?.window?.deminiaturize(sender) }
         accounts?.showWindow(sender)
         accounts?.window?.makeKeyAndOrderFront(sender)
         NSApp.activate(ignoringOtherApps: true)
+    }
+    @objc private func accountsWindowWillClose(_ notification: Notification) {
+        isAccountsWindowOpen = false
+        updateActivationPolicy()
+    }
+    @objc private func accountsWindowDidEndSheet(_ notification: Notification) {
+        updateActivationPolicy()
+    }
+    private func updateActivationPolicy() {
+        let hasOpenWindow = isAccountsWindowOpen || accounts?.window?.attachedSheet != nil
+        let policy: NSApplication.ActivationPolicy = hasOpenWindow ? .regular : .accessory
+        if NSApp.activationPolicy() != policy { NSApp.setActivationPolicy(policy) }
     }
     @objc private func showSettings(_ sender: Any?) {
         showAccounts(sender)
@@ -297,6 +326,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let app = NSMenuItem()
         app.submenu = makeApplicationMenu()
         menu.addItem(app)
+        let file = NSMenuItem()
+        let fileMenu = NSMenu(title: "File")
+        fileMenu.addItem(NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
+        file.submenu = fileMenu
+        menu.addItem(file)
         let edit = NSMenuItem()
         let editMenu = NSMenu(title: "Edit")
         for (title, action, key) in [("Cut", #selector(NSText.cut(_:)), "x"),
@@ -307,6 +341,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
         edit.submenu = editMenu
         menu.addItem(edit)
+        let window = NSMenuItem()
+        let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"))
+        window.submenu = windowMenu
+        menu.addItem(window)
+        NSApp.windowsMenu = windowMenu
         NSApp.mainMenu = menu
     }
     private func makeApplicationMenu(includeRefresh: Bool = true, includeSetup: Bool = false, includeSettings: Bool = true) -> NSMenu {
