@@ -1,11 +1,17 @@
-# Branding assets
+# Repository assets
 
-These assets were generated with the built-in ImageGen tool on October 9, 2026.
+The branding files were generated with the built-in ImageGen tool on October 9, 2026.
 
 - `app-icon.png`: 1254 × 1254 PNG. Black square background with an original white two-row usage indicator.
 - `repository-header.png`: 2172 × 724 PNG. Black background with the same usage indicator, the title "AI Usage Stats", and the line "Claude. Codex. One menu."
 
 Both outputs were inspected visually. The header text matches the requested spelling and punctuation. The mark follows minimal monochrome design conventions and does not reproduce the Vercel triangle.
+
+## README screenshots
+
+`screenshots/usage-overview.png` and `screenshots/app-settings.png` are Computer captures of the packaged app on October 13, 2026, macOS 27.0.1. Each is 1400 × 1136 pixels, exported as PNG with text/EXIF metadata removed. Image content was not cropped, retouched, or generated. The app source matches `d22cc5a1fdc50229f428802426d708dbfa34afbc`; the captures use the existing connected Claude account rather than demo fixtures. They show the account email and observed subscription quota, with unsupported credit readings still unavailable. Images were inspected for complete rendering and credentials before inclusion. No sign-in, stored balance, or login setting was changed.
+
+The older `screenshots/menu-bar.png` is not used in the README. Native menu capture timed out; no current menu capture is claimed. The generated repository header remains a branding asset, while the README leads with the actual account overview.
 
 ## Generation mode
 
