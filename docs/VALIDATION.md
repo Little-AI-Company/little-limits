@@ -2,6 +2,19 @@
 
 This file records observed results, not intended behavior. Update the tested revision and relevant checks when the implementation changes.
 
+## App Settings navigation, October 13, 2026
+
+The baseline `9309a7f26139ffae21545240fd60196186258277` was inspected live before editing: General appeared as an account-list row and its screen retained the AI Usage Stats title. The changed app has an App Settings icon in the sidebar footer, no General row, native Startup/Usage form rows, and a title matching App Settings or the selected account. Settings remains inside the same window, as requested.
+
+- `swift test`: passed 50 tests (21 XCTest and 29 Swift Testing), zero failures.
+- `swift build -c release`: passed in 13.25 seconds; existing Keychain warnings retained.
+- `scripts/package_app.sh`: passed with the existing local signer.
+- Packaged `.app` inspected with Computer on Apple silicon, macOS 27.0.1: footer icon and settings layout, account-specific titles, return to both provider views, Command-comma, Tab focus on the settings icon and launch-at-login checkbox. Launch-at-login remained off and was not toggled. One native automation pipe interruption recovered with a fresh app-state read; the final state confirmed App Settings.
+- An unsaved manual amount survived settings navigation and return to the same real account. The field was restored to its original empty value and collapsed without Save or Clear; no stored balance changed.
+- `git diff --check` and every changed source/documentation line reviewed. No layout-only tests added.
+
+Apple's [Settings](https://developer.apple.com/design/human-interface-guidelines/settings) and [Sidebars](https://developer.apple.com/design/human-interface-guidelines/sidebars) guidance informed native navigation and form layout. No credentials, provider sessions, purchases, or login settings were changed. Empty-account startup, minimum-size resizing, live Platform return, VoiceOver, Intel, and macOS 14 remain unverified.
+
 ## Window activation, October 13, 2026
 
 Baseline `9309a7f26139ffae21545240fd60196186258277` was packaged and opened with `open -n "dist/AI Usage Stats.app" --args --demo --show-accounts` on Apple silicon, macOS 27.0.1 (26A434). Computer inspection showed the existing Accounts and General screens; their title remained AI Usage Stats. The running baseline was absent from Computer's regular-app inventory after Command-Tab. Source inspection located the unconditional accessory policy in `AIUsageStatsApplication.main` and missing promotion in `ApplicationDelegate.showAccounts`. This inventory observation supports the reported app-switching problem; no screenshot of the switcher itself was captured.

@@ -187,7 +187,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
     @objc private func showSettings(_ sender: Any?) {
         showAccounts(sender)
-        accounts?.showGeneral()
+        accounts?.showSettings()
     }
     @objc private func refreshAccounts(_ sender: Any?) { model.refresh() }
 

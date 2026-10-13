@@ -3,12 +3,12 @@ import UsageCore
 
 @MainActor
 final class AccountsWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate {
-    private enum Section: Equatable { case account, general, platform }
+    private enum Section: Equatable { case account, settings, platform }
     private let model: ApplicationModel
     private var section = Section.account
     private let detailContainer = NSView()
     private let detailScroll = NSScrollView()
-    private let general = GeneralSettingsViewController()
+    private let settings = GeneralSettingsViewController()
     private var platform: ClaudePlatformViewController?
     private var accountWindowSize: NSSize?
     private let table = NSTableView()
@@ -24,6 +24,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private let billingItem = NSMenuItem(title: "Open Billing Dashboard", action: #selector(openBilling(_:)), keyEquivalent: "")
     private let removeItem = NSMenuItem(title: "Remove Account…", action: #selector(removeAccount(_:)), keyEquivalent: "")
     private let addAccountButton = NSPopUpButton(frame: .zero, pullsDown: true)
+    private let settingsButton = NSButton(title: "", target: nil, action: nil)
     private let manualDisclosure = NSButton(title: "", target: nil, action: nil)
     private let manualEditor = NSStackView()
     private let manualHelp = InterfaceControls.label("Enter the amount shown in billing. This dated record does not update automatically.")
@@ -85,7 +86,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         table.intercellSpacing = NSSize(width: 0, height: 2)
         table.allowsEmptySelection = true
         table.backgroundColor = .clear
-        table.setAccessibilityLabel("Accounts and General settings")
+        table.setAccessibilityLabel("Accounts")
         let accountScroll = NSScrollView()
         accountScroll.documentView = table
         accountScroll.hasVerticalScroller = true
@@ -105,6 +106,16 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         addAccountButton.setAccessibilityLabel("Add account")
         addAccountButton.translatesAutoresizingMaskIntoConstraints = false
         sidebar.addSubview(addAccountButton)
+        settingsButton.target = self
+        settingsButton.action = #selector(selectSettings(_:))
+        settingsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "App Settings")
+        settingsButton.imagePosition = .imageOnly
+        settingsButton.bezelStyle = .texturedRounded
+        settingsButton.showsBorderOnlyWhileMouseInside = true
+        settingsButton.toolTip = "App Settings"
+        settingsButton.setAccessibilityLabel("App Settings")
+        settingsButton.translatesAutoresizingMaskIntoConstraints = false
+        sidebar.addSubview(settingsButton)
         let divider = InterfaceControls.separator()
         divider.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(divider)
@@ -232,7 +243,11 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             sidebar.topAnchor.constraint(equalTo: root.topAnchor),
             sidebar.bottomAnchor.constraint(equalTo: root.bottomAnchor),
             sidebar.widthAnchor.constraint(equalToConstant: 200),
-            addAccountButton.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: -16),
+            settingsButton.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: -12),
+            settingsButton.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 12),
+            settingsButton.widthAnchor.constraint(equalToConstant: 28),
+            settingsButton.heightAnchor.constraint(equalToConstant: 28),
+            addAccountButton.bottomAnchor.constraint(equalTo: settingsButton.topAnchor, constant: -12),
             addAccountButton.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 12),
             addAccountButton.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: -12),
             accountScroll.topAnchor.constraint(equalTo: sidebar.topAnchor, constant: 12),
@@ -264,14 +279,14 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
 
     func render() {
         let previousID = selectedID
-        if model.profiles.isEmpty, section != .general { selectedID = nil; showGeneral() }
         isUpdatingSelection = true
         if displayedProfiles != model.profiles {
             displayedProfiles = model.profiles
             table.reloadData()
         }
-        if section == .general {
-            table.selectRowIndexes(IndexSet(integer: model.profiles.count), byExtendingSelection: false)
+        if section == .settings {
+            if !model.profiles.contains(where: { $0.id == selectedID }) { selectedID = nil }
+            table.deselectAll(nil)
         } else if let selectedID, let index = model.profiles.firstIndex(where: { $0.id == selectedID }) {
             table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
         } else if !model.profiles.isEmpty {
@@ -296,20 +311,24 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         }
         updateSelectionDescription()
         updateEditorAvailability()
+        updateWindowTitle()
     }
 
-    func showGeneral() {
+    func showSettings() {
         guard window?.attachedSheet == nil else { return }
         leavePlatform()
-        section = .general
+        section = .settings
         detailScroll.isHidden = true
-        installDetailView(general.view)
-        general.refresh()
+        installDetailView(settings.view)
+        settings.refresh()
         isUpdatingSelection = true
-        table.selectRowIndexes(IndexSet(integer: model.profiles.count), byExtendingSelection: false)
+        table.deselectAll(nil)
         isUpdatingSelection = false
+        updateWindowTitle()
         window?.recalculateKeyViewLoop()
     }
+
+    @objc private func selectSettings(_ sender: Any?) { showSettings() }
 
     func showPlatform(_ controller: ClaudePlatformViewController, accountID: UUID) {
         guard window?.attachedSheet == nil else { return }
@@ -318,7 +337,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         selectedID = accountID
         platform = controller
         controller.onBack = { [weak self] in self?.showAccountDetail(); self?.render() }
-        if general.isViewLoaded { general.view.removeFromSuperview() }
+        if settings.isViewLoaded { settings.view.removeFromSuperview() }
         detailScroll.isHidden = true
         accountWindowSize = window?.contentView?.frame.size
         window?.contentMinSize = NSSize(width: 960, height: 600)
@@ -356,9 +375,19 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private func showAccountDetail() {
         leavePlatform()
         section = .account
-        if general.isViewLoaded { general.view.removeFromSuperview() }
+        if settings.isViewLoaded { settings.view.removeFromSuperview() }
         detailScroll.isHidden = false
+        updateWindowTitle()
         window?.recalculateKeyViewLoop()
+    }
+
+    private func updateWindowTitle() {
+        let title: String
+        if section == .settings { title = "App Settings" }
+        else if let profile = model.profiles.first(where: { $0.id == selectedID }) {
+            title = "\(InterfaceFormatting.provider(profile.provider)) · \(InterfaceFormatting.accountIdentity(profile))"
+        } else { title = "AI Usage Stats" }
+        if window?.title != title { window?.title = title }
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -370,14 +399,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         super.showWindow(sender)
     }
 
-    func numberOfRows(in tableView: NSTableView) -> Int { model.profiles.count + 1 }
+    func numberOfRows(in tableView: NSTableView) -> Int { model.profiles.count }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        if row == model.profiles.count {
-            let label = NSTextField(labelWithString: "General")
-            label.font = .systemFont(ofSize: 13, weight: .medium)
-            label.setAccessibilityLabel("General settings")
-            return label
-        }
         guard model.profiles.indices.contains(row) else { return nil }
         let profile = model.profiles[row]
         let cell = NSTableCellView()
@@ -411,12 +434,12 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard !isUpdatingSelection else { return }
         let index = table.selectedRow
-        if index == model.profiles.count { showGeneral(); return }
         let accountID = model.profiles.indices.contains(index) ? model.profiles[index].id : nil
         let changedAccount = selectedID != accountID
         showAccountDetail()
         selectedID = accountID
         if changedAccount { renderSelection() }
+        updateWindowTitle()
         updateEditorAvailability()
     }
 

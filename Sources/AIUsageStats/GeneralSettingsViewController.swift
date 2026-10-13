@@ -14,26 +14,43 @@ final class GeneralSettingsViewController: NSViewController {
         view = root
         loginButton.target = self
         loginButton.action = #selector(toggleLogin(_:))
-        let title = InterfaceControls.label("Startup", size: 13, weight: .semibold)
         loginButton.setAccessibilityLabel("Launch AI Usage Stats at login")
-        let refresh = InterfaceControls.label("Usage refreshes every 5 minutes. Manual balances keep their recorded amount and date until you update them.")
+        let startup = InterfaceControls.stack([loginButton, loginStatus], spacing: 6)
+        loginStatus.widthAnchor.constraint(equalTo: startup.widthAnchor).isActive = true
+        let refresh = InterfaceControls.label("Refresh automatically every 5 minutes.", size: 13)
+        let manualBalances = InterfaceControls.label("Manual balances keep their recorded amount and date until you update them.")
+        let usage = InterfaceControls.stack([refresh, manualBalances], spacing: 8)
+        for label in [refresh, manualBalances] {
+            label.widthAnchor.constraint(equalTo: usage.widthAnchor).isActive = true
+        }
+        let startupForm = settingsRow("Startup:", content: startup)
+        let usageForm = settingsRow("Usage:", content: usage)
         let separator = InterfaceControls.separator()
-        let stack = InterfaceControls.stack([title, loginButton, loginStatus, separator, refresh], spacing: 12)
-        do {
-            stack.translatesAutoresizingMaskIntoConstraints = false
-            root.addSubview(stack)
-            NSLayoutConstraint.activate([
-                stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 24),
-                stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -24),
-                stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 24)
-            ])
-            for component in [loginStatus, separator, refresh] {
-                component.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-            }
-            root.layoutSubtreeIfNeeded()
+        let stack = InterfaceControls.stack([startupForm, separator, usageForm], spacing: 20)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -24),
+            stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 28)
+        ])
+        for component in [startupForm, separator, usageForm] {
+            component.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         }
         refreshLoginState()
     }
+
+    private func settingsRow(_ title: String, content: NSView) -> NSGridView {
+        let label = InterfaceControls.label(title, size: 13)
+        let form = NSGridView(views: [[label, content]])
+        form.columnSpacing = 12
+        form.column(at: 0).width = 72
+        form.column(at: 0).xPlacement = .trailing
+        form.column(at: 1).xPlacement = .fill
+        form.yPlacement = .top
+        return form
+    }
+
     func refresh() {
         _ = view
         refreshLoginState()
@@ -48,7 +65,6 @@ final class GeneralSettingsViewController: NSViewController {
         case .notFound, .notRegistered: loginStatus.stringValue = "AI Usage Stats starts when you open it."
         @unknown default: loginStatus.stringValue = "Login item status is unavailable."
         }
-
     }
 
     @objc private func toggleLogin(_ sender: NSButton) {
