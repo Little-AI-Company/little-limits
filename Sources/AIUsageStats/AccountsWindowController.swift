@@ -53,7 +53,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     init(model: ApplicationModel) {
         self.model = model
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 540),
-                              styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+                              styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "AI Usage Stats"
         window.isReleasedWhenClosed = false
         window.contentMinSize = NSSize(width: 660, height: 460)
