@@ -201,7 +201,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     @objc private func addClaudeAccount(_ sender: Any?) { addAccount(.claude) }
     @objc private func addCodexAccount(_ sender: Any?) { addAccount(.codex) }
     private func addAccount(_ provider: Provider) {
-        guard accountsLoaded, model.message == nil else { return }
+        guard accountsLoaded, !model.hasAccountLoadFailure, !model.isDemo,
+              !model.isRefreshing, !model.isChangingAccounts else { return }
         showAccounts(nil)
         accounts?.connect(provider)
     }
@@ -227,7 +228,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         case #selector(refreshAccounts(_:)):
             return accountsLoaded && !model.profiles.isEmpty && !model.isDemo && !model.isRefreshing && !model.isChangingAccounts
         case #selector(addClaudeAccount(_:)), #selector(addCodexAccount(_:)):
-            return accountsLoaded && model.message == nil && !model.isDemo && !model.isChangingAccounts
+            return accountsLoaded && !model.hasAccountLoadFailure && !model.isDemo
+                && !model.isRefreshing && !model.isChangingAccounts
         case #selector(reloadAccounts(_:)):
             return accountsLoaded
         default:
@@ -244,7 +246,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             appendApplicationCommands(includeRefresh: false)
             return
         }
-        if model.profiles.isEmpty, model.message != nil {
+        if model.hasAccountLoadFailure {
             statusMenu.addItem(command(title: "Accounts Could Not Be Loaded…", action: #selector(showAccountLoadError(_:))))
             statusMenu.addItem(command(title: "Retry Loading Accounts", action: #selector(reloadAccounts(_:))))
             statusMenu.addItem(.separator())

@@ -312,7 +312,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         if section == .platform, previousID != selectedID { showAccountDetail() }
         if let platform, !model.profiles.contains(where: { $0.id == platform.accountID }) { showAccountDetail() }
         let available = !model.isDemo && !model.isChangingAccounts && !model.isRefreshing
-        addAccountButton.isEnabled = available && isAccountLoadComplete() && model.message == nil
+        addAccountButton.isEnabled = available && isAccountLoadComplete() && !model.hasAccountLoadFailure
         status.stringValue = model.isDemo ? "Demo accounts cannot be changed."
             : model.isAllowingKeychainAccess ? "Allowing Keychain access…"
             : model.isSigningInClaude ? "Claude sign-in is in progress."
@@ -331,7 +331,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     }
 
     private func renderAccountLoadState() {
-        let hasLoadError = model.profiles.isEmpty && model.message != nil
+        let hasLoadError = model.hasAccountLoadFailure
         accountLoadError.isHidden = !hasLoadError
         accountLoadMessage.stringValue = hasLoadError ? model.message ?? "" : ""
         retryAccountLoadButton.isEnabled = hasLoadError && isAccountLoadComplete() && onRetryAccountLoad != nil
@@ -343,7 +343,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     }
 
     @objc private func retryAccountLoad(_ sender: Any?) {
-        guard isAccountLoadComplete(), model.profiles.isEmpty, model.message != nil else { return }
+        guard isAccountLoadComplete(), model.hasAccountLoadFailure else { return }
         onRetryAccountLoad?()
     }
 
@@ -579,7 +579,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     }
 
     func connect(_ provider: Provider) {
-        guard isAccountLoadComplete(), model.message == nil,
+        guard isAccountLoadComplete(), !model.hasAccountLoadFailure,
               !model.isDemo, !model.isChangingAccounts, !model.isRefreshing else { return }
         let alert = NSAlert()
         alert.messageText = provider == .claude ? "Connect Claude Subscription" : "Connect Codex Account"
@@ -591,7 +591,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         guard let window else { return }
         alert.beginSheetModal(for: window) { [weak self] response in
             guard let self, response == .alertFirstButtonReturn,
-                  self.isAccountLoadComplete(), self.model.message == nil else { return }
+                  self.isAccountLoadComplete(), !self.model.hasAccountLoadFailure else { return }
             if provider == .claude { self.onClaudeConnection?(nil, "Claude Account") }
             else { self.model.importAccount(provider: provider, label: "Codex Account") }
         }
