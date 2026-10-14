@@ -143,18 +143,18 @@ final class HomeViewController: NSViewController, NSPopoverDelegate {
             if popover.isShown { dismissDetails() }
             return
         }
-        contextLabel.stringValue = HomeInterfaceFormatting.readingContext(now: now, calendar: calendar)
-        attentionLabel.isHidden = !HomeInterfaceFormatting.attentionNeeded(overview.accounts)
-        demoLabel.isHidden = !model.isDemo
-        let placed = HomeInterfaceFormatting.calendarEvents(visibleEvents, days: period.days, now: now, calendar: calendar)
-        emptyPeriodLabel.isHidden = !placed.isEmpty
-        calendarView.apply(period: period, events: visibleEvents, mode: mode, anchor: anchor, now: now, calendar: calendar)
         let accounts = overview.accounts.filter { account in
             switch filter {
             case .all: true
             case .account(let id): account.id == id
             }
         }
+        contextLabel.stringValue = HomeInterfaceFormatting.readingContext(now: now, calendar: calendar)
+        attentionLabel.isHidden = !HomeInterfaceFormatting.attentionNeeded(accounts)
+        demoLabel.isHidden = !model.isDemo
+        let placed = HomeInterfaceFormatting.calendarEvents(visibleEvents, days: period.days, now: now, calendar: calendar)
+        emptyPeriodLabel.isHidden = !placed.isEmpty
+        calendarView.apply(period: period, events: visibleEvents, mode: mode, anchor: anchor, now: now, calendar: calendar)
         tableView.apply(rows: HomeInterfaceFormatting.rows(for: accounts, now: now, calendar: calendar),
                         headings: HomeInterfaceFormatting.headings(for: accounts))
         refreshPresentedDetails()

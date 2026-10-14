@@ -210,8 +210,10 @@ enum HomeInterfaceFormatting {
 
     static func attentionNeeded(_ accounts: [UsageOverviewAccount]) -> Bool {
         accounts.contains { account in
-            if case .available = account.summary { return false }
-            return true
+            switch account.summary {
+            case .available, .inactive: false
+            case .unknown, .stale, .unavailable, .authenticationRequired: true
+            }
         }
     }
 

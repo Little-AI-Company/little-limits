@@ -118,6 +118,19 @@ func passedEarnedResetExpiryMakesTheCountHistorical() {
     #expect(homeLines(row.session)[0].primary == "80%")
 }
 
+@Test @MainActor
+func inactiveQuotasDoNotRequestRecovery() {
+    let inactive = UsageWindow(id: "inactive", title: "Weekly", utilizationPercent: nil,
+                               resetsAt: nil, isActive: false)
+    for state in [SnapshotState.available, .authenticationRequired] {
+        let snapshot = AccountSnapshot(profileID: homeReadingProfile.id, fetchedAt: homeReadingNow,
+                                       windows: [inactive], credits: [], state: state)
+        let overview = UsageOverview(profiles: [homeReadingProfile],
+                                     snapshots: [homeReadingProfile.id: snapshot], now: homeReadingNow)
+        #expect(HomeInterfaceFormatting.attentionNeeded(overview.accounts) == (state == .authenticationRequired))
+    }
+}
+
 private let homeReadingNow = Date(timeIntervalSince1970: 1_700_000_000)
 private let homeReadingProfile = AccountProfile(provider: .codex, label: "Work", source: .demo,
                                                 providerEmail: "work@example.invalid")
