@@ -14,7 +14,9 @@ protocol WindowToolbarContributor: AnyObject {
 
 /// Main menu commands dispatched through the responder chain with a nil target.
 /// The Home page implements the period commands, the window controller implements
-/// `addAccount(_:)`, and the application delegate implements `refreshAllAccounts(_:)`.
+/// `addAccount(_:)`, `reconnectSelectedAccount(_:)`, and `removeSelectedAccount(_:)` for the selected
+/// account, the account page implements `openSelectedAccountBilling(_:)`, and the application
+/// delegate implements `refreshAllAccounts(_:)`.
 @MainActor
 @objc protocol WindowCommandHandling {
     @objc optional func showPreviousPeriod(_ sender: Any?)
@@ -24,4 +26,10 @@ protocol WindowToolbarContributor: AnyObject {
     @objc optional func showTwoWeekPeriod(_ sender: Any?)
     @objc optional func refreshAllAccounts(_ sender: Any?)
     @objc optional func addAccount(_ sender: Any?)
+    /// File > Reconnect… for the selected account.
+    @objc optional func reconnectSelectedAccount(_ sender: Any?)
+    /// File > Open Billing for the selected account.
+    @objc optional func openSelectedAccountBilling(_ sender: Any?)
+    /// File > Remove Account… for the selected account; asks for confirmation.
+    @objc optional func removeSelectedAccount(_ sender: Any?)
 }
