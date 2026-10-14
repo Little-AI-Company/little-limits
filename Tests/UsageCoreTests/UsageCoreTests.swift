@@ -191,3 +191,20 @@ private func fakeExecutable(in directory: URL, content: String) throws -> URL {
     try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
     return url
 }
+
+@Test func movedAccountKeepsItsPositionAfterReload() async throws {
+    let directory = try temporaryDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let helper = try fakeExecutable(in: directory, content: "#!/bin/sh\nexit 0\n")
+    let store = directory.appendingPathComponent("Store")
+    let service = UsageService(directory: store, captureHelperURL: helper)
+    var ids: [UUID] = []
+    for name in ["One", "Two", "Three"] {
+        ids.append(try await service.importClaudeCLI(label: name, configurationURL: directory.appendingPathComponent(name)).id)
+    }
+    try await service.moveAccount(id: ids[2], toIndex: 0)
+    #expect(try await service.load().map(\.id) == [ids[2], ids[0], ids[1]])
+    try await service.moveAccount(id: ids[2], toIndex: 99)
+    let reloaded = UsageService(directory: store, captureHelperURL: helper)
+    #expect(try await reloaded.load().map(\.id) == [ids[0], ids[1], ids[2]])
+}
