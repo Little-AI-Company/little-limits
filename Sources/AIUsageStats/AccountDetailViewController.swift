@@ -4,7 +4,7 @@ import UsageCore
 /// The account page: usage and credit readings, API Credits controls, the manual balance editor, and Connection Details.
 /// Account-level commands live in the window toolbar through `WindowToolbarContributor`.
 @MainActor
-final class AccountDetailViewController: NSViewController, WindowToolbarContributor {
+final class AccountDetailViewController: NSViewController, WindowToolbarContributor, NSMenuItemValidation {
     private static let refreshAllItem = NSToolbarItem.Identifier("AccountRefreshAll")
     private static let reconnectItem = NSToolbarItem.Identifier("AccountReconnect")
     private static let billingItem = NSToolbarItem.Identifier("AccountBilling")
@@ -589,6 +589,14 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
     private var monthlyGrantNeedsLink: Bool {
         guard let id = accountID, profile?.provider == .claude else { return false }
         return model.snapshots[id]?.credits.contains { $0.id == "monthly_grant" && $0.status == "Not linked" } == true
+    }
+
+    /// File > Open Billing. Enabled under the same rule as the Billing toolbar item.
+    @objc func openSelectedAccountBilling(_ sender: Any?) { openBilling(sender) }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        guard menuItem.action == #selector(openSelectedAccountBilling(_:)) else { return true }
+        return profile != nil && view.window?.attachedSheet == nil
     }
 
     @objc private func openBilling(_ sender: Any?) {

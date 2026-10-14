@@ -3,14 +3,14 @@ import UsageCore
 
 @MainActor
 final class AccountsWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate,
-                                      NSToolbarDelegate, WindowCommandHandling {
+                                      NSToolbarDelegate, NSMenuItemValidation, WindowCommandHandling {
     private enum Section: Equatable { case home, account, settings, platform }
     private static let homeRow = 0
     private static let accountRowOffset = 1
     private static let windowMinimumSize = NSSize(width: 1020, height: 640)
     private static let windowMaximumSize = NSSize(width: 1680, height: 1040)
     private static let windowDefaultSize = NSSize(width: 1280, height: 780)
-    private static let sidebarDefaultWidth: CGFloat = 250
+    private static let sidebarDefaultWidth: CGFloat = 260
     private static let fixedToolbarItems: [NSToolbarItem.Identifier] = [.toggleSidebar, .sidebarTrackingSeparator]
     private let model: ApplicationModel
     private let home: HomeViewController
@@ -113,8 +113,10 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         table.allowsEmptySelection = true
         table.setAccessibilityLabel("Sidebar")
         table.setAccessibilityHelp("Select Home or an account. Use Add Account below the list. Remove selected account and Delete ask for confirmation.")
+        table.target = self
+        table.action = #selector(selectClickedSidebarRow(_:))
         table.accountMenu = { [weak self] row in self?.accountContextMenu(row: row) }
-        table.removeSelectedAccount = { [weak self] in self?.removeSelectedAccount() }
+        table.removeSelectedAccount = { [weak self] in self?.removeSelectedAccount(nil) }
         let accountScroll = NSScrollView()
         accountScroll.documentView = table
         accountScroll.hasVerticalScroller = true
@@ -124,7 +126,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
 
         for (button, symbol, label, action) in [
             (addAccountButton, "plus", "Add Account", #selector(addAccount(_:))),
-            (removeAccountButton, "minus", "Remove selected account", #selector(removeSelectedAccountFromButton(_:)))
+            (removeAccountButton, "minus", "Remove selected account", #selector(removeSelectedAccount(_:)))
         ] {
             button.target = self
             button.action = action
@@ -412,43 +414,40 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         let snapshot = model.snapshots[profile.id]
         let summary = AccountQuotaSummary(snapshot: snapshot, accountID: profile.id, now: now)
         let lastRead = snapshot.flatMap { $0.profileID == profile.id ? $0.fetchedAt : nil }
-        var texts: [String]
+        var text: String
         var indicator = AccountSidebarCellView.Indicator.none
         var state: String
         switch summary {
         case let .available(remaining, _, windowTitle):
-            let value = "\(Self.remainingText(remaining)) left"
             let window = snapshot?.currentWindows.first(where: { $0.title == windowTitle }).map(InterfaceFormatting.usageTitle) ?? windowTitle
-            var status: String?
-            if remaining <= 0 { status = "Limit reached"; indicator = .limitReached }
-            else if remaining <= 20 { status = "Low"; indicator = .low }
-            let valueWithStatus = [value, status].compactMap { $0 }.joined(separator: " · ")
-            texts = ["\(valueWithStatus) · \(window)", valueWithStatus, value]
-            state = "\(valueWithStatus). Lowest remaining current quota: \(window)."
+            var value = "\(Self.remainingText(remaining)) left"
+            if remaining <= 0 { value += ", Limit reached"; indicator = .limitReached }
+            else if remaining <= 20 { value += ", Low"; indicator = .low }
+            text = "\(value) · \(window)"
+            state = "\(value). Lowest remaining current quota: \(window)."
         case .unknown:
-            texts = ["Unavailable"]
+            text = "Unavailable"
             state = "Unavailable. A complete current usage reading is not available."
         case .inactive:
-            texts = ["Inactive"]
+            text = "Inactive"
             state = "Inactive. All reported quota windows are inactive."
         case .stale:
             indicator = .stale
-            let time = lastRead.map(Self.shortTime)
-            texts = time.map { ["Stale · last read \($0)", "Stale"] } ?? ["Stale"]
+            text = lastRead.map { "Stale · last read \(Self.shortTime($0))" } ?? "Stale"
             state = "Stale. The last reading is at least five minutes old or a reset has passed. Choose Refresh All to check usage."
         case .unavailable:
-            texts = ["Unavailable"]
+            text = "Unavailable"
             state = "Unavailable. The provider could not supply current usage."
         case .authenticationRequired:
             indicator = .signInRequired
-            texts = ["Sign-in required"]
+            text = "Sign-in required"
             state = "Sign-in required. Choose Reconnect… on the account page."
         }
         var description = "\(InterfaceFormatting.provider(profile.provider)), \(InterfaceFormatting.accountIdentity(profile)). \(state)"
         if let lastRead { description += " Last read \(InterfaceFormatting.exactDate(lastRead))." }
         if InterfaceFormatting.accountEmail(profile) == "Email unavailable" { description += " Email unavailable." }
         return AccountSidebarCellView.Display(identity: InterfaceFormatting.accountIdentity(profile), provider: profile.provider,
-                                              quotaTexts: texts, indicator: indicator, description: description)
+                                              quotaText: text, indicator: indicator, description: description)
     }
 
     private static func remainingText(_ remaining: Double) -> String {
@@ -463,6 +462,27 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         Calendar.current.isDateInToday(date)
             ? date.formatted(date: .omitted, time: .shortened)
             : date.formatted(.dateTime.month(.abbreviated).day().hour().minute())
+    }
+
+    /// Home keeps the system sidebar row height; account rows add the quota line below the identity.
+    func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+        guard row != Self.homeRow else { return tableView.rowHeight }
+        let identitySize: CGFloat = switch tableView.effectiveRowSizeStyle {
+        case .small: 11
+        case .large: 15
+        default: NSFont.systemFontSize
+        }
+        let quotaFont = AccountSidebarCellView.quotaFont(identitySize: identitySize)
+        return tableView.rowHeight + ceil(NSLayoutManager().defaultLineHeight(for: quotaFont)) + AccountSidebarCellView.lineSpacing
+    }
+
+    /// Choosing the selected account row again returns from the Platform pane to the account page. Selection does not
+    /// change in that case, so `tableViewSelectionDidChange(_:)` is not called.
+    @objc private func selectClickedSidebarRow(_ sender: Any?) {
+        let row = table.clickedRow
+        guard section == .platform, row == table.selectedRow, let id = accountID(forSidebarRow: row), id == selectedID else { return }
+        showAccountDetail()
+        render()
     }
 
     func tableViewSelectionDidChange(_ notification: Notification) {
@@ -481,8 +501,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     }
 
     private func updateRemoveAvailability() {
-        removeAccountButton.isEnabled = canModifyAccounts && section != .home && section != .settings
-            && accountID(forSidebarRow: table.selectedRow) != nil && window?.attachedSheet == nil
+        removeAccountButton.isEnabled = canModifyAccounts && selectedSidebarAccountID != nil && window?.attachedSheet == nil
     }
 
     // MARK: Account changes
@@ -528,12 +547,31 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         return menu
     }
 
-    private func removeSelectedAccount() {
-        guard section != .settings, section != .home, let id = accountID(forSidebarRow: table.selectedRow) else { return }
+    /// The account selected in the sidebar while its account page or Platform pane shows.
+    private var selectedSidebarAccountID: UUID? {
+        guard section == .account || section == .platform else { return nil }
+        return accountID(forSidebarRow: table.selectedRow)
+    }
+
+    /// File > Remove Account…, the sidebar minus button, and the Delete key. Asks for confirmation.
+    @objc func removeSelectedAccount(_ sender: Any?) {
+        guard let id = selectedSidebarAccountID else { return }
         confirmAccountRemoval(id: id)
     }
 
-    @objc private func removeSelectedAccountFromButton(_ sender: Any?) { removeSelectedAccount() }
+    /// File > Reconnect… for the selected account; the same route as the account page Reconnect… item.
+    @objc func reconnectSelectedAccount(_ sender: Any?) {
+        guard let id = selectedSidebarAccountID else { return }
+        reconnectAccount(id: id)
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        switch menuItem.action {
+        case #selector(removeSelectedAccount(_:)), #selector(reconnectSelectedAccount(_:)):
+            canModifyAccounts && window?.attachedSheet == nil && selectedSidebarAccountID != nil
+        default: true
+        }
+    }
 
     @objc private func removeAccountFromMenu(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? UUID else { return }
@@ -585,8 +623,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     }
 }
 
-/// Offers the visible page as a supplemental action target, so menu commands such as Home's period commands
-/// reach that page while keyboard focus is in the sidebar.
+/// Offers the visible page as a supplemental action target, so menu commands such as Home's period commands and
+/// the account page's Open Billing reach that page while keyboard focus is in the sidebar.
 @MainActor
 private final class PageCommandSplitViewController: NSSplitViewController {
     private static let pageActions: Set<Selector> = [
@@ -594,7 +632,8 @@ private final class PageCommandSplitViewController: NSSplitViewController {
         #selector(WindowCommandHandling.showNextPeriod(_:)),
         #selector(WindowCommandHandling.showCurrentPeriod(_:)),
         #selector(WindowCommandHandling.showMonthPeriod(_:)),
-        #selector(WindowCommandHandling.showTwoWeekPeriod(_:))
+        #selector(WindowCommandHandling.showTwoWeekPeriod(_:)),
+        #selector(WindowCommandHandling.openSelectedAccountBilling(_:))
     ]
     var commandPage: (() -> NSViewController?)?
 
