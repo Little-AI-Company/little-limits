@@ -13,9 +13,9 @@ final class AccountSidebarCellView: NSTableCellView {
         @MainActor fileprivate var symbol: (name: String, color: NSColor)? {
             switch self {
             case .none: nil
-            case .low: ("exclamationmark.triangle.fill", AccountSidebarCellView.warningColor)
-            case .limitReached: ("exclamationmark.octagon.fill", AccountSidebarCellView.criticalColor)
-            case .signInRequired: ("person.crop.circle.badge.exclamationmark.fill", AccountSidebarCellView.criticalColor)
+            case .low: ("exclamationmark.triangle.fill", StateSymbolColor.warning)
+            case .limitReached: ("exclamationmark.octagon.fill", StateSymbolColor.critical)
+            case .signInRequired: ("person.crop.circle.badge.exclamationmark.fill", StateSymbolColor.critical)
             case .stale: ("clock", .secondaryLabelColor)
             }
         }
@@ -34,8 +34,6 @@ final class AccountSidebarCellView: NSTableCellView {
     /// Point size of line 2 relative to the identity font the table chooses for the sidebar size setting.
     private static let quotaFontReduction: CGFloat = 2
     static let lineSpacing: CGFloat = 1
-    private static let warningColor = stateColor(.systemOrange)
-    private static let criticalColor = stateColor(.systemRed)
 
     private let icon = NSImageView()
     private let identity = NSTextField(labelWithString: "")
@@ -116,19 +114,6 @@ final class AccountSidebarCellView: NSTableCellView {
 
     static func quotaFont(identitySize: CGFloat) -> NSFont {
         .monospacedDigitSystemFont(ofSize: max(10, identitySize - quotaFontReduction), weight: .regular)
-    }
-
-    /// The system state color, darkened in light appearances so the symbol reaches 3:1 against the sidebar.
-    /// Dark appearances keep the system color, which already exceeds 3:1.
-    private static func stateColor(_ color: NSColor) -> NSColor {
-        func resolved(_ name: NSAppearance.Name) -> NSColor {
-            var value = color
-            NSAppearance(named: name)?.performAsCurrentDrawingAppearance { value = color.usingColorSpace(.sRGB) ?? color }
-            return value
-        }
-        let light = resolved(.aqua).blended(withFraction: 0.3, of: .black) ?? color
-        let dark = resolved(.darkAqua)
-        return NSColor(name: nil) { appearance in appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light }
     }
 }
 

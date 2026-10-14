@@ -23,13 +23,33 @@ enum HomeReadingTone: Equatable {
         }
     }
 
-    /// Semantic color for the state symbol only, never for text.
+    /// Semantic color for the state symbol only, never for text. Every surface (table, calendar, popover,
+    /// sidebar) uses this one color per state.
     var symbolColor: NSColor {
         switch self {
         case .neutral: .labelColor
-        case .warning: .systemOrange
-        case .critical: .systemRed
+        case .warning: StateSymbolColor.warning
+        case .critical: StateSymbolColor.critical
         }
+    }
+}
+
+/// State symbol colors. In light appearances the system color is darkened so the symbol reaches 3:1 on white
+/// and on the sidebar; plain systemOrange measures 2.33:1 on white. Dark appearances keep the system color,
+/// which already exceeds 3:1.
+enum StateSymbolColor {
+    static let warning = darkenedInLightAppearance(.systemOrange)
+    static let critical = darkenedInLightAppearance(.systemRed)
+
+    private static func darkenedInLightAppearance(_ color: NSColor) -> NSColor {
+        func resolved(_ name: NSAppearance.Name) -> NSColor {
+            var value = color
+            NSAppearance(named: name)?.performAsCurrentDrawingAppearance { value = color.usingColorSpace(.sRGB) ?? color }
+            return value
+        }
+        let light = resolved(.aqua).blended(withFraction: 0.3, of: .black) ?? color
+        let dark = resolved(.darkAqua)
+        return NSColor(name: nil) { appearance in appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light }
     }
 }
 
@@ -77,7 +97,9 @@ struct HomeAccountRow: Equatable, Identifiable {
 }
 
 /// One reset on the calendar: time and scope first (`13:11 · 5-hour`), then what is left now. The section
-/// title says these are resets, so the visible scope omits the word; the label and tooltip keep it.
+/// title says these are resets, so the visible scope omits the word; the label and tooltip keep it. A
+/// model-scoped window shows only its model (`14:18 · Sonnet`), so it never truncates to look like the
+/// account's general weekly reset; the label, tooltip, and popover keep the full `Weekly · Sonnet`.
 struct HomeCalendarEventModel: Equatable, Identifiable {
     var id: String
     var provider: Provider
@@ -261,7 +283,7 @@ enum HomeInterfaceFormatting {
             let value = remainingText(event.remainingPercent)
             let label = "\(scope) resets \(exact). \(event.provider.title) \(event.identity), \(value) now"
             return HomeCalendarEventModel(id: event.id, provider: event.provider, timeText: timeText(event.resetsAt),
-                                          scopeText: scope, remainingText: "\(percentText(event.remainingPercent)) left",
+                                          scopeText: calendarScope(event.window), remainingText: "\(percentText(event.remainingPercent)) left",
                                           tone: tone(for: event.remainingPercent), shortIdentity: event.shortIdentity,
                                           accessibilityLabel: label,
                                           toolTip: "\(label). Latest reading, not a forecast.", dayIndex: dayIndex)
@@ -430,7 +452,7 @@ enum HomeInterfaceFormatting {
     private static func meterCell(_ role: HomeWindowRole, account: UsageOverviewAccount, namesWindow: Bool,
                                   now: Date, calendar: Calendar, basis: ReadingBasis) -> HomeMeterCell {
         func named(_ window: UsageWindow, _ value: String) -> String {
-            namesWindow ? "\(otherName(window)): \(value)" : value
+            namesWindow ? "\(calendarScope(window)): \(value)" : value
         }
         switch basis {
         case .authentication:
@@ -733,8 +755,11 @@ enum HomeInterfaceFormatting {
         return title == "5-hour" ? "5-hour" : title
     }
 
-    private static func otherName(_ window: UsageWindow) -> String {
+    /// The part of the scope that tells a calendar event apart in a narrow day column: the model or meter
+    /// name for a scoped window, otherwise the whole scope.
+    static func calendarScope(_ window: UsageWindow) -> String {
         if let scoped = modelScope(in: window.title) { return scoped.name }
+        if let named = namedMeter(window.title), !isOrdinaryCodexMeter(window) { return named.prefix }
         return scopeLabel(window)
     }
 

@@ -135,3 +135,26 @@ func quotaCellTextFitsAtTheMinimumWindowWidth() throws {
 private func drawnSize(_ field: NSTextField) -> NSSize {
     field.cell?.cellSize ?? field.intrinsicContentSize
 }
+
+/// HOME-18: one color per state reaches 3:1 for the state symbol in light appearance, on the white Home
+/// background and on the light sidebar, in every surface that draws it.
+@Test @MainActor
+func stateSymbolColorsReachThreeToOneInLightAppearance() throws {
+    func luminance(_ color: NSColor) -> CGFloat {
+        let rgb = color.usingColorSpace(.sRGB) ?? color
+        func linear(_ value: CGFloat) -> CGFloat { value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4) }
+        return 0.2126 * linear(rgb.redComponent) + 0.7152 * linear(rgb.greenComponent) + 0.0722 * linear(rgb.blueComponent)
+    }
+    func contrast(_ a: NSColor, _ b: NSColor) -> CGFloat {
+        let (l1, l2) = (luminance(a), luminance(b))
+        return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)
+    }
+    let light = try #require(NSAppearance(named: .aqua))
+    let sidebar = NSColor(srgbRed: 0xEC / 255, green: 0xED / 255, blue: 0xEE / 255, alpha: 1)
+    for tone in [HomeReadingTone.warning, .critical] {
+        var symbol = NSColor.clear
+        light.performAsCurrentDrawingAppearance { symbol = tone.symbolColor.usingColorSpace(.sRGB) ?? tone.symbolColor }
+        #expect(contrast(symbol, .white) >= 3, "\(tone) on white")
+        #expect(contrast(symbol, sidebar) >= 3, "\(tone) on the sidebar")
+    }
+}

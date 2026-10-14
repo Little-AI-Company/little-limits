@@ -138,7 +138,7 @@ func inactiveQuotasDoNotRequestRecovery() {
 }
 
 @Test @MainActor
-func calendarEventsLeadWithTheResetTimeAndVocabularyScope() throws {
+func calendarEventsLeadWithTheResetTimeAndShowTheModelOfAScopedWindow() throws {
     let profile = AccountProfile(provider: .claude, label: "Personal", source: .demo, providerEmail: "personal@example.invalid")
     let resetsAt = homeReadingNow.addingTimeInterval(3_600)
     let window = UsageWindow(id: "seven_day_fable", title: "7 days (Fable 5)", utilizationPercent: 83,
@@ -149,7 +149,8 @@ func calendarEventsLeadWithTheResetTimeAndVocabularyScope() throws {
     let event = try #require(HomeInterfaceFormatting.calendarEvents(overview.resetEvents, days: days, now: homeReadingNow,
                                                                    calendar: .current).first)
     #expect(event.timeText == resetsAt.formatted(.dateTime.hour().minute()))
-    #expect(event.scopeText == "Weekly · Fable 5")
+    // The model alone stays visible in a narrow day column; the label keeps the full scope.
+    #expect(event.scopeText == "Fable 5")
     #expect(event.remainingText == "17% left")
     #expect(event.tone == .warning)
     #expect(event.accessibilityLabel.hasPrefix("Weekly · Fable 5 resets"))
