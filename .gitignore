@@ -14,3 +14,4 @@ accounts.json
 *.p12
 *.pfx
 .crit/
+build/
