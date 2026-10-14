@@ -815,3 +815,20 @@ New or extended focused tests: `stateSymbolColorsReachThreeToOneInLightAppearanc
 Recaptured with the crit skill's `capture_windows.swift` from the packaged app in demo mode, each fixture as its own instance, filtered by PID (8 surfaces in `.crit/2026-10-14-round3-fixes/captures/`): home (light, dark, `--increase-contrast`), home-states (light, dark), menu, menu-states, and `--demo` Home. Measured in light appearance with the most saturated symbol pixel: the Low triangle is #B66E33 at 3.99 to 4.02:1 on white in both the table and the calendar (2.33:1 before), and Limit reached is #B33B33 at 5.85:1. The sidebar uses the same color. A real AI Usage Stats instance with saved accounts was running from another checkout and was left alone, so the status item strip was not captured.
 
 Not verified: the status item glyph and tooltip for the MENU-12 fallback (unit test only); the account page (ACCOUNT-05 is source and shared-function only); the View > Show Account submenu, which needs pointer or keyboard input (HOME-23, source only); keyboard Tab order from the sidebar Home row (HOME-20 is verified only as the absence of the event focus ring in captures); a key-window capture of a selected Low row (HOME-21, unit test only); the minimum 1020 × 640 point window on screen; VoiceOver speech. Earlier limits (live providers, Intel execution, macOS 14 runtime, notarization) remain in effect.
+
+## 2026-10-14 public release 0.1.0
+
+Product source `9dea07358a1f90b4edd1de4390084a8d9f45ccb7` (tag `v0.1.0`), packaged with the distribution mode from `build/developer-id-release` on macOS 27.0.1 (26A434), Apple silicon, Xcode 27 toolchain, macOS 27 SDK.
+
+| Command or check | Result |
+| --- | --- |
+| `DISTRIBUTION=1 UNIVERSAL=1 VERSION=0.1.0 BUILD_NUMBER=1 CODE_SIGN_IDENTITY=<Developer ID SHA-1> scripts/package_app.sh` | Signed by Developer ID Application: RAPTURE ENTERTAINERS, INC. (9FL5S77YVH), `flags=0x10000(runtime)`, secure timestamp. |
+| `scripts/create_xcode_archive.sh` then `xcodebuild -exportArchive` (developer-id, upload) | Uploaded; export succeeded. |
+| `xcodebuild -exportNotarizedApp` | Accepted on the second attempt, about 30 seconds after upload. |
+| `codesign --verify --deep --strict`, `xcrun stapler validate`, `spctl --assess --type execute` | Valid; stapled ticket validated; `accepted`, `source=Notarized Developer ID`. |
+| `lipo -archs` on `AIUsageStats` and `UsageCapture` | `x86_64 arm64` for both. `vtool` reports minos 14.0, sdk 27.0. |
+| `ditto -c -k --keepParent` release archive | `AI-Usage-Stats-0.1.0.zip`, SHA-256 `9228a0470e7882150302201a6fb7e5a329f216890ceff804e95f90105ae5f6a9`; an extracted copy passed Gatekeeper and stapler validation. |
+| GitHub release `v0.1.0` asset download | Same SHA-256 as the local archive. |
+| `brew style`, `brew audit --cask --online`, `brew livecheck` for `parkerrex/tap/ai-usage-stats` | No offenses; audit exit 0; livecheck reports 0.1.0. |
+
+Not verified: a `brew install --cask` on a clean account, Intel runtime, macOS 14 and 15 runtime, and first-launch Keychain prompts for accounts saved by local development builds.
