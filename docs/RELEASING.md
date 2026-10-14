@@ -59,7 +59,7 @@ Public releases are signed with the Developer ID Application certificate of RAPT
 1. Build the universal, hardened-runtime package from a clean `main`:
 
    ```sh
-   DISTRIBUTION=1 UNIVERSAL=1 VERSION=0.2.0 BUILD_NUMBER=2 \
+   DISTRIBUTION=1 UNIVERSAL=1 VERSION=0.1.0 BUILD_NUMBER=1 \
      CODE_SIGN_IDENTITY='Developer ID Application: RAPTURE ENTERTAINERS, INC. (9FL5S77YVH)' \
      OUTPUT_DIRECTORY="$PWD/dist/release" scripts/package_app.sh
    ```
