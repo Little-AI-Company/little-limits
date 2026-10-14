@@ -16,7 +16,7 @@ lipo -archs "dist/AI Usage Stats.app/Contents/MacOS/UsageCapture"
 open -n "dist/AI Usage Stats.app"
 ```
 
-The script builds all Release products, embeds `AIUsageStats` and the `UsageCapture` helper, generates `Resources/AppIcon.icns` if absent or older than `assets/app-icon.png`, copies the license, metadata, and generated SwiftPM provider-icon resource bundle, signs the helper and bundle with the selected local identity, verifies the signature, and creates a ZIP using `ditto`.
+The script builds all Release products, embeds `AIUsageStats` and the `UsageCapture` helper, generates `Resources/AppIcon.icns` if absent or older than `assets/app-icon.png` (`assets/app-icon.png` is composed from `assets/branding/nervous-gauge-artwork.png` with `swift scripts/compose_app_icon.swift`, which places the artwork in the macOS 824 px rounded-square grid), copies the license, metadata, and generated SwiftPM provider-icon resource bundle, signs the helper and bundle with the selected local identity, verifies the signature, and creates a ZIP using `ditto`.
 
 Use the same existing code-signing certificate for successive development builds. `CODE_SIGN_IDENTITY` overrides the identity stored as a single line in the ignored `.local-signing-identity` file. List available identities with `security find-identity -v -p codesigning`, then select the intended personal development identity by its certificate hash. This file contains only a public certificate identifier, never a private key or credential. Packaging does not create certificates, change Keychain trust, or edit private-key access controls.
 

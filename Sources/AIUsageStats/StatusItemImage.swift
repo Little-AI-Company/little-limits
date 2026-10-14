@@ -13,6 +13,37 @@ struct StatusItemSummary: Equatable {
 
 @MainActor
 enum StatusItemImage {
+    /// The app's talking-gauge mark: a speech bubble whose top is a fuel gauge with the needle near empty.
+    /// Shown when there are no readings to summarize. Drawn as a template so AppKit tints it.
+    static let appGlyph: NSImage = {
+        let image = NSImage(size: NSSize(width: 18, height: 16), flipped: false) { _ in
+            NSColor.black.set()
+            let bubble = NSBezierPath()
+            bubble.lineWidth = 1.6
+            bubble.lineJoinStyle = .round
+            bubble.lineCapStyle = .round
+            // Gauge arc over the top, then the flat base with a tail at the lower left.
+            bubble.appendArc(withCenter: NSPoint(x: 9.5, y: 7), radius: 6.6, startAngle: 0, endAngle: 180)
+            bubble.line(to: NSPoint(x: 2.9, y: 6.2))
+            bubble.line(to: NSPoint(x: 2.2, y: 1.6))
+            bubble.line(to: NSPoint(x: 6.4, y: 4.6))
+            bubble.line(to: NSPoint(x: 15.2, y: 4.6))
+            bubble.curve(to: NSPoint(x: 16.1, y: 7), controlPoint1: NSPoint(x: 15.9, y: 4.6), controlPoint2: NSPoint(x: 16.1, y: 5.6))
+            bubble.stroke()
+            let needle = NSBezierPath()
+            needle.lineWidth = 1.6
+            needle.lineCapStyle = .round
+            needle.move(to: NSPoint(x: 9.5, y: 7))
+            needle.line(to: NSPoint(x: 5.3, y: 9.6))
+            needle.stroke()
+            NSBezierPath(ovalIn: NSRect(x: 8.2, y: 5.7, width: 2.6, height: 2.6)).fill()
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = "AI Usage Stats"
+        return image
+    }()
+
     static func render(_ summary: StatusItemSummary) -> NSImage {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]

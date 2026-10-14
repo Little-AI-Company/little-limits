@@ -25,8 +25,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         statusMenu.autoenablesItems = false
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
-            button.title = "AI"
-            button.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+            button.image = StatusItemImage.appGlyph
+            button.imagePosition = .imageOnly
             button.setAccessibilityLabel("AI Usage Stats")
             button.setAccessibilityHelp("Open account usage and remaining quota")
         }
@@ -131,9 +131,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
         let summary = StatusItemSummary(readings: readings, isStale: stale || showsLastKnown)
         if displayedStatusSummary != summary, let button = statusItem?.button {
-            button.title = readings.isEmpty ? "AI" : ""
-            button.image = readings.isEmpty ? nil : StatusItemImage.render(summary)
-            button.imagePosition = readings.isEmpty ? .noImage : .imageOnly
+            button.image = readings.isEmpty ? StatusItemImage.appGlyph : StatusItemImage.render(summary)
+            button.imagePosition = .imageOnly
             button.imageScaling = .scaleProportionallyDown
             displayedStatusSummary = summary
         }
