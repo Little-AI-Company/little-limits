@@ -101,10 +101,16 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         var showsLastKnown = false
         var readings: [StatusItemSummary.Reading] = []
         var descriptions: [String] = []
-        for provider in [Provider.claude, .codex] {
-            // Only accounts chosen with Show in Menu Bar count toward the number.
-            let profiles = model.profiles.filter { $0.provider == provider && model.showsInMenuBar($0.id) }
-            guard !profiles.isEmpty else { continue }
+        // By default one number per provider, the lowest across its accounts. Accounts chosen with Show in
+        // Menu Bar instead each get their own number, in sidebar order.
+        let groups: [(provider: Provider, profiles: [AccountProfile])]
+        if let chosen = model.menuBarAccountIDs {
+            groups = model.profiles.filter { chosen.contains($0.id) }.map { ($0.provider, [$0]) }
+        } else {
+            groups = [Provider.claude, .codex].map { provider in (provider, model.profiles.filter { $0.provider == provider }) }
+                .filter { !$0.profiles.isEmpty }
+        }
+        for (provider, profiles) in groups {
             let name = InterfaceFormatting.provider(provider)
             let ids = profiles.map(\.id)
             let current = AccountQuotaSummary.lowestCurrent(accountIDs: ids, snapshots: model.snapshots, now: now)
@@ -130,7 +136,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             }
         }
         let stale = model.profiles.contains {
-            guard model.showsInMenuBar($0.id), let snapshot = model.snapshots[$0.id] else { return false }
+            guard model.menuBarAccountIDs?.contains($0.id) ?? true, let snapshot = model.snapshots[$0.id] else { return false }
             return snapshot.state == .stale || snapshot.state == .authenticationRequired
                 || snapshot.fetchedAt.map { now.timeIntervalSince($0) >= 300 } == true
                 || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
@@ -270,11 +276,17 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
     @objc func refreshAllAccounts(_ sender: Any?) { model.refresh() }
 
-    /// Show in Menu Bar ▸ one checkmarked item per account, choosing which accounts the menu bar number uses.
+    /// Show in Menu Bar ▸ Lowest per Provider (the default), then one checkmarked item per account; each checked
+    /// account gets its own number in the menu bar.
     private func menuBarAccountsItem() -> NSMenuItem {
         let item = NSMenuItem(title: "Show in Menu Bar", action: nil, keyEquivalent: "")
         let submenu = NSMenu(title: "Show in Menu Bar")
         submenu.autoenablesItems = false
+        let lowest = NSMenuItem(title: "Lowest per Provider", action: #selector(showLowestPerProvider(_:)), keyEquivalent: "")
+        lowest.target = self
+        lowest.state = model.menuBarAccountIDs == nil ? .on : .off
+        submenu.addItem(lowest)
+        submenu.addItem(.separator())
         for profile in model.profiles {
             let account = NSMenuItem(title: "\(InterfaceFormatting.provider(profile.provider)) · \(InterfaceFormatting.accountIdentity(profile))",
                                      action: #selector(toggleMenuBarAccount(_:)), keyEquivalent: "")
@@ -286,6 +298,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         item.submenu = submenu
         return item
     }
+
+    @objc private func showLowestPerProvider(_ sender: NSMenuItem) { model.showLowestPerProviderInMenuBar() }
 
     @objc private func toggleMenuBarAccount(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? UUID else { return }
