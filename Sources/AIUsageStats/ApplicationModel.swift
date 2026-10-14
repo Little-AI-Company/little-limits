@@ -42,23 +42,56 @@ final class ApplicationModel {
 
     init(isDemo: Bool) {
         self.isDemo = isDemo
-        let stored = isDemo ? [] : UserDefaults.standard.stringArray(forKey: Self.menuBarHiddenKey) ?? []
-        menuBarHiddenAccountIDs = Set(stored.compactMap(UUID.init(uuidString:)))
+        let defaults = UserDefaults.standard
+        chosenMenuBarAccountIDs = isDemo ? nil
+            : defaults.stringArray(forKey: Self.menuBarAccountsKey).map { Set($0.compactMap(UUID.init(uuidString:))) }
+        let legacy = isDemo ? [] : defaults.stringArray(forKey: Self.legacyMenuBarHiddenKey) ?? []
+        legacyMenuBarHiddenAccountIDs = Set(legacy.compactMap(UUID.init(uuidString:)))
     }
 
     // MARK: Menu bar accounts
 
-    private static let menuBarHiddenKey = "MenuBarHiddenAccountIDs"
-    /// Accounts left out of the menu bar number. A display preference only; account data is unchanged.
-    private(set) var menuBarHiddenAccountIDs: Set<UUID>
+    private static let menuBarAccountsKey = "MenuBarAccountIDs"
+    /// The first version stored hidden accounts instead; read once so an existing choice carries over.
+    private static let legacyMenuBarHiddenKey = "MenuBarHiddenAccountIDs"
+    private var chosenMenuBarAccountIDs: Set<UUID>?
+    private var legacyMenuBarHiddenAccountIDs: Set<UUID>
 
-    func showsInMenuBar(_ id: UUID) -> Bool { !menuBarHiddenAccountIDs.contains(id) }
+    /// Accounts that each get their own menu bar number, or nil for the default: the lowest remaining quota
+    /// per provider across every account. A display preference only; account data is unchanged.
+    var menuBarAccountIDs: Set<UUID>? { chosenMenuBarAccountIDs }
+
+    func showsInMenuBar(_ id: UUID) -> Bool { menuBarAccountIDs?.contains(id) == true }
 
     func setShowsInMenuBar(_ shows: Bool, for id: UUID) {
-        guard showsInMenuBar(id) != shows else { return }
-        if shows { menuBarHiddenAccountIDs.remove(id) } else { menuBarHiddenAccountIDs.insert(id) }
+        var chosen = menuBarAccountIDs ?? []
+        if shows { chosen.insert(id) } else { chosen.remove(id) }
+        saveMenuBarChoice(chosen)
+    }
+
+    /// Saves the earlier hidden-account choice as the chosen-account list once, against the loaded accounts, so
+    /// accounts added later are not chosen automatically.
+    private func convertLegacyMenuBarChoice() {
+        guard chosenMenuBarAccountIDs == nil, !legacyMenuBarHiddenAccountIDs.isEmpty else { return }
+        chosenMenuBarAccountIDs = Set(profiles.map(\.id)).subtracting(legacyMenuBarHiddenAccountIDs)
+        legacyMenuBarHiddenAccountIDs = []
+        if !isDemo, let chosen = chosenMenuBarAccountIDs {
+            UserDefaults.standard.set(chosen.map(\.uuidString).sorted(), forKey: Self.menuBarAccountsKey)
+            UserDefaults.standard.removeObject(forKey: Self.legacyMenuBarHiddenKey)
+        }
+    }
+
+    /// Returns the menu bar to the lowest remaining quota per provider.
+    func showLowestPerProviderInMenuBar() { saveMenuBarChoice(nil) }
+
+    private func saveMenuBarChoice(_ chosen: Set<UUID>?) {
+        chosenMenuBarAccountIDs = chosen
+        legacyMenuBarHiddenAccountIDs = []
         if !isDemo {
-            UserDefaults.standard.set(menuBarHiddenAccountIDs.map(\.uuidString).sorted(), forKey: Self.menuBarHiddenKey)
+            let defaults = UserDefaults.standard
+            defaults.removeObject(forKey: Self.legacyMenuBarHiddenKey)
+            if let chosen { defaults.set(chosen.map(\.uuidString).sorted(), forKey: Self.menuBarAccountsKey) }
+            else { defaults.removeObject(forKey: Self.menuBarAccountsKey) }
         }
         onChange?()
     }
@@ -97,6 +130,7 @@ final class ApplicationModel {
                 pendingManualCredits[profile.id] = await service.pendingManualCredits(for: profile.id)
             }
             message = nil
+            convertLegacyMenuBarChoice()
         } catch {
             message = "Could not load accounts: \(error.localizedDescription)"
         }
