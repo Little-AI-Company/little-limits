@@ -218,17 +218,57 @@ struct ClaudeProviderProfile: Decodable, Sendable {
     struct Account: Decodable, Sendable {
         let uuid: UUID
         let email: String?
-        private enum CodingKeys: String, CodingKey { case uuid, email, email_address }
+        let hasClaudeMax: Bool?
+        let hasClaudePro: Bool?
+        private enum CodingKeys: String, CodingKey { case uuid, email, email_address, has_claude_max, has_claude_pro }
         init(from decoder: Decoder) throws {
             let values = try decoder.container(keyedBy: CodingKeys.self)
             uuid = try values.decode(UUID.self, forKey: .uuid)
             email = try values.decodeIfPresent(String.self, forKey: .email)
                 ?? values.decodeIfPresent(String.self, forKey: .email_address)
+            // A non-boolean flag must not reject the profile. The plan stays unknown.
+            hasClaudeMax = Self.optionalBoolean(values, .has_claude_max)
+            hasClaudePro = Self.optionalBoolean(values, .has_claude_pro)
+        }
+
+        private static func optionalBoolean(_ values: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) -> Bool? {
+            guard values.contains(key) else { return nil }
+            return try? values.decodeIfPresent(Bool.self, forKey: key)
         }
     }
-    struct Organization: Decodable, Sendable { let uuid: UUID }
+    struct Organization: Decodable, Sendable {
+        let uuid: UUID
+        let organizationType: String?
+        let subscriptionStatus: String?
+        private enum CodingKeys: String, CodingKey { case uuid, organization_type, subscription_status }
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            uuid = try values.decode(UUID.self, forKey: .uuid)
+            organizationType = Self.optionalText(values, .organization_type)
+            subscriptionStatus = Self.optionalText(values, .subscription_status)
+        }
+
+        private static func optionalText(_ values: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) -> String? {
+            guard values.contains(key) else { return nil }
+            guard let value = try? values.decodeIfPresent(String.self, forKey: key) else { return nil }
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+    }
     let account: Account
     let organization: Organization?
+
+    /// Team, Max, Pro, or Free from the profile flags already returned by the profile read. Missing or conflicting flags stay unknown.
+    var planName: String? {
+        if organization?.organizationType?.lowercased() == "claude_team",
+           organization?.subscriptionStatus?.lowercased() == "active" {
+            return "Team"
+        }
+        if account.hasClaudeMax == true { return "Max" }
+        if account.hasClaudePro == true { return "Pro" }
+        if account.hasClaudeMax == false, account.hasClaudePro == false { return "Free" }
+        return nil
+    }
 
     func resolvedIdentity(expected: String? = nil, tokenAccount: UUID? = nil, tokenOrganization: UUID? = nil) throws -> String {
         guard tokenAccount == nil || tokenAccount == account.uuid,
@@ -315,7 +355,7 @@ struct ClaudeUsageResponse: Decodable, Sendable {
         limits = try values.decodeIfPresent([Limit].self, forKey: Key(stringValue: "limits")) ?? []
     }
 
-    func snapshot(profileID: UUID, observedAt: Date = Date()) throws -> AccountSnapshot {
+    func snapshot(profileID: UUID, observedAt: Date = Date(), planName: String? = nil) throws -> AccountSnapshot {
         func reset(_ text: String?) throws -> Date? {
             guard let text else { return nil }
             let formatter = ISO8601DateFormatter()
@@ -366,7 +406,8 @@ struct ClaudeUsageResponse: Decodable, Sendable {
         return AccountSnapshot(profileID: profileID, fetchedAt: measured ? observedAt : nil, windows: result,
                                state: measured ? (stale ? .stale : .available) : .unavailable,
                                detail: measured ? (stale ? "A reported quota reset has passed. Check usage again." : "Read from this Claude account.")
-                               : "Claude returned no measured subscription quota. Your account may not expose these limits.")
+                               : "Claude returned no measured subscription quota. Your account may not expose these limits.",
+                               planName: planName)
     }
 }
 

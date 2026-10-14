@@ -31,6 +31,8 @@ import Testing
     #expect(snapshot.windows.last?.isActive == false)
     #expect(snapshot.windows.last?.title == "7 days (Example)")
     #expect(snapshot.credits.isEmpty)
+    #expect(snapshot.planName == nil)
+    #expect(snapshot.windows.allSatisfy { $0.windowDurationMinutes == nil })
     let missing = try JSONDecoder().decode(ClaudeUsageResponse.self, from: Data(#"{"five_hour":{"utilization":null}}"#.utf8)).snapshot(profileID: UUID())
     #expect(missing.state == .unavailable)
     #expect(missing.fetchedAt == nil)
@@ -136,7 +138,10 @@ import Testing
     #expect(profile.source == .claudeOAuth)
     #expect(profile.providerEmail == "example@example.com")
     #expect(profile.label == "Personal")
-    #expect(await fixture.service.snapshot(for: profile.id)?.windows.first?.utilizationPercent == 42)
+    let connected = await fixture.service.snapshot(for: profile.id)
+    #expect(connected?.windows.first?.utilizationPercent == 42)
+    #expect(connected?.planName == nil)
+    #expect(connected?.windows.first?.windowDurationMinutes == nil)
     let stored = try String(contentsOf: fixture.directory.appendingPathComponent("accounts.json"), encoding: .utf8)
     #expect(!stored.contains("example-access"))
     #expect(!stored.contains("example-refresh"))
@@ -403,6 +408,54 @@ import Testing
         let transport = OAuthTransport(steps: [.response(response)])
         await #expect(throws: UsageError.self) { try await ClaudeOAuthClient(transport: transport).usage(accessToken: "example") }
     }
+}
+
+@Test func claudeProfilePlanUsesSubscriptionFlagsAndIgnoresTierText() throws {
+    let account = #"{"uuid":"AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"}"#
+    #expect(try claudeProfilePlan(account: account) == nil)
+    #expect(try JSONDecoder().decode(ClaudeProviderProfile.self, from: profileResponse.body).planName == nil)
+    #expect(try claudeProfilePlan(account: #"{"uuid":"AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA","has_claude_max":true,"rate_limit_tier":"default_claude_max_20x"}"#) == "Max")
+    #expect(try claudeProfilePlan(account: #"{"uuid":"AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA","has_claude_pro":true}"#) == "Pro")
+    #expect(try claudeProfilePlan(account: #"{"uuid":"AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA","has_claude_max":true,"has_claude_pro":true}"#) == "Max")
+    #expect(try claudeProfilePlan(account: #"{"uuid":"AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA","has_claude_max":false,"has_claude_pro":false,"rate_limit_tier":"default_claude_max_20x"}"#) == "Free")
+    let team = #"{"uuid":"BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB","organization_type":"CLAUDE_TEAM","subscription_status":"Active"}"#
+    #expect(try claudeProfilePlan(account: #"{"uuid":"AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA","has_claude_max":true}"#, organization: team) == "Team")
+    let inactiveTeam = #"{"uuid":"BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB","organization_type":"claude_team","subscription_status":"inactive"}"#
+    #expect(try claudeProfilePlan(account: #"{"uuid":"AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA","has_claude_max":true}"#, organization: inactiveTeam) == "Max")
+    #expect(try claudeProfilePlan(account: #"{"uuid":"AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA","has_claude_max":"yes","has_claude_pro":1}"#) == nil)
+}
+
+@Test func claudePlanIsBoundFromTheValidatedProfileBeforeUsage() async throws {
+    let profile = ClaudeHTTPResponse(status: 200, contentType: "application/json",
+        body: Data(#"{"account":{"uuid":"AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA","email":"example@example.com","has_claude_max":true,"has_claude_pro":false,"rate_limit_tier":"default_claude_max_20x"},"organization":{"uuid":"BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB","organization_type":"claude_pro","subscription_status":"active"}}"#.utf8))
+    let fixture = try OAuthFixture(steps: [.response(tokenResponse), .response(profile), .response(profile), .response(usageResponse)])
+    defer { fixture.removeDirectory() }
+    let connected = try await fixture.connect()
+    let snapshot = try #require(await fixture.service.snapshot(for: connected.id))
+    #expect(snapshot.planName == "Max")
+    #expect(snapshot.windows.map(\.utilizationPercent) == [42])
+    #expect(snapshot.windows.map(\.windowDurationMinutes) == [nil])
+    let paths = await fixture.transport.requests.map { $0.url?.path }
+    #expect(paths == ["/v1/oauth/token", "/api/oauth/profile", "/api/oauth/profile", "/api/oauth/usage"])
+}
+
+@Test func nonBooleanClaudePlanFlagsDoNotRejectTheProfileRead() async throws {
+    let profile = ClaudeHTTPResponse(status: 200, contentType: "application/json",
+        body: Data(#"{"account":{"uuid":"AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA","email":"example@example.com","has_claude_max":"yes","has_claude_pro":1},"organization":{"uuid":"BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB"}}"#.utf8))
+    let fixture = try OAuthFixture(steps: [.response(tokenResponse), .response(profile), .response(profile), .response(usageResponse)])
+    defer { fixture.removeDirectory() }
+    let connected = try await fixture.connect()
+    let snapshot = try #require(await fixture.service.snapshot(for: connected.id))
+    #expect(snapshot.planName == nil)
+    #expect(snapshot.windows.first?.utilizationPercent == 42)
+    #expect(snapshot.windows.first?.windowDurationMinutes == nil)
+}
+
+private func claudeProfilePlan(account: String, organization: String? = nil) throws -> String? {
+    var json = #"{"account":"# + account
+    if let organization { json += #","organization":"# + organization }
+    json += "}"
+    return try JSONDecoder().decode(ClaudeProviderProfile.self, from: Data(json.utf8)).planName
 }
 
 private let tokenResponse = ClaudeHTTPResponse(status: 200, contentType: "application/json",

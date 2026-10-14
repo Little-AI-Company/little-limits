@@ -686,3 +686,50 @@ After rebase, `swift test` passed 58 tests (21 XCTest plus 37 Swift Testing), ze
 The rebased packaged app was opened with `--demo --show-accounts` and separately `--demo --demo-load-error --show-accounts`. Native AX/screenshots verified readable ordinary and two-line identities, distinct credit/reset units and Unknown amount, Command-comma focusing Launch at login, selected Settings state clearing on account selection, and loading-error retry restoring accounts. Account → Down → Return opened Details, and Return dismissed Done. A startup inspection timeout and a process selector that required launch arguments were corrected before the comparison; no source workaround or trust change was made. Prior detailed draft/removal and appearance evidence remains tied to the unchanged source digest. Direct status-menu interaction, minimum-size runtime layout, VoiceOver, connected Platform flow, accessibility preference transitions, older macOS/Intel, and notarization remain unverified.
 
 Local source review found no actionable regression. An optional Grok 4.7 read-only review did not finish and was stopped; it is not counted as passing verification. Implementation model attribution remains Grok 4.7 via agent/Grok Build; orchestration and completed review/verification were performed through Codex.
+
+
+## Home reset calendar, October 14, 2026
+
+Final verification used the uncommitted working tree after `b3a7d87208821d68b368e7a8f799b9d7324fd109`, on MacBookPro18,2, arm64, macOS 27.0.1 (26A434), the macOS 27 SDK, and Apple Swift 6.4. Implementation started from `0485bbec496a18c32cdecd96e087a586f7c586bf` plus the existing working-tree edits. An isolated managed worktree preserved that starting state. Each modified original file still matched the saved starting content before integration; unrelated edits and the subsequent account-navigation/documentation commits were retained. The source/test digest below identifies the actual checked inputs independently of commit history.
+
+Grok 4.7 wrote the initial implementation through the installed `agent` CLI, identified locally as Grok Build 1.0.52. Separate workers owned UsageCore data, native Home views, and window integration. Grok stopped with HTTP 402, usage balance exhausted. The user authorized Codex to complete the work. Codex corrected compilation, reviewed the source and data contracts, fixed native pointer and accessibility issues, and performed the final checks. An independent source review identified ordinary Codex meter classification and passed earned-reset expiry defects; both fixes have focused retained tests. No new provider endpoint, model request probe, reset consumption, dependency, or distribution change was added.
+
+Home is the default management-window surface, with two-week/month date navigation, account filtering, native event popovers, an account table, reported plan metadata, and provider window durations. Only current measured quota resets enter the calendar. Unknown, historical, inactive, failed, and sign-in states remain explicit. Earned reset expiry remains separate from quota reset dates and monetary credits.
+
+| Command or inspection | Observed result |
+| --- | --- |
+| `swift test` in the original checkout after integration | Passed 84 tests: 21 XCTest, 54 UsageCore Swift Testing, and 9 native Home/formatting tests, zero failures; build 9.41 seconds. |
+| `swift test --filter AIUsageStatsTests` in the isolated worktree | Passed all 9 focused tests. Tests cover actual native button hit testing/action dispatch, ordinary versus additional Codex meters, zero/unknown/partial readings, and independent earned-reset count and expiry freshness. |
+| `swift build -c release` in the original checkout | Passed in 18.97 seconds. Existing Keychain deprecation warnings retained. |
+| `scripts/package_app.sh` in the original checkout | Passed with the existing configured local identity; cached Release build 0.30 seconds. |
+| `codesign --verify --deep --strict "dist/AI Usage Stats.app"` | Passed on the final bundle. |
+| `plutil -lint "dist/AI Usage Stats.app/Contents/Info.plist"` | Passed. Bundle version 0.1.0 build 1, macOS minimum 14.0, LSUIElement enabled. |
+| `lipo -archs "dist/AI Usage Stats.app/Contents/MacOS/AIUsageStats"` and the same command for `UsageCapture` | Both executables arm64. |
+| Provider-resource comparison and app icon inspection | All six provider resources matched their source bytes; AppIcon.icns present. |
+| `git diff --check` | Passed. |
+
+Initial runs encountered compiler errors in new code and tests, including an identity member reference, SDK enum/accessibility names, a formatter name collision, tuple-array equality, and omitted fixture initializer arguments. Those errors were corrected; failed runs are not counted as passing verification. No assertion was weakened to hide a failure.
+
+Packaged demo inspections used these arguments with `open -n "dist/AI Usage Stats.app"`; the prior development instance was closed between launches:
+
+- `--demo-home --show-home`, and separately `--dark-appearance`: four fictional accounts, nine current resets, legible today date, one accessibility button per event, separate model-scoped limits, exact popover identity/dates, and quota/earned-reset units.
+- `--demo-reading-states --show-home`: three current Claude events only; sign-in failure, historical Codex values, unknown data, and disabled demo reconnection/refresh actions.
+- `--demo --demo-empty --show-home`: setup message and no calendar toolbar.
+- `--demo --demo-load-error --show-home`: focused Retry Loading Accounts; Space restored populated readings and the toolbar.
+
+Native actions verified click/Return popovers, Escape dismissal and focus return, View Account navigation, month switching, Next/Today date navigation, a period without reported resets, keyboard account filtering of both calendar and table, vertical table scrolling, and Command-comma focus on Launch at login without changing it. Settings-to-Home navigation retained the filter. Native Zoom was observed in the worktree build. Final light/dark appearance and accessibility trees were inspected; this does not establish measured contrast or VoiceOver speech.
+
+Pointer-only hover was implemented with native tracking areas, but the automation did not establish its behavior in an active foreground window. Bounded drag attempts did not establish minimum-size layout or column resizing. A separate `--demo-home --show-menu` inspection timed out twice in computer-use state retrieval; its exact demo process was terminated and a normal Home inspection restored, so direct status-menu tracking is not claimed verified. Minimum macOS 14 runtime, Intel execution, actual accessibility-preference transitions, live multiple-account provider responses, sign-in/reconnection, preserved manual drafts across Home navigation, Platform browser transitions, and notarization remain unverified for this feature. Provider parsing, account separation, missing fields, failure handling, plan precedence, and persisted older snapshots were exercised with redacted fixtures and existing tests.
+
+The normal final packaged app was launched with `--show-home`; a redacted native-state inspection confirmed selected Home, the calendar, and no demo label. It remains open for use. No sign-in, manual balance save, startup preference change, or credential action was performed through the UI. Normal monitoring retains its existing read-only behavior.
+
+Source/test SHA-256: `268fceba2ee653c45af37be661b9d20282476b495b42a95b62973a57ef7a1c52`; signed executable SHA-256: `a4d405f1d19d99c322b4ecb441527300945d51207155538e7a36825ffd28487d`. The source digest covers sorted repository-relative Swift paths under Sources and Tests plus Package.swift, hashing each path, NUL, content, NUL. A final comparison confirmed unchanged checked/package inputs. The app and ZIP are local development artifacts; signature integrity does not establish Developer ID trust or notarization. The initial implementation pass ended before committing or publishing this feature.
+
+
+## Home warning review corrections, October 14, 2026
+
+PR #13 identified two recovery-warning errors at baseline `d778ce4d9419cc1e9b1a0ea652ffab7568952ce2`. In the packaged baseline, launch with `--demo-reading-states --show-home`, then filter to Claude personal: only its healthy table/calendar data remained, but the unavailable-reading warning stayed visible. `HomeViewController.render` evaluated all accounts instead of the filtered accounts. The retained `inactiveQuotasDoNotRequestRecovery` test also failed once on baseline production code: `HomeInterfaceFormatting.attentionNeeded` treated a valid inactive summary as unavailable. Its authentication-failure case still required recovery.
+
+The warning now evaluates the same filtered accounts as the table and treats current inactive quotas as valid metadata. `swift test` passed 85 tests (21 XCTest, 54 UsageCore Swift Testing, 10 Home tests), zero failures, build 3.22 seconds. `swift build -c release` passed in 17.26 seconds; canonical packaging and strict signature validation passed. On macOS 27.0.1, the corrected packaged demo showed the warning for All accounts, omitted it for healthy Claude personal, and retained it for Claude studio requiring sign-in. The two source changes and focused test were reviewed; `git diff --check` passed. Earlier runtime and distribution limits remain in effect.
+
+Corrected source/test SHA-256: `243d516f35b42860b7fb0ca5ec9eab8e6c8a7bdc9d53f06a900dcd4ae0e4f451`; signed executable SHA-256: `ee882db5670686f4dcb23b09b59d055e353ba089fd826951677f1cf2b1491a68`. This record describes the checked working-tree inputs after the named baseline; the PR records the committed tested revision.

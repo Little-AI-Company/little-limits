@@ -3,7 +3,9 @@ import UsageCore
 
 @MainActor
 final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
-    private let model = ApplicationModel(isDemo: CommandLine.arguments.contains("--demo"))
+    private let model = ApplicationModel(isDemo: CommandLine.arguments.contains("--demo")
+        || CommandLine.arguments.contains("--demo-home")
+        || CommandLine.arguments.contains("--demo-reading-states"))
     private let statusMenu = NSMenu(title: "AI Usage Stats")
     private var isMenuTracking = false
     private var statusItem: NSStatusItem?
@@ -43,7 +45,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             render()
             model.refreshIfNeeded()
             startRefreshTimer()
-            if CommandLine.arguments.contains("--show-accounts") { showAccounts(nil) }
+            if CommandLine.arguments.contains("--show-home") || CommandLine.arguments.contains("--show-accounts") {
+                showAccounts(nil)
+            }
             if CommandLine.arguments.contains("--show-menu") || CommandLine.arguments.contains("--show-panel") {
                 // Let AppKit finish placing the status item before opening the real menu.
                 try? await Task.sleep(for: .milliseconds(200))
@@ -62,7 +66,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        presentAccountsWindow(nil, selectOverview: false)
+        presentAccountsWindow(nil, presentation: .preserve)
         return false
     }
 
@@ -152,10 +156,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
 
     @objc private func showAccounts(_ sender: Any?) {
-        presentAccountsWindow(sender, selectOverview: true)
+        presentAccountsWindow(sender, presentation: .home)
     }
 
-    private func presentAccountsWindow(_ sender: Any?, selectOverview: Bool) {
+    private enum AccountsWindowPresentation { case preserve, home, settings }
+
+    private func presentAccountsWindow(_ sender: Any?, presentation: AccountsWindowPresentation) {
         statusMenu.cancelTracking()
         if accounts == nil {
             accounts = AccountsWindowController(model: model)
@@ -173,8 +179,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
         isAccountsWindowOpen = true
         updateActivationPolicy()
-        if selectOverview { accounts?.showAccounts() }
-        else { accounts?.render() }
+        switch presentation {
+        case .preserve:
+            accounts?.render()
+        case .home:
+            accounts?.showHome()
+        case .settings:
+            accounts?.render()
+            accounts?.showSettings()
+        }
         if accounts?.window?.isMiniaturized == true { accounts?.window?.deminiaturize(sender) }
         accounts?.showWindow(sender)
         accounts?.window?.makeKeyAndOrderFront(sender)
@@ -193,8 +206,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         if NSApp.activationPolicy() != policy { NSApp.setActivationPolicy(policy) }
     }
     @objc private func showSettings(_ sender: Any?) {
-        showAccounts(sender)
-        accounts?.showSettings()
+        presentAccountsWindow(sender, presentation: .settings)
     }
     @objc private func refreshAccounts(_ sender: Any?) { model.refresh() }
 
@@ -203,7 +215,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private func addAccount(_ provider: Provider) {
         guard accountsLoaded, !model.hasAccountLoadFailure, !model.isDemo,
               !model.isRefreshing, !model.isChangingAccounts else { return }
-        showAccounts(nil)
+        revealAccountsWindow(nil)
         accounts?.connect(provider)
     }
 
@@ -289,13 +301,17 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         platformControllers[id] = controller
         return controller
     }
+    private func revealAccountsWindow(_ sender: Any?) {
+        presentAccountsWindow(sender, presentation: .preserve)
+    }
+
     private func showClaudePlatform(_ id: UUID) {
         guard let controller = platformController(id) else { return }
-        showAccounts(nil)
+        revealAccountsWindow(nil)
         accounts?.showPlatform(controller, accountID: id)
     }
     private func showClaudeSignIn(id: UUID?, label: String) {
-        showAccounts(nil)
+        revealAccountsWindow(nil)
         guard let parent = accounts?.window else { return }
         if let controller = claudeSignIn, controller.window?.sheetParent != nil {
             parent.makeKeyAndOrderFront(nil)
@@ -328,7 +344,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let alert = NSAlert()
         alert.messageText = "AI Usage Stats"
         alert.informativeText = message
-        showAccounts(nil)
+        revealAccountsWindow(nil)
         if let window = accounts?.window { alert.beginSheetModal(for: window) }
     }
 

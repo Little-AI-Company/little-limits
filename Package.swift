@@ -14,6 +14,7 @@ let package = Package(
         .executableTarget(name: "UsageCapture", dependencies: ["UsageCore"]),
         .executableTarget(name: "AIUsageStats", dependencies: ["UsageCore"],
                           resources: [.copy("Resources/ProviderIcons")]),
-        .testTarget(name: "UsageCoreTests", dependencies: ["UsageCore"])
+        .testTarget(name: "UsageCoreTests", dependencies: ["UsageCore"]),
+        .testTarget(name: "AIUsageStatsTests", dependencies: ["AIUsageStats", "UsageCore"])
     ]
 )

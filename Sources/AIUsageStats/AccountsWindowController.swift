@@ -3,9 +3,22 @@ import UsageCore
 
 @MainActor
 final class AccountsWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate {
-    private enum Section: Equatable { case account, settings, platform }
+    private enum Section: Equatable { case home, account, settings, platform }
+    private enum WindowSurface: Equatable { case home, account, platform }
+    private struct WindowSizeLimits {
+        var minimum: NSSize
+        var maximum: NSSize
+    }
+    private static let homeRow = 0
+    private static let accountRowOffset = 1
     private static let accountWindowMinimumSize = NSSize(width: 660, height: 460)
     private static let accountWindowMaximumSize = NSSize(width: 960, height: 760)
+    private static let accountWindowDefaultSize = NSSize(width: 700, height: 540)
+    // Seven calendar columns plus the account table. The range stays resizable;
+    // account, settings, and Platform keep their own limits.
+    private static let homeWindowMinimumSize = NSSize(width: 1020, height: 640)
+    private static let homeWindowMaximumSize = NSSize(width: 1680, height: 1040)
+    private static let homeWindowDefaultSize = NSSize(width: 1280, height: 780)
     private static let platformWindowMinimumSize = NSSize(width: 960, height: 600)
     private static let platformWindowMaximumSize = NSSize(width: 1280, height: 900)
     private static let platformWindowDefaultSize = NSSize(width: 1000, height: 700)
@@ -13,12 +26,16 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     // 228 points keeps personal@example.invalid on one line. Longer identities wrap to two.
     private static let sidebarWidth: CGFloat = 228
     private let model: ApplicationModel
-    private var section = Section.account
+    private let home: HomeViewController
+    private var section = Section.home
     private let detailContainer = NSView()
     private let detailScroll = NSScrollView()
     private let settings = GeneralSettingsViewController()
     private var platform: ClaudePlatformViewController?
-    private var accountWindowSize: NSSize?
+    private var homeWindowSize = AccountsWindowController.homeWindowDefaultSize
+    private var accountWindowSize = AccountsWindowController.accountWindowDefaultSize
+    private var platformWindowSize: NSSize?
+    private var isApplyingWindowSize = false
     private let table = AccountSidebarTableView()
     private let accountTitle = InterfaceControls.label("", size: 20, weight: .semibold)
     private let attention = InterfaceControls.label("", size: 12)
@@ -67,12 +84,13 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
 
     init(model: ApplicationModel) {
         self.model = model
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 700, height: 540),
+        self.home = HomeViewController(model: model)
+        let window = NSWindow(contentRect: NSRect(origin: .zero, size: Self.homeWindowDefaultSize),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "AI Usage Stats"
         window.isReleasedWhenClosed = false
-        window.contentMinSize = Self.accountWindowMinimumSize
-        window.contentMaxSize = Self.accountWindowMaximumSize
+        window.contentMinSize = Self.homeWindowMinimumSize
+        window.contentMaxSize = Self.homeWindowMaximumSize
         super.init(window: window)
         window.delegate = self
         configure()
@@ -81,6 +99,10 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     required init?(coder: NSCoder) { nil }
 
     private func configure() {
+        home.onViewAccount = { [weak self] id in self?.showAccount(id: id) }
+        home.onReconnectAccount = { [weak self] id in self?.reconnectAccount(id: id) }
+        home.onRetryAccountLoad = { [weak self] in self?.onRetryAccountLoad?() }
+        home.isAccountLoadComplete = { [weak self] in self?.isAccountLoadComplete() ?? false }
         guard let root = window?.contentView else { return }
         let sidebar = NSVisualEffectView()
         sidebar.material = .sidebar
@@ -102,8 +124,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         table.intercellSpacing = NSSize(width: 0, height: 2)
         table.allowsEmptySelection = true
         table.backgroundColor = .clear
-        table.setAccessibilityLabel("Accounts")
-        table.setAccessibilityHelp("Select an account to view usage. Use the context menu or Delete key to remove an account with confirmation.")
+        table.setAccessibilityLabel("Sidebar")
+        table.setAccessibilityHelp("Select Home or an account. The context menu and Delete key remove the selected account after confirmation.")
         table.accountMenu = { [weak self] row in self?.accountContextMenu(row: row) }
         table.removeSelectedAccount = { [weak self] in self?.removeSelectedAccount() }
         let accountScroll = NSScrollView()
@@ -335,6 +357,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         window?.initialFirstResponder = table
         window?.recalculateKeyViewLoop()
         fitAccountColumn()
+        applyWindowLimits(for: .home)
         render()
     }
 
@@ -345,13 +368,15 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             (profile.id, sidebarDisplay(profile: profile, now: now))
         })
         isUpdatingSelection = true
-        if displayedProfiles != model.profiles {
-            displayedProfiles = model.profiles
+        let profilesChanged = displayedProfiles != model.profiles
+        if profilesChanged { displayedProfiles = model.profiles }
+        if profilesChanged || table.numberOfRows != displayedProfiles.count + 1 {
             sidebarDisplays = nextDisplays
             table.reloadData()
         } else {
             var rowsNeedingHeight = IndexSet()
-            for (row, profile) in displayedProfiles.enumerated() where sidebarDisplays[profile.id] != nextDisplays[profile.id] {
+            for (index, profile) in displayedProfiles.enumerated() where sidebarDisplays[profile.id] != nextDisplays[profile.id] {
+                let row = index + Self.accountRowOffset
                 if sidebarDisplays[profile.id]?.identity != nextDisplays[profile.id]?.identity {
                     rowsNeedingHeight.insert(row)
                 }
@@ -364,15 +389,26 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
                 table.noteHeightOfRows(withIndexesChanged: rowsNeedingHeight)
             }
         }
-        if section == .settings {
+        switch section {
+        case .settings:
             if !model.profiles.contains(where: { $0.id == selectedID }) { selectedID = nil }
             table.deselectAll(nil)
-        } else if let selectedID, let index = model.profiles.firstIndex(where: { $0.id == selectedID }) {
-            table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
-        } else if !model.profiles.isEmpty {
-            table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-            selectedID = model.profiles[0].id
-        } else { selectedID = nil; table.deselectAll(nil) }
+        case .home:
+            if let selectedID, !model.profiles.contains(where: { $0.id == selectedID }) { self.selectedID = nil }
+            if table.numberOfRows > Self.homeRow {
+                table.selectRowIndexes(IndexSet(integer: Self.homeRow), byExtendingSelection: false)
+            }
+        case .account, .platform:
+            if let selectedID, let row = sidebarRow(for: selectedID) {
+                table.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+            } else if let first = model.profiles.first {
+                table.selectRowIndexes(IndexSet(integer: Self.accountRowOffset), byExtendingSelection: false)
+                selectedID = first.id
+            } else {
+                selectedID = nil
+                table.deselectAll(nil)
+            }
+        }
         isUpdatingSelection = false
         if section == .platform, previousID != selectedID { showAccountDetail() }
         if let platform, !model.profiles.contains(where: { $0.id == platform.accountID }) { showAccountDetail() }
@@ -393,6 +429,13 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         updateEditorAvailability()
         renderAccountLoadState()
         updateWindowTitle()
+        if section == .home {
+            if settings.isViewLoaded { settings.view.removeFromSuperview() }
+            detailScroll.isHidden = true
+            installDetailView(home.view)
+            window?.contentView?.layoutSubtreeIfNeeded()
+            home.render()
+        }
     }
 
     private func renderAccountLoadState() {
@@ -412,23 +455,31 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         onRetryAccountLoad?()
     }
 
-    func showAccounts() {
+    func showHome() {
         guard window?.attachedSheet == nil else { return }
-        showAccountDetail()
+        let entering = section != .home
+        leavePlatform()
+        if settings.isViewLoaded { settings.view.removeFromSuperview() }
+        detailScroll.isHidden = true
+        installDetailView(home.view)
+        setSection(.home)
         render()
+        guard entering, let window, window.isVisible else { return }
+        window.contentView?.layoutSubtreeIfNeeded()
+        home.focusInitialControl()
     }
 
     func showSettings() {
         guard window?.attachedSheet == nil else { return }
         leavePlatform()
-        section = .settings
+        hideHome()
         detailScroll.isHidden = true
         installDetailView(settings.view)
         settings.refresh()
+        setSection(.settings)
         isUpdatingSelection = true
         table.deselectAll(nil)
         isUpdatingSelection = false
-        updateWindowTitle()
         window?.recalculateKeyViewLoop()
         settings.focusInitialControl()
     }
@@ -438,17 +489,13 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     func showPlatform(_ controller: ClaudePlatformViewController, accountID: UUID) {
         guard window?.attachedSheet == nil else { return }
         leavePlatform()
-        section = .platform
+        hideHome()
+        if settings.isViewLoaded { settings.view.removeFromSuperview() }
         selectedID = accountID
         platform = controller
         controller.onBack = { [weak self] in self?.showAccountDetail(); self?.render() }
-        if settings.isViewLoaded { settings.view.removeFromSuperview() }
         detailScroll.isHidden = true
-        accountWindowSize = window?.contentView?.frame.size
-        window?.contentMaxSize = Self.platformWindowMaximumSize
-        window?.contentMinSize = Self.platformWindowMinimumSize
-        window?.setContentSize(NSSize(width: max(Self.platformWindowDefaultSize.width, accountWindowSize?.width ?? 0),
-                                      height: max(Self.platformWindowDefaultSize.height, accountWindowSize?.height ?? 0)))
+        setSection(.platform)
         installDetailView(controller.view)
         controller.presentPane()
         render()
@@ -472,30 +519,54 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         platform?.onBack = nil
         if let platform, platform.isViewLoaded { platform.view.removeFromSuperview() }
         platform = nil
-        if let size = accountWindowSize {
-            window?.contentMinSize = Self.accountWindowMinimumSize
-            window?.contentMaxSize = Self.accountWindowMaximumSize
-            window?.setContentSize(size)
-            accountWindowSize = nil
-        }
+    }
+
+    private func hideHome() {
+        guard home.isViewLoaded, home.view.superview != nil else { return }
+        home.dismissDetails()
+        home.view.removeFromSuperview()
     }
 
     private func showAccountDetail() {
         leavePlatform()
-        section = .account
+        hideHome()
         if settings.isViewLoaded { settings.view.removeFromSuperview() }
         detailScroll.isHidden = false
-        updateWindowTitle()
+        setSection(.account)
         window?.recalculateKeyViewLoop()
+    }
+
+    private func showAccount(id: UUID) {
+        guard window?.attachedSheet == nil, model.profiles.contains(where: { $0.id == id }) else { return }
+        let changed = selectedID != id
+        selectedID = id
+        showAccountDetail()
+        if changed {
+            editorNeedsReload = false
+            editorReloadRevision = nil
+            renderSelection()
+        }
+        render()
+    }
+
+    private func reconnectAccount(id: UUID) {
+        guard canModifyAccounts, window?.attachedSheet == nil,
+              let profile = model.profiles.first(where: { $0.id == id }) else { return }
+        if profile.provider == .claude { onClaudeConnection?(id, InterfaceFormatting.accountIdentity(profile)) }
+        else { model.signInCodex(id) }
     }
 
     private func updateWindowTitle() {
         updateSettingsButtonState()
         let title: String
-        if section == .settings { title = "App Settings" }
-        else if let profile = model.profiles.first(where: { $0.id == selectedID }) {
-            title = "\(InterfaceFormatting.provider(profile.provider)) · \(InterfaceFormatting.accountIdentity(profile))"
-        } else { title = "AI Usage Stats" }
+        switch section {
+        case .settings: title = "App Settings"
+        case .home: title = "AI Usage Stats"
+        case .account, .platform:
+            if let profile = model.profiles.first(where: { $0.id == selectedID }) {
+                title = "\(InterfaceFormatting.provider(profile.provider)) · \(InterfaceFormatting.accountIdentity(profile))"
+            } else { title = "AI Usage Stats" }
+        }
         if window?.title != title { window?.title = title }
     }
 
@@ -507,15 +578,28 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
 
     func windowWillClose(_ notification: Notification) {
         platform?.hidePane(pauseRefresh: true)
+        if home.isViewLoaded { home.dismissDetails() }
     }
 
     override func showWindow(_ sender: Any?) {
+        let wasVisible = window?.isVisible == true
         if section == .platform { platform?.presentPane() }
         super.showWindow(sender)
         fitAccountColumn()
+        guard section == .home, !wasVisible else { return }
+        window?.contentView?.layoutSubtreeIfNeeded()
+        home.focusInitialControl()
     }
 
-    func windowDidResize(_ notification: Notification) { fitAccountColumn() }
+    func windowDidResize(_ notification: Notification) {
+        fitAccountColumn()
+        guard !isApplyingWindowSize, let size = window?.contentView?.frame.size else { return }
+        switch windowSurface(for: section) {
+        case .home: homeWindowSize = size
+        case .account: accountWindowSize = size
+        case .platform: platformWindowSize = size
+        }
+    }
 
     private func fitAccountColumn() {
         window?.contentView?.layoutSubtreeIfNeeded()
@@ -526,9 +610,15 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         table.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<table.numberOfRows))
     }
 
-    func numberOfRows(in tableView: NSTableView) -> Int { model.profiles.count }
+    func numberOfRows(in tableView: NSTableView) -> Int { displayedProfiles.count + 1 }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        guard displayedProfiles.indices.contains(row), let display = sidebarDisplays[displayedProfiles[row].id] else { return nil }
+        if row == Self.homeRow {
+            let identifier = NSUserInterfaceItemIdentifier("home")
+            let cell = tableView.makeView(withIdentifier: identifier, owner: self) as? HomeSidebarCellView ?? HomeSidebarCellView()
+            cell.identifier = identifier
+            return cell
+        }
+        guard let index = profileIndex(forSidebarRow: row), let display = sidebarDisplays[displayedProfiles[index].id] else { return nil }
         let identifier = NSUserInterfaceItemIdentifier("account")
         let cell = tableView.makeView(withIdentifier: identifier, owner: self) as? AccountSidebarCellView ?? AccountSidebarCellView()
         cell.identifier = identifier
@@ -538,8 +628,9 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     }
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-        guard displayedProfiles.indices.contains(row) else { return AccountSidebarCellView.singleLineRowHeight }
-        let identity = sidebarDisplays[displayedProfiles[row].id]?.identity ?? ""
+        if row == Self.homeRow { return HomeSidebarCellView.rowHeight }
+        guard let index = profileIndex(forSidebarRow: row) else { return AccountSidebarCellView.singleLineRowHeight }
+        let identity = sidebarDisplays[displayedProfiles[index].id]?.identity ?? ""
         return AccountSidebarCellView.rowHeight(for: identity, columnWidth: tableView.tableColumns.first?.width ?? 0)
     }
 
@@ -564,11 +655,15 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     }
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard !isUpdatingSelection else { return }
-        let index = table.selectedRow
-        let accountID = model.profiles.indices.contains(index) ? model.profiles[index].id : nil
+        let row = table.selectedRow
+        if row == Self.homeRow {
+            showHome()
+            return
+        }
+        guard let accountID = accountID(forSidebarRow: row) else { return }
         let changedAccount = selectedID != accountID
-        showAccountDetail()
         selectedID = accountID
+        showAccountDetail()
         if changedAccount { renderSelection() }
         updateWindowTitle()
         updateEditorAvailability()
@@ -803,9 +898,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private var canModifyAccounts: Bool { !model.isDemo && !model.isChangingAccounts && !model.isRefreshing }
 
     private func accountContextMenu(row: Int) -> NSMenu? {
-        guard displayedProfiles.indices.contains(row) else { return nil }
-        let id = displayedProfiles[row].id
-        guard model.profiles.contains(where: { $0.id == id }) else { return nil }
+        guard let id = accountID(forSidebarRow: row) else { return nil }
         let menu = NSMenu()
         menu.autoenablesItems = false
         let item = NSMenuItem(title: "Remove Account…", action: #selector(removeAccountFromMenu(_:)), keyEquivalent: "")
@@ -817,8 +910,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     }
 
     private func removeSelectedAccount() {
-        guard section != .settings, displayedProfiles.indices.contains(table.selectedRow) else { return }
-        confirmAccountRemoval(id: displayedProfiles[table.selectedRow].id)
+        guard section != .settings, section != .home, let id = accountID(forSidebarRow: table.selectedRow) else { return }
+        confirmAccountRemoval(id: id)
     }
 
     @objc private func removeSelectedAccountFromActions(_ sender: Any?) {
@@ -904,6 +997,124 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         alert.informativeText = message
         if let window { alert.beginSheetModal(for: window) }
     }
+
+    private func setSection(_ newSection: Section) {
+        let previous = windowSurface(for: section)
+        section = newSection
+        if previous != windowSurface(for: section) { applyWindowLimits(for: windowSurface(for: section)) }
+        updateWindowTitle()
+    }
+
+    private func windowSurface(for section: Section) -> WindowSurface {
+        switch section {
+        case .home: return .home
+        case .account, .settings: return .account
+        case .platform: return .platform
+        }
+    }
+
+    private func sizeLimits(for surface: WindowSurface) -> WindowSizeLimits {
+        switch surface {
+        case .home:
+            return WindowSizeLimits(minimum: Self.homeWindowMinimumSize, maximum: Self.homeWindowMaximumSize)
+        case .account:
+            return WindowSizeLimits(minimum: Self.accountWindowMinimumSize, maximum: Self.accountWindowMaximumSize)
+        case .platform:
+            return WindowSizeLimits(minimum: Self.platformWindowMinimumSize, maximum: Self.platformWindowMaximumSize)
+        }
+    }
+
+    private func preferredWindowContentSize(for surface: WindowSurface) -> NSSize {
+        switch surface {
+        case .home: return homeWindowSize
+        case .account: return accountWindowSize
+        case .platform:
+            // Match the previous Platform behavior: grow to the Platform default without shrinking a larger account window.
+            return platformWindowSize ?? NSSize(width: max(Self.platformWindowDefaultSize.width, accountWindowSize.width),
+                                                height: max(Self.platformWindowDefaultSize.height, accountWindowSize.height))
+        }
+    }
+
+    private func applyWindowLimits(for surface: WindowSurface) {
+        guard let window else { return }
+        let limits = sizeLimits(for: surface)
+        isApplyingWindowSize = true
+        defer { isApplyingWindowSize = false }
+        // Lower the minimum before the maximum so a smaller surface can take effect.
+        window.contentMinSize = NSSize(width: min(window.contentMinSize.width, limits.minimum.width),
+                                       height: min(window.contentMinSize.height, limits.minimum.height))
+        window.contentMaxSize = limits.maximum
+        window.contentMinSize = limits.minimum
+        window.setContentSize(fittedContentSize(preferredWindowContentSize(for: surface), limits: limits))
+    }
+
+    private func fittedContentSize(_ proposed: NSSize, limits: WindowSizeLimits) -> NSSize {
+        let bounded = NSSize(width: min(max(proposed.width, limits.minimum.width), limits.maximum.width),
+                             height: min(max(proposed.height, limits.minimum.height), limits.maximum.height))
+        guard let window, let visible = (window.screen ?? NSScreen.main)?.visibleFrame else { return bounded }
+        let contentHeight = window.contentView?.frame.height ?? bounded.height
+        let chrome = max(28, window.frame.height - contentHeight)
+        return NSSize(width: min(bounded.width, max(limits.minimum.width, visible.width - 24)),
+                      height: min(bounded.height, max(limits.minimum.height, visible.height - chrome - 8)))
+    }
+
+    // Row 0 is Home. Later rows follow the saved account order and are addressed by UUID.
+    private func profileIndex(forSidebarRow row: Int) -> Int? {
+        let index = row - Self.accountRowOffset
+        guard row != Self.homeRow, displayedProfiles.indices.contains(index) else { return nil }
+        return index
+    }
+
+    private func accountID(forSidebarRow row: Int) -> UUID? {
+        guard let index = profileIndex(forSidebarRow: row) else { return nil }
+        let id = displayedProfiles[index].id
+        guard model.profiles.contains(where: { $0.id == id }) else { return nil }
+        return id
+    }
+
+    private func sidebarRow(for accountID: UUID) -> Int? {
+        guard let index = displayedProfiles.firstIndex(where: { $0.id == accountID }) else { return nil }
+        return index + Self.accountRowOffset
+    }
+}
+
+@MainActor
+private final class HomeSidebarCellView: NSTableCellView {
+    static let rowHeight: CGFloat = 32
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        let symbol = NSImage(systemSymbolName: "house", accessibilityDescription: nil)
+        symbol?.isTemplate = true
+        let image = NSImageView()
+        image.image = symbol
+        image.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+        image.imageScaling = .scaleProportionallyDown
+        image.translatesAutoresizingMaskIntoConstraints = false
+        image.setAccessibilityElement(false)
+        let label = NSTextField(labelWithString: "Home")
+        label.font = .systemFont(ofSize: 13)
+        label.lineBreakMode = .byTruncatingTail
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.setAccessibilityElement(false)
+        imageView = image
+        textField = label
+        addSubview(image)
+        addSubview(label)
+        NSLayoutConstraint.activate([
+            image.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            image.centerYAnchor.constraint(equalTo: centerYAnchor),
+            image.widthAnchor.constraint(equalToConstant: 16),
+            image.heightAnchor.constraint(equalToConstant: 16),
+            label.leadingAnchor.constraint(equalTo: image.trailingAnchor, constant: 6),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -8),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor)
+        ])
+        setAccessibilityLabel("Home")
+        setAccessibilityHelp("Show the reset calendar and account usage.")
+    }
+
+    required init?(coder: NSCoder) { nil }
 }
 
 @MainActor

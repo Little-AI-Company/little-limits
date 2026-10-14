@@ -49,16 +49,21 @@ public struct UsageWindow: Identifiable, Codable, Sendable, Equatable {
     public let utilizationPercent: Double?
     public let resetsAt: Date?
     public let isActive: Bool?
+    public let windowDurationMinutes: Int?
 
-    public init(id: String, title: String, utilizationPercent: Double?, resetsAt: Date?, isActive: Bool? = nil) {
+    public init(id: String, title: String, utilizationPercent: Double?, resetsAt: Date?, isActive: Bool? = nil,
+                windowDurationMinutes: Int? = nil) {
         self.id = id
         self.title = title
         self.utilizationPercent = utilizationPercent.flatMap { $0.isFinite ? min(100, max(0, $0)) : nil }
         self.resetsAt = resetsAt
         self.isActive = isActive
+        self.windowDurationMinutes = windowDurationMinutes
     }
 
-    private enum CodingKeys: String, CodingKey { case id, title, utilizationPercent, resetsAt, isActive }
+    private enum CodingKeys: String, CodingKey {
+        case id, title, utilizationPercent, resetsAt, isActive, windowDurationMinutes
+    }
 
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -66,7 +71,8 @@ public struct UsageWindow: Identifiable, Codable, Sendable, Equatable {
                   title: try values.decode(String.self, forKey: .title),
                   utilizationPercent: try values.decodeIfPresent(Double.self, forKey: .utilizationPercent),
                   resetsAt: try values.decodeIfPresent(Date.self, forKey: .resetsAt),
-                  isActive: try values.decodeIfPresent(Bool.self, forKey: .isActive))
+                  isActive: try values.decodeIfPresent(Bool.self, forKey: .isActive),
+                  windowDurationMinutes: try values.decodeIfPresent(Int.self, forKey: .windowDurationMinutes))
     }
 
     public func secondsUntilReset(at date: Date = Date()) -> TimeInterval? {
@@ -130,16 +136,37 @@ public struct AccountSnapshot: Codable, Sendable, Equatable {
     public let credits: [CreditBalance]
     public let state: SnapshotState
     public let detail: String?
+    public let planName: String?
     public var currentWindows: [UsageWindow] { windows.filter { $0.isActive != false } }
 
     public init(profileID: UUID, fetchedAt: Date? = nil, windows: [UsageWindow] = [],
-                credits: [CreditBalance] = [], state: SnapshotState, detail: String? = nil) {
+                credits: [CreditBalance] = [], state: SnapshotState, detail: String? = nil,
+                planName: String? = nil) {
         self.profileID = profileID
         self.fetchedAt = fetchedAt
         self.windows = windows
         self.credits = credits
         self.state = state
         self.detail = detail
+        self.planName = planName.flatMap { value in
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case profileID, fetchedAt, windows, credits, state, detail, planName
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(profileID: try values.decode(UUID.self, forKey: .profileID),
+                  fetchedAt: try values.decodeIfPresent(Date.self, forKey: .fetchedAt),
+                  windows: try values.decode([UsageWindow].self, forKey: .windows),
+                  credits: try values.decode([CreditBalance].self, forKey: .credits),
+                  state: try values.decode(SnapshotState.self, forKey: .state),
+                  detail: try values.decodeIfPresent(String.self, forKey: .detail),
+                  planName: try values.decodeIfPresent(String.self, forKey: .planName))
     }
 }
 
