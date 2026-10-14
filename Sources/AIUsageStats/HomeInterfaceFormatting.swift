@@ -33,6 +33,8 @@ enum HomeReadingTone: Equatable {
     }
 }
 
+/// One quota reading in a table cell. `primary` is the value alone; a non-neutral `tone` supplies the
+/// `Low` or `Limit reached` line, and the accessibility label carries the full "0% left, Limit reached" phrase.
 struct HomeReadingLine: Equatable {
     var primary: String
     var secondary: String?
@@ -467,9 +469,9 @@ enum HomeInterfaceFormatting {
                     return HomeReadingLine(primary: named(window, value), secondary: schedule, tertiary: nil, tone: .neutral,
                                            accessibilityLabel: spoken, toolTip: spoken)
                 }
-                let value = remainingText(remaining)
-                let spoken = "\(scope), \(value), \(exact)"
-                return HomeReadingLine(primary: named(window, value), secondary: schedule, tertiary: nil,
+                // The table draws the state word on its own line, so the percentage and the word both stay whole.
+                let spoken = "\(scope), \(remainingText(remaining)), \(exact)"
+                return HomeReadingLine(primary: named(window, "\(percentText(remaining)) left"), secondary: schedule, tertiary: nil,
                                        tone: tone(for: remaining), accessibilityLabel: spoken, toolTip: spoken)
             })
         }

@@ -31,13 +31,14 @@ func partialQuotaKeepsKnownValuesAndIndependentEarnedResets() {
 @Test @MainActor
 func tinyPositiveQuotaIsDifferentFromMeasuredExhaustion() {
     let small = homeRow(windows: [homeWindow(used: 99.99)])
-    #expect(homeLines(small.session)[0].primary.hasSuffix(", Low"))
     #expect(homeLines(small.session)[0].tone == .warning)
-    #expect(!homeLines(small.session)[0].primary.contains("Limit reached"))
+    #expect(homeLines(small.session)[0].accessibilityLabel.contains("left, Low"))
     #expect(!homeLines(small.session)[0].primary.hasPrefix("0%"))
     let zero = homeRow(windows: [homeWindow(used: 100)])
-    #expect(homeLines(zero.session)[0].primary == "0% left, Limit reached")
+    // The table draws the state word on its own line; the spoken label keeps the whole phrase.
+    #expect(homeLines(zero.session)[0].primary == "0% left")
     #expect(homeLines(zero.session)[0].tone == .critical)
+    #expect(homeLines(zero.session)[0].accessibilityLabel.contains("0% left, Limit reached"))
 }
 
 @Test @MainActor
