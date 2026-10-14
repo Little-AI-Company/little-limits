@@ -832,3 +832,16 @@ Product source `9dea07358a1f90b4edd1de4390084a8d9f45ccb7` (tag `v0.1.0`), packag
 | `brew style`, `brew audit --cask --online`, `brew livecheck` for `parkerrex/tap/ai-usage-stats` | No offenses; audit exit 0; livecheck reports 0.1.0. |
 
 Not verified: a `brew install --cask` on a clean account, Intel runtime, macOS 14 and 15 runtime, and first-launch Keychain prompts for accounts saved by local development builds.
+
+### 0.1.0 build 2 replaces the first upload
+
+Owner testing found that Show in Menu Bar never showed more than one number per provider. PR #19 fixed it, and the 0.1.0 release was rebuilt before announcement. Product source `91a914d7fad0f99e5b8a78e8737f350be79c109d`; tag `v0.1.0` moved to it.
+
+| Command or check | Result |
+| --- | --- |
+| `DISTRIBUTION=1 UNIVERSAL=1 VERSION=0.1.0 BUILD_NUMBER=2 …` then Xcode upload and `-exportNotarizedApp` | Accepted on the second attempt; `CFBundleVersion` 2. |
+| `codesign --verify --deep --strict`, `xcrun stapler validate`, `spctl --assess` (app and extracted archive) | Valid; stapled; `source=Notarized Developer ID`. |
+| Release archive | `AI-Usage-Stats-0.1.0.zip`, SHA-256 `e75e3c5d981231b3bc4555c51c6bc993d901aab6871094b982ef44f42b3fab31`; the GitHub download matches. |
+| Cask `parkerrex/tap/ai-usage-stats` | Checksum updated; `brew audit --cask --online` exit 0; `brew fetch --cask` verified the download. |
+
+Build 1 (SHA-256 `9228a047…5f6a9`) is no longer published.
