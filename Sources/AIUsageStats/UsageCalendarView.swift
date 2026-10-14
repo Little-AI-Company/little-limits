@@ -220,7 +220,6 @@ private enum CalendarMetrics {
     static let minimumWidth: CGFloat = columnMinimum * 7
     static let twoWeekRow: CGFloat = 96
     static let monthRow: CGFloat = 72
-    static let eventHeight: CGFloat = 36
     static let eventGap: CGFloat = 4
     static let dateBand: CGFloat = 30
 }
@@ -374,8 +373,8 @@ private final class CalendarGridView: NSView {
             var eventY = origin.y + CalendarMetrics.dateBand
             for event in events(on: index) {
                 guard let button = buttons[event.id] else { continue }
-                button.frame = NSRect(x: origin.x + 4, y: eventY, width: max(32, width - 8), height: CalendarMetrics.eventHeight)
-                eventY += CalendarMetrics.eventHeight + CalendarMetrics.eventGap
+                button.frame = NSRect(x: origin.x + 4, y: eventY, width: max(32, width - 8), height: UsageEventButton.preferredHeight)
+                eventY += UsageEventButton.preferredHeight + CalendarMetrics.eventGap
             }
         }
         needsDisplay = true
@@ -452,7 +451,7 @@ private final class CalendarGridView: NSView {
         let start = week * 7
         let end = min(start + 7, eventsByDay.count)
         let count = (start..<end).map { eventsByDay[$0].count }.max() ?? 0
-        let eventsHeight = count == 0 ? 0 : CGFloat(count) * CalendarMetrics.eventHeight + CGFloat(max(0, count - 1)) * CalendarMetrics.eventGap
+        let eventsHeight = count == 0 ? 0 : CGFloat(count) * UsageEventButton.preferredHeight + CGFloat(max(0, count - 1)) * CalendarMetrics.eventGap
         return max(minimumRowHeight, CalendarMetrics.dateBand + eventsHeight + 8)
     }
 
@@ -590,6 +589,9 @@ private final class CalendarGridView: NSView {
     }
 }
 
+/// One reset event: exactly two single-line rows. Row 1 is the reset time, which never truncates, then the
+/// scope, which truncates. Row 2 is the state symbol and remaining percentage, which never truncate, then the
+/// identity, which truncates. The slot height comes from the fitted line heights of these fonts.
 @MainActor
 private final class UsageEventButton: NSButton {
     private(set) var eventID = ""
@@ -597,16 +599,33 @@ private final class UsageEventButton: NSButton {
     var onHover: ((String) -> Void)?
     var onHoverEnd: ((String) -> Void)?
 
+    private static let timeFont = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
+    private static let scopeFont = NSFont.systemFont(ofSize: 12)
+    private static let detailFont = NSFont.systemFont(ofSize: 11)
+    private static let verticalPadding: CGFloat = 3
+    private static let lineSpacing: CGFloat = 1
+    private static let leadingInset: CGFloat = 4
+    private static let trailingInset: CGFloat = 3
+    private static let iconSize: CGFloat = 14
+    private static let iconGap: CGFloat = 4
+
+    private static let firstLineHeight = max(lineHeight(timeFont), lineHeight(scopeFont), iconSize)
+    private static let secondLineHeight = lineHeight(detailFont)
+
+    /// Fitted height of both rows plus padding. Every event slot uses it, so text is never clipped vertically.
+    static let preferredHeight = verticalPadding * 2 + firstLineHeight + lineSpacing + secondLineHeight
+
     private let icon = HomePassImageView()
-    /// "13:11 · 5-hour resets". Tail truncation shortens the scope; the time is first and stays whole.
-    private let resetLine = HomeStaticTextField(labelWithString: "")
-    /// "17% left · personal", after the Low or Limit reached symbol.
-    private let detailLine = HomeStaticTextField(labelWithString: "")
-    private let detailRow = NSStackView()
+    private let timeField = UsageEventButton.lineField(font: timeFont)
+    private let scopeField = UsageEventButton.lineField(font: scopeFont)
+    private let remainingField = UsageEventButton.lineField(font: detailFont)
+    private let identityField = UsageEventButton.lineField(font: detailFont)
     private var symbol: NSImageView?
     private var model: HomeCalendarEventModel?
     private var selected = false
     private var hovered = false
+
+    override var isFlipped: Bool { true }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -614,49 +633,14 @@ private final class UsageEventButton: NSButton {
         title = ""
         imagePosition = .noImage
         focusRingType = .exterior
-        clipsToBounds = true
         wantsLayer = true
         target = self
         action = #selector(activate(_:))
         icon.imageScaling = .scaleProportionallyDown
         icon.setAccessibilityElement(false)
-        for field in [resetLine, detailLine] {
-            field.lineBreakMode = .byTruncatingTail
-            field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-            field.setAccessibilityElement(false)
+        for view in [icon, timeField, scopeField, remainingField, identityField] {
+            addSubview(view)
         }
-        detailLine.font = .systemFont(ofSize: 11)
-        icon.translatesAutoresizingMaskIntoConstraints = false
-        let top = NSStackView(views: [icon, resetLine])
-        top.orientation = .horizontal
-        top.alignment = .centerY
-        top.spacing = 4
-        let spacer = NSView()
-        spacer.translatesAutoresizingMaskIntoConstraints = false
-        spacer.widthAnchor.constraint(equalToConstant: 14).isActive = true
-        detailRow.addArrangedSubview(spacer)
-        detailRow.addArrangedSubview(detailLine)
-        detailRow.orientation = .horizontal
-        detailRow.alignment = .centerY
-        detailRow.spacing = 4
-        let lines = NSStackView(views: [top, detailRow])
-        lines.orientation = .vertical
-        lines.alignment = .leading
-        lines.spacing = 1
-        lines.translatesAutoresizingMaskIntoConstraints = false
-        for decorativeView in [top, detailRow, lines, spacer] {
-            decorativeView.setAccessibilityElement(false)
-        }
-        addSubview(lines)
-        NSLayoutConstraint.activate([
-            icon.widthAnchor.constraint(equalToConstant: 14),
-            icon.heightAnchor.constraint(equalToConstant: 14),
-            lines.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
-            lines.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
-            lines.centerYAnchor.constraint(equalTo: centerYAnchor),
-            top.trailingAnchor.constraint(lessThanOrEqualTo: lines.trailingAnchor),
-            detailRow.trailingAnchor.constraint(lessThanOrEqualTo: lines.trailingAnchor)
-        ])
         setAccessibilityRole(.button)
         setAccessibilityElement(true)
         setAccessibilityChildren([])
@@ -664,6 +648,56 @@ private final class UsageEventButton: NSButton {
     }
 
     required init?(coder: NSCoder) { nil }
+
+    private static func lineField(font: NSFont) -> NSTextField {
+        let field = HomeStaticTextField(labelWithString: "")
+        field.font = font
+        field.maximumNumberOfLines = 1
+        field.usesSingleLineMode = true
+        field.cell?.wraps = false
+        field.lineBreakMode = .byTruncatingTail
+        field.setAccessibilityElement(false)
+        return field
+    }
+
+    private static func lineHeight(_ font: NSFont) -> CGFloat {
+        ceil(lineField(font: font).cell?.cellSize.height ?? font.boundingRectForFont.height)
+    }
+
+    /// The width the cell needs to draw its whole string. A tail-truncating field reports a smaller
+    /// intrinsic width, which would truncate the text it measures.
+    private static func drawnWidth(_ field: NSTextField) -> CGFloat {
+        ceil(field.cell?.cellSize.width ?? field.intrinsicContentSize.width)
+    }
+
+    override func layout() {
+        super.layout()
+        let top = Self.verticalPadding
+        let trailing = bounds.width - Self.trailingInset
+        let firstHeight = Self.firstLineHeight
+        let secondHeight = Self.secondLineHeight
+        let leading = Self.leadingInset
+        icon.frame = NSRect(x: leading, y: top + (firstHeight - Self.iconSize) / 2, width: Self.iconSize, height: Self.iconSize)
+        let textX = leading + Self.iconSize + Self.iconGap
+        // The time keeps its fitted width; only the scope gives up space. Each cell pads its text by
+        // 2 pt, so adjacent fields read as words separated by one space.
+        let timeWidth = Self.drawnWidth(timeField)
+        timeField.frame = NSRect(x: textX, y: top, width: timeWidth, height: firstHeight)
+        let scopeX = min(textX + timeWidth, trailing)
+        scopeField.frame = NSRect(x: scopeX, y: top, width: max(0, trailing - scopeX), height: firstHeight)
+        let secondY = top + firstHeight + Self.lineSpacing
+        var detailX = textX
+        if let symbol, let size = symbol.image?.size {
+            symbol.frame = NSRect(x: detailX, y: secondY + (secondHeight - size.height) / 2, width: size.width, height: size.height)
+            detailX += size.width + 3
+        }
+        // The percentage keeps its fitted width; only the identity gives up space.
+        let remainingWidth = Self.drawnWidth(remainingField)
+        remainingField.frame = NSRect(x: detailX, y: secondY, width: remainingWidth, height: secondHeight)
+        // In the narrowest column the identity can shrink to nothing; the tooltip and label keep it.
+        let identityX = min(detailX + remainingWidth, trailing)
+        identityField.frame = NSRect(x: identityX, y: secondY, width: max(0, trailing - identityX), height: secondHeight)
+    }
 
     func apply(_ event: HomeCalendarEventModel) {
         guard event != model else { return }
@@ -677,11 +711,16 @@ private final class UsageEventButton: NSButton {
         let image = ProviderIcons.images[event.provider]
         if icon.image !== image { icon.image = image }
         icon.isHidden = image == nil
+        timeField.stringValue = event.timeText
+        scopeField.stringValue = "· \(event.scopeText)"
+        remainingField.stringValue = event.remainingText
+        identityField.stringValue = "· \(event.shortIdentity)"
         if toneChanged {
             symbol?.removeFromSuperview()
             symbol = HomeText.stateSymbol(event.tone, size: 10)
-            if let symbol { detailRow.insertArrangedSubview(symbol, at: 1) }
+            if let symbol { addSubview(symbol) }
         }
+        needsLayout = true
         refreshColors()
     }
 
@@ -750,15 +789,9 @@ private final class UsageEventButton: NSButton {
             layer?.backgroundColor = fill?.cgColor
             CATransaction.commit()
             let primary: NSColor = selected ? .alternateSelectedControlTextColor : .labelColor
-            let reset = NSMutableAttributedString(string: model.timeText, attributes: [
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold), .foregroundColor: primary
-            ])
-            reset.append(NSAttributedString(string: " · \(model.scopeText)", attributes: [
-                .font: NSFont.systemFont(ofSize: 12), .foregroundColor: primary
-            ]))
-            resetLine.attributedStringValue = reset
-            detailLine.stringValue = "\(model.remainingText) · \(model.shortIdentity)"
-            detailLine.textColor = primary
+            for field in [timeField, scopeField, remainingField, identityField] {
+                field.textColor = primary
+            }
             icon.contentTintColor = primary
             symbol?.contentTintColor = selected ? primary : model.tone.symbolColor
         }

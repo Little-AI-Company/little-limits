@@ -59,6 +59,10 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
     private let demoLabel = NSTextField(labelWithString: "Example accounts")
     private let readings = NSStackView()
     private let stateStack = NSStackView()
+    private let scroll = NSScrollView()
+    /// Keeps a short document at the top of the visible area. Its constant removes the toolbar inset,
+    /// so a page that fits does not scroll by the toolbar height.
+    private var minimumDocumentHeight: NSLayoutConstraint?
 
     init(model: ApplicationModel) {
         self.model = model
@@ -70,7 +74,6 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
     override func loadView() {
         configureControls()
         configurePopover()
-        let scroll = NSScrollView()
         let document = HomeDocumentView()
         scroll.documentView = document
         scroll.hasVerticalScroller = true
@@ -130,8 +133,6 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
             column.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -16),
             column.topAnchor.constraint(equalTo: document.topAnchor, constant: 16),
             column.bottomAnchor.constraint(lessThanOrEqualTo: document.bottomAnchor, constant: -16),
-            // A short document still fills the clip view, so the content stays at the top.
-            document.heightAnchor.constraint(greaterThanOrEqualTo: scroll.contentView.heightAnchor),
             readings.widthAnchor.constraint(equalTo: column.widthAnchor),
             stateStack.widthAnchor.constraint(equalTo: column.widthAnchor),
             calendarView.widthAnchor.constraint(equalTo: readings.widthAnchor),
@@ -140,10 +141,22 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
             stateMessage.widthAnchor.constraint(lessThanOrEqualTo: stateStack.widthAnchor),
             stateDetail.widthAnchor.constraint(lessThanOrEqualTo: stateStack.widthAnchor)
         ])
+        let minimumHeight = document.heightAnchor.constraint(greaterThanOrEqualTo: scroll.contentView.heightAnchor)
+        minimumHeight.isActive = true
+        minimumDocumentHeight = minimumHeight
         let fit = column.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -16)
         fit.priority = .defaultHigh
         fit.isActive = true
         view = scroll
+    }
+
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        let insets = scroll.contentInsets
+        let constant = -(insets.top + insets.bottom)
+        if let minimumDocumentHeight, minimumDocumentHeight.constant != constant {
+            minimumDocumentHeight.constant = constant
+        }
     }
 
     func render() {

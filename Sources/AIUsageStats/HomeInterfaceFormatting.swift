@@ -33,6 +33,8 @@ enum HomeReadingTone: Equatable {
     }
 }
 
+/// One quota reading in a table cell. `primary` is the value alone; a non-neutral `tone` supplies the
+/// `Low` or `Limit reached` line, and the accessibility label carries the full "0% left, Limit reached" phrase.
 struct HomeReadingLine: Equatable {
     var primary: String
     var secondary: String?
@@ -74,7 +76,8 @@ struct HomeAccountRow: Equatable, Identifiable {
     var toolTip: String
 }
 
-/// One reset on the calendar, phrased as the reset: time and scope first, then what is left now.
+/// One reset on the calendar: time and scope first (`13:11 · 5-hour`), then what is left now. The section
+/// title says these are resets, so the visible scope omits the word; the label and tooltip keep it.
 struct HomeCalendarEventModel: Equatable, Identifiable {
     var id: String
     var provider: Provider
@@ -183,7 +186,7 @@ enum HomeInterfaceFormatting {
     static let sessionColumnHelp = "Remaining quota for the 5-hour window. A window is placed here only when its reported duration is 5 hours, or when its name says 5 hours and no duration was reported."
     static let weeklyColumnHelp = "Remaining quota for the weekly window. Other durations stay in the last quota column."
     static let otherColumnHelp = "Every other reported quota window, including model-scoped limits such as Weekly · Fable 5. Names come from the reading."
-    static let earnedColumnHelp = "Earned resets available and their next expiry. Expiry is not a quota reset and is not placed on the calendar."
+    static let earnedColumnHelp = "Earned resets available and their next expiry. Expiry is separate from usage window resets and is not placed on the calendar."
     static let updatedColumnHelp = "When this account's usage was last read."
     static let unknownResetText = "Reset time unknown"
 
@@ -258,7 +261,7 @@ enum HomeInterfaceFormatting {
             let value = remainingText(event.remainingPercent)
             let label = "\(scope) resets \(exact). \(event.provider.title) \(event.identity), \(value) now"
             return HomeCalendarEventModel(id: event.id, provider: event.provider, timeText: timeText(event.resetsAt),
-                                          scopeText: "\(scope) resets", remainingText: "\(percentText(event.remainingPercent)) left",
+                                          scopeText: scope, remainingText: "\(percentText(event.remainingPercent)) left",
                                           tone: tone(for: event.remainingPercent), shortIdentity: event.shortIdentity,
                                           accessibilityLabel: label,
                                           toolTip: "\(label). Latest reading, not a forecast.", dayIndex: dayIndex)
@@ -467,9 +470,9 @@ enum HomeInterfaceFormatting {
                     return HomeReadingLine(primary: named(window, value), secondary: schedule, tertiary: nil, tone: .neutral,
                                            accessibilityLabel: spoken, toolTip: spoken)
                 }
-                let value = remainingText(remaining)
-                let spoken = "\(scope), \(value), \(exact)"
-                return HomeReadingLine(primary: named(window, value), secondary: schedule, tertiary: nil,
+                // The table draws the state word on its own line, so the percentage and the word both stay whole.
+                let spoken = "\(scope), \(remainingText(remaining)), \(exact)"
+                return HomeReadingLine(primary: named(window, "\(percentText(remaining)) left"), secondary: schedule, tertiary: nil,
                                        tone: tone(for: remaining), accessibilityLabel: spoken, toolTip: spoken)
             })
         }
@@ -568,7 +571,7 @@ enum HomeInterfaceFormatting {
         if let expiryExact { help += ". \(expiryLabel ?? "Expiry") \(expiryExact)" }
         if stale { help += ". Stale" }
         if passedExpiry != nil { help += ". An earned reset expired after this reading. Refresh to check current availability." }
-        help += ". Earned reset expiry is separate from quota reset."
+        help += ". Earned reset expiry is separate from usage window resets."
         return EarnedFacts(countText: countText, expiryText: expiryText, expiryLabel: expiryLabel,
                            expiryExact: expiryExact,
                            staleMarker: stale ? "Stale · last read \(timeText(observed))" : nil, help: help)
@@ -696,7 +699,7 @@ enum HomeInterfaceFormatting {
     }
 
     private static func updatedSentence(_ account: UsageOverviewAccount, now: Date) -> String {
-        guard let date = account.snapshot?.fetchedAt, date <= now else { return "Updated time unavailable" }
+        guard let date = account.snapshot?.fetchedAt, date <= now else { return "Observation time unknown" }
         let prefix = readingBasis(account, now: now) == .current ? "Updated" : "Last read"
         return "\(prefix) \(InterfaceFormatting.exactDate(date))"
     }

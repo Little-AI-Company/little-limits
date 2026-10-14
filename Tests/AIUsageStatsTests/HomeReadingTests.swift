@@ -31,13 +31,14 @@ func partialQuotaKeepsKnownValuesAndIndependentEarnedResets() {
 @Test @MainActor
 func tinyPositiveQuotaIsDifferentFromMeasuredExhaustion() {
     let small = homeRow(windows: [homeWindow(used: 99.99)])
-    #expect(homeLines(small.session)[0].primary.hasSuffix(", Low"))
     #expect(homeLines(small.session)[0].tone == .warning)
-    #expect(!homeLines(small.session)[0].primary.contains("Limit reached"))
+    #expect(homeLines(small.session)[0].accessibilityLabel.contains("left, Low"))
     #expect(!homeLines(small.session)[0].primary.hasPrefix("0%"))
     let zero = homeRow(windows: [homeWindow(used: 100)])
-    #expect(homeLines(zero.session)[0].primary == "0% left, Limit reached")
+    // The table draws the state word on its own line; the spoken label keeps the whole phrase.
+    #expect(homeLines(zero.session)[0].primary == "0% left")
     #expect(homeLines(zero.session)[0].tone == .critical)
+    #expect(homeLines(zero.session)[0].accessibilityLabel.contains("0% left, Limit reached"))
 }
 
 @Test @MainActor
@@ -109,7 +110,7 @@ func ordinaryCodexWindowsKeepTheirColumnsWithAdditionalMeters() {
 func passedEarnedResetExpiryMakesTheCountHistorical() {
     let observed = homeReadingNow.addingTimeInterval(-120)
     let expiry = homeReadingNow.addingTimeInterval(-60)
-    let grant = CreditBalance(id: "quota_reset_available", title: "Quota reset", amount: nil,
+    let grant = CreditBalance(id: "quota_reset_available", title: "Earned reset", amount: nil,
                               unit: .resets, expiresAt: expiry, asOf: observed, status: "available")
     let row = homeRow(windows: [homeWindow(used: 20)],
                       credits: [homeResetCount(1, observed: observed), grant])
@@ -148,7 +149,7 @@ func calendarEventsLeadWithTheResetTimeAndVocabularyScope() throws {
     let event = try #require(HomeInterfaceFormatting.calendarEvents(overview.resetEvents, days: days, now: homeReadingNow,
                                                                    calendar: .current).first)
     #expect(event.timeText == resetsAt.formatted(.dateTime.hour().minute()))
-    #expect(event.scopeText == "Weekly · Fable 5 resets")
+    #expect(event.scopeText == "Weekly · Fable 5")
     #expect(event.remainingText == "17% left")
     #expect(event.tone == .warning)
     #expect(event.accessibilityLabel.hasPrefix("Weekly · Fable 5 resets"))
@@ -197,11 +198,11 @@ private func homeLines(_ cell: HomeMeterCell) -> [HomeReadingLine] {
 }
 
 private func homeResetCount(_ count: Int, observed: Date? = homeReadingNow) -> CreditBalance {
-    CreditBalance(id: "quota_reset_credits", title: "Quota resets", amount: Decimal(count),
+    CreditBalance(id: "quota_reset_credits", title: "Earned resets", amount: Decimal(count),
                   unit: .resets, asOf: observed)
 }
 
 private func homeGrant(_ name: String, status: String?, expires: Date?, doesNotExpire: Bool = false) -> CreditBalance {
-    CreditBalance(id: "quota_reset_" + name, title: "Quota reset", amount: nil, unit: .resets,
+    CreditBalance(id: "quota_reset_" + name, title: "Earned reset", amount: nil, unit: .resets,
                   expiresAt: expires, asOf: homeReadingNow, status: status, doesNotExpire: doesNotExpire)
 }

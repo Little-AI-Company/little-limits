@@ -223,15 +223,17 @@ private enum Column: String, CaseIterable {
         }
     }
 
-    /// Minimums sum to 628 pt plus 48 pt spacing: the content width of the 1020 pt minimum window
-    /// beside a 260 pt sidebar, less 32 pt margins.
+    /// Minimums sum to 644 pt plus 48 pt spacing, inside the 712 pt content width of the 1020 pt minimum
+    /// window beside a 260 pt sidebar, less 32 pt margins and a 16 pt vertical scroller. Quota columns
+    /// hold `Reset time unknown` and `Resets today 16:04` whole; Updated holds `Not refreshed`. The
+    /// account name stays whole; a long email truncates and its tooltip keeps the full text.
     var minimumWidth: CGFloat {
         switch self {
-        case .account: 140
-        case .session, .weekly: 96
-        case .other: 120
-        case .earned: 104
-        case .updated: 72
+        case .account: 120
+        case .session, .weekly: 110
+        case .other: 112
+        case .earned: 108
+        case .updated: 84
         }
     }
 
@@ -388,6 +390,9 @@ private final class MeterCell: NSTableCellView {
             } else {
                 group.addArrangedSubview(primary)
             }
+            if let word = record.tone.word {
+                group.addArrangedSubview(HomeText.label(word, size: 12))
+            }
             if let secondary = record.secondary {
                 group.addArrangedSubview(HomeText.label(secondary, size: 11, color: .secondaryLabelColor))
             }
@@ -405,6 +410,7 @@ private final class MeterCell: NSTableCellView {
         let records = records(in: cell)
         let body = records.reduce(CGFloat(0)) { total, record in
             var line: CGFloat = 18
+            if record.tone.word != nil { line += 16 }
             if record.secondary != nil { line += 15 }
             if record.tertiary != nil { line += 15 }
             return total + line + 6
