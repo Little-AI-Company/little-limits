@@ -72,7 +72,10 @@ enum InterfaceFormatting {
 
     static func credit(_ balance: CreditBalance) -> String {
         if balance.isUnlimited { return "Unlimited" }
-        guard let amount = balance.amount else { return balance.status ?? "Unavailable" }
+        guard let amount = balance.amount else {
+            if balance.status == "available" { return "Unknown" }
+            return balance.status ?? "Unavailable"
+        }
         return formatAmount(amount, unit: balance.unit, currencyCode: balance.currencyCode)
     }
 

@@ -628,11 +628,13 @@ public actor UsageService {
 
     public static func unavailableCredits(for provider: Provider) -> [CreditBalance] {
         var credits = [CreditBalance(id: "api_balance", title: provider == .claude ? "Purchased API credits" : "OpenAI API credits", amount: nil,
-                       detail: "The connected CLI does not expose API billing balances."),
+                       detail: provider == .claude
+                           ? "Connect Claude Platform to read API credit balances."
+                           : "OpenAI API balances are entered manually."),
         ]
         if provider == .claude {
             credits.append(CreditBalance(id: "monthly_grant", title: "Monthly included API grant", amount: nil,
-                                        detail: "The connected CLI does not expose remaining grants or their expiry."))
+                                        detail: "Connect Claude Platform to read API grants and their expiry."))
         } else {
             credits.append(CreditBalance(id: "provider_credits", title: "Codex credits", amount: nil, unit: .credits,
                                         detail: "Codex has not supplied a credit balance."))

@@ -10,16 +10,35 @@ final class AccountSidebarCellView: NSTableCellView {
         let detail: String
     }
 
+    static let singleLineRowHeight: CGFloat = 66
+    static let wrappedRowHeight: CGFloat = 82
+    /// Source-list column width exceeds the identity field bounds by the cell margins minus label alignment insets.
+    static let identityTextWidthInset: CGFloat = 20
+    private static let identityFont = NSFont.systemFont(ofSize: 13, weight: .medium)
+
     private let identity = NSTextField(labelWithString: "")
     private let provider = NSTextField(labelWithString: "")
     private let quota = NSTextField(labelWithString: "")
     private let progress = NSLevelIndicator()
     private var displayed: Display?
 
+    static func rowHeight(for identity: String, columnWidth: CGFloat) -> CGFloat {
+        let textWidth = columnWidth - identityTextWidthInset
+        guard textWidth > 1 else { return singleLineRowHeight }
+        let measured = (identity as NSString).boundingRect(with: NSSize(width: textWidth, height: 64),
+                                                           options: [.usesLineFragmentOrigin, .usesFontLeading],
+                                                           attributes: [.font: identityFont])
+        return measured.height > identityFont.boundingRectForFont.height * 1.5 ? wrappedRowHeight : singleLineRowHeight
+    }
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        identity.font = .systemFont(ofSize: 13, weight: .medium)
-        identity.lineBreakMode = .byTruncatingMiddle
+        identity.font = Self.identityFont
+        identity.lineBreakMode = .byCharWrapping
+        identity.maximumNumberOfLines = 2
+        identity.cell?.truncatesLastVisibleLine = true
+        identity.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        identity.setContentCompressionResistancePriority(.required, for: .vertical)
         provider.font = .systemFont(ofSize: 11)
         quota.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         quota.alignment = .right
@@ -52,6 +71,20 @@ final class AccountSidebarCellView: NSTableCellView {
     }
 
     required init?(coder: NSCoder) { nil }
+
+    func noteColumnWidth(_ columnWidth: CGFloat) {
+        let textWidth = columnWidth - Self.identityTextWidthInset
+        guard textWidth > 1 else { return }
+        identity.preferredMaxLayoutWidth = textWidth
+    }
+
+    override func layout() {
+        let width = identity.bounds.width
+        if width > 0, abs(identity.preferredMaxLayoutWidth - width) > 0.5 {
+            identity.preferredMaxLayoutWidth = width
+        }
+        super.layout()
+    }
 
     func render(_ display: Display) {
         guard displayed != display else { return }

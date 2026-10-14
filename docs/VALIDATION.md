@@ -618,6 +618,7 @@ Code/test SHA-256: `35afb6969fe9ebc0abfbe0e2e020087163426e87c834690b356c88f67356
 
 PR6 review correction: Refresh Credits now refers only to the stored selected organization; a different selection says Switch Organization. Existing reads/binding behavior is unchanged. Corrective source passed 50 tests (21 XCTest + 29 Swift Testing), zero failures, build 136.30 seconds; Release passed in 246.32 seconds. Corrective canonical package passed (cached build 6.51 seconds); metadata, arm64 app/helper, provider resources, strict signature, and canonical bundle/archive bytes verified. Corrective executable SHA-256: `652267c7d4d8a3a22ffe4143e1588ff3642febf8741e8bedf2d239e779ca31bf`. PID 200 had already exited before installation; the initial open returned success without a surviving process. A single authorized startup check confirmed an active GUI session and found no app crash reports; one packaged launch returned 0 with empty stderr and a delayed 10-second check found canonical PID 3079 running. The earlier exit/absence cause is unknown; no raw-binary launch, trust/security change, credentials, or repeated diagnostic loops. Code/test SHA-256: `e2ac294b6d4abdf744a72240e17dcdf04160675fcb863d1f9f60336098963ad4`. The longer native inspection attempt also failed explicitly with “Sky Computer Use native pipe startup failed.” Review P1 remains an unresolved interaction-verification gap; user feedback does not prove selected/multiple-organization or email-match transitions.
 
+
 ## Repository Apple HIG skill, October 13, 2026
 
 Reviewed documentation and the new skill as uncommitted changes after `6fe4d71a0e29e8a41665852ed09c470a6ba9c43a`. Adapted the source Apple HIG skill for this app's AppKit menu, single management window, account data, and isolated Platform sign-in. Browser measurement scripts and their Bun dependency were omitted. The rubric contains 18 native requirements with separate Apple and project authorities; catalog verification dates describe guidance review, not successful app tests.
@@ -633,3 +634,55 @@ Apple's design update index, applicable live HIG pages, and Apple-hosted documen
 | `git diff --check` | Passed for tracked documentation changes. |
 
 Swift tests, Release build, packaging, and native interaction checks were skipped because this change contains only skill resources and documentation. No app accessibility, layout, performance, provider, or distribution result is claimed from this review.
+
+
+## Native HIG improvements, October 13, 2026
+
+Tested uncommitted changes after `0485bbec496a18c32cdecd96e087a586f7c586bf` on macOS 27.0.1, macOS 27.0 SDK, Apple Swift 6.4, arm64. Grok 4.7 implemented the source changes through the installed `agent` CLI (Grok Build), with separate ownership for credit formatting/copy, account layout/actions, and Settings focus. Codex orchestrated, reviewed every source diff, and performed verification. The Accounts worker reached its 32-turn limit after writing its complete diff; this is a worker execution limit, not a passing check. The orchestrator subsequently verified that source.
+
+The preceding audit observed crowded actions, truncated demo emails, and Settings focus remaining in the account table. Its existing bundle was `bbcff5c645bb6416b06b23ef9f2fceaa74a1a66938e067d7b8bf21d44ba0b04f`; its exact build-to-commit provenance was not established. A separate formatter reproduction used `git show HEAD:Sources/AIUsageStats/InterfaceFormatting.swift` at the named baseline: six cases passed and the unknown available grant failed, displaying `available` instead of `Unknown`.
+
+The header now contains Refresh and Account; unconnected Claude API setup is beside Credits. The sidebar is 228 points wide, with 66-point ordinary rows and 82-point wrapped rows. Settings focuses Launch at login and exposes a selected native gear state. Shared credit formatting distinguishes an available grant with unknown amount from zero and Unlimited. Production and demo fallback descriptions use accurate provider-specific explanations.
+
+| Command or inspection | Observed result |
+| --- | --- |
+| Baseline `swift test` | Passed 58 tests: 21 XCTest plus 37 Swift Testing; build 2.92 seconds. |
+| Final `swift test` | Passed the same 58 tests, zero failures; build 8.35 seconds. |
+| `swift build -c release` | Passed in 27.51 seconds; four existing Keychain deprecation warnings retained. |
+| `scripts/package_app.sh` | Passed using the existing configured local identity; cached Release build 0.34 seconds. |
+| `codesign --verify --deep --strict --verbose=2 "dist/AI Usage Stats.app"` | Passed on the actual final bundle. |
+| `lipo -archs "dist/AI Usage Stats.app/Contents/MacOS/AIUsageStats"`; `lipo -archs "dist/AI Usage Stats.app/Contents/MacOS/UsageCapture"`; `plutil -lint "dist/AI Usage Stats.app/Contents/Info.plist"` | Both executables arm64; metadata valid, version 0.1.0 build 1, macOS minimum 14.0, LSUIElement enabled. |
+| Provider-resource byte comparison and app icon inspection | All six provider icon/source/license/notice files matched; AppIcon.icns present. |
+| Temporary shared formatter verification | Seven cases passed: unknown available grant, measured zero, Unlimited, authentication failure wording, unavailable amount, credit units, and reset count. |
+| Temporary native menu composition verification | Seven cases passed: unknown grant wording, absence of a falsely known amount, credit/reset units, exhausted quota, missing-email fallback, and read-only informational items. This constructs actual NSMenuItems but does not establish interactive status-menu behavior. |
+| `git diff --check` | Passed. |
+
+The focused executables were compiled against the Debug UsageCore module with these commands; the temporary scripts are local verification artifacts, not new repository test infrastructure:
+
+```sh
+swiftc -swift-version 6 -I .build/out/Products/Debug -L .build/out/Products/Debug -lUsageCore Sources/AIUsageStats/InterfaceFormatting.swift /tmp/ai_usage_credit_formatting_verification.swift -o /tmp/ai_usage_changed_credit_verification
+/tmp/ai_usage_changed_credit_verification
+swiftc -swift-version 6 -I .build/out/Products/Debug -L .build/out/Products/Debug -lUsageCore Sources/AIUsageStats/InterfaceFormatting.swift Sources/AIUsageStats/UsageMenu.swift Sources/AIUsageStats/ProviderIcons.swift /tmp/ai_usage_menu_verification.swift -o /tmp/ai_usage_menu_verification
+/tmp/ai_usage_menu_verification
+```
+
+The menu harness initially expected colon-separated plain titles and reported three passes/four failures. AppKit replaces the item's plain title with the tab-separated attributed title. The corrected harness normalizes displayed whitespace and retains the same label/value assertions; its narrow rerun passed all seven. No production assertions or errors were suppressed.
+
+Packaged inspection sessions used `open -n "dist/AI Usage Stats.app"` with `--demo --show-accounts`, then separately `--demo --show-accounts --dark-appearance`, `--demo --demo-empty --show-accounts`, and `--demo --demo-load-error --show-accounts`. Each previous development instance was terminated before the next launch. Native AX/screenshots verified full ordinary emails, complete two-line long identity, missing-email fallback, distinct quota/currency/credit/reset units, Unknown grant amount, the two-control header, Credits setup placement, and selected Settings appearance in light and dark modes. Command-comma focused the login checkbox in populated and empty states. Tab reached Account; Space opened it, Down selected Details, Return opened the sheet, and Return dismissed Done. One initial batched menu action hit an automation state-change error; the stepwise retry succeeded. Retry Loading Accounts restored the populated demo interface.
+
+The normal final app was launched with `--show-accounts`. Its live unavailable-credit tooltip used the corrected Claude Platform explanation. An unsaved fictional amount of 13.25 survived Settings navigation and a completed ordinary read-only Refresh, with the selected manual category retained. The field was restored to its original empty value and collapsed without Save or Clear. A stale automation index was rejected during the first restore attempt; a fresh index successfully restored the field. Account removal displayed the intended account and focused Cancel; Cancel left the profile intact. No sign-in, balance save, startup preference change, explicit credential action, or Platform browser action was performed. The normal final instance remains running.
+
+Source/test SHA-256: `3e5bc16edf56698481e1c8cfd0cf53362600befe152835e397c5600d67f82efc`; signed executable SHA-256: `d0bf09e80fa83c0189902f6ed01818dcb3de3c9f9f96f7639581089f1bc33783`. The source digest covers sorted repository-relative Swift paths under Sources and Tests plus Package.swift, hashing each path, NUL, content, NUL. A final comparison confirmed source remained identical to the tested/package inputs.
+
+Direct status-menu tracking/keyboard behavior, minimum-window-size runtime layout, connected Platform action, VoiceOver speech, measured contrast, real accessibility-preference transitions, older macOS, Intel execution, and notarization remain unverified. Bounded resize attempts did not establish a changed window size, so no minimum-size pass is claimed. Existing native sizing/source review is separate evidence. Local signing verifies integrity, not public distribution trust.
+
+
+## PR landing verification, October 14, 2026
+
+Source commit `33365999cf86636b0907dc18c2ff29fd70e9f222` was rebased onto the merged HIG guidance at `cd5b094b82be89ca6267363bfdaf8fe5e3f1fcea`. The verification paragraph added afterward changes documentation only. The submitted source retains SHA-256 `3e5bc16edf56698481e1c8cfd0cf53362600befe152835e397c5600d67f82efc`, matching the October 13 native inspection.
+
+After rebase, `swift test` passed 58 tests (21 XCTest plus 37 Swift Testing), zero failures, build 2.88 seconds. `swift build -c release` passed in 18.28 seconds with the four existing Keychain deprecation warnings. Canonical `scripts/package_app.sh`, using the existing configured signer and `OUTPUT_DIRECTORY=/tmp/ai_usage_pr_native_package`, passed. `codesign --verify --deep --strict --verbose=2 "/tmp/ai_usage_pr_native_package/AI Usage Stats.app"`, `lipo -archs` for its app executable, and `plutil -lint` for its Info.plist passed; the executable is arm64. The temporary formatter and menu checks were recreated after their prior /tmp source files were unavailable; both then passed seven cases against the rebased source.
+
+The rebased packaged app was opened with `--demo --show-accounts` and separately `--demo --demo-load-error --show-accounts`. Native AX/screenshots verified readable ordinary and two-line identities, distinct credit/reset units and Unknown amount, Command-comma focusing Launch at login, selected Settings state clearing on account selection, and loading-error retry restoring accounts. Account → Down → Return opened Details, and Return dismissed Done. A startup inspection timeout and a process selector that required launch arguments were corrected before the comparison; no source workaround or trust change was made. Prior detailed draft/removal and appearance evidence remains tied to the unchanged source digest. Direct status-menu interaction, minimum-size runtime layout, VoiceOver, connected Platform flow, accessibility preference transitions, older macOS/Intel, and notarization remain unverified.
+
+Local source review found no actionable regression. An optional Grok 4.7 read-only review did not finish and was stopped; it is not counted as passing verification. Implementation model attribution remains Grok 4.7 via agent/Grok Build; orchestration and completed review/verification were performed through Codex.

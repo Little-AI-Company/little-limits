@@ -31,7 +31,7 @@ public enum DemoFixtures {
                                       UsageWindow(id: "codex_secondary", title: "7 days", utilizationPercent: 29,
                                                   resetsAt: now.addingTimeInterval(345_600))],
                             credits: [CreditBalance(id: "api_balance", title: "OpenAI API credits", amount: nil,
-                                                    detail: "The connected CLI does not expose API billing balances."),
+                                                    detail: "OpenAI API balances are entered manually."),
                                       CreditBalance(id: "provider_credits", title: "Codex credits", amount: 14,
                                                     unit: .credits, asOf: now),
                                       CreditBalance(id: "quota_reset_credits", title: "Quota resets", amount: 2,
