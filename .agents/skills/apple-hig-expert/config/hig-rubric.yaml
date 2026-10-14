@@ -1,0 +1,129 @@
+schemaVersion: 2
+profile: ai-usage-stats-macos
+platform: macos
+framework: appkit
+lastVerified: "2026-10-13"
+
+# Apple recommendations and project decisions have separate authorities.
+# These values support native inspection; there is no automated measurement tool.
+macOSMetrics:
+  authority: apple-hig
+  unit: pt
+  recommendedControlWidth: 28
+  recommendedControlHeight: 28
+  minimumControlWidth: 20
+  minimumControlHeight: 20
+  recommendedCustomTextSize: 13
+  minimumCustomTextSize: 10
+  sourceUrl: https://developer.apple.com/design/human-interface-guidelines/accessibility
+  lastVerified: "2026-10-13"
+
+requirements:
+  - id: design.principles.task-purpose
+    authority: apple-hig
+    criterion: The interface makes the primary task clear and keeps secondary work understandable.
+    evidence: manual
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/design-principles
+    lastVerified: "2026-10-13"
+  - id: status-menu.native-presentation
+    authority: apple-hig
+    criterion: The menu bar extra presents a menu unless its functionality requires a more complex presentation.
+    evidence: runtime
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/the-menu-bar
+    lastVerified: "2026-10-13"
+  - id: status-menu.template-image
+    authority: apple-hig
+    criterion: The status image remains recognizable in light, dark, and selected menu bar appearances.
+    evidence: runtime
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/the-menu-bar
+    lastVerified: "2026-10-13"
+  - id: menu.commands.grouping
+    authority: apple-hig
+    criterion: Commands use clear labels, appropriate ellipses, logical groups, and purposeful consistent icons.
+    evidence: manual
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/menus
+    lastVerified: "2026-10-13"
+  - id: appearance.materials.hierarchy
+    authority: apple-hig
+    criterion: Standard components own native appearance and Liquid Glass distinguishes functional controls from content.
+    evidence: manual
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/materials
+    lastVerified: "2026-10-13"
+  - id: appearance.color.legibility
+    authority: apple-hig
+    criterion: Text and meaningful graphics remain legible across actual appearance and accessibility settings.
+    evidence: runtime-and-measurement
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/accessibility
+    lastVerified: "2026-10-13"
+  - id: layout.native-adaptation
+    authority: apple-hig
+    criterion: Content and controls remain usable at supported window sizes and with long or enlarged text.
+    evidence: runtime
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/layout
+    lastVerified: "2026-10-13"
+  - id: accessibility.native-control-size
+    authority: apple-hig
+    criterion: Native control hit regions and spacing fit macOS guidance and the component and input context.
+    evidence: runtime-and-measurement
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/accessibility
+    lastVerified: "2026-10-13"
+  - id: accessibility.name-role-value-state
+    authority: apple-hig
+    criterion: Affected controls and readings expose accurate accessible names, roles, values, states, and actions.
+    evidence: runtime
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/voiceover
+    lastVerified: "2026-10-13"
+  - id: accessibility.keyboard-focus
+    authority: apple-hig
+    criterion: Tasks remain keyboard-operable with predictable reading order, visible focus, and useful focus restoration.
+    evidence: runtime
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/accessibility
+    lastVerified: "2026-10-13"
+  - id: accessibility.display-preferences
+    authority: apple-hig
+    criterion: Appearance and custom behavior respect Reduce Transparency, Increase Contrast, and Reduce Motion.
+    evidence: runtime
+    sourceUrl: https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass
+    lastVerified: "2026-10-13"
+  - id: settings.native-access
+    authority: apple-hig
+    criterion: App-level settings are discoverable through Settings in the app menu and Command-comma.
+    evidence: runtime
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/settings
+    lastVerified: "2026-10-13"
+  - id: project.menu.refresh-stability
+    authority: project
+    criterion: Account order and open-menu selection stay stable during refresh; changed data appears on the next opening.
+    evidence: source-and-runtime
+    sourcePath: docs/NATIVE-DESIGN.md
+    lastVerified: "2026-10-13"
+  - id: project.readings.identity-units-freshness
+    authority: project
+    criterion: Account identity, quota meaning, currency, credit units, resets, expiry, and manual or stale provenance remain distinct.
+    evidence: source-and-runtime
+    sourcePath: docs/STRATEGY.md
+    lastVerified: "2026-10-13"
+  - id: project.readings.unknown-failure-recovery
+    authority: project
+    criterion: Unknown, unsupported, inactive, expired, stale, and failed readings retain accurate labels and relevant recovery actions.
+    evidence: source-and-runtime
+    sourcePath: docs/NATIVE-DESIGN.md
+    lastVerified: "2026-10-13"
+  - id: project.window.context-preservation
+    authority: project
+    criterion: Navigation, refresh, sheets, minimize, close, and reopen preserve appropriate account context and unfinished edits.
+    evidence: source-and-runtime
+    sourcePath: docs/NATIVE-DESIGN.md
+    lastVerified: "2026-10-13"
+  - id: project.platform.session-isolation
+    authority: project
+    criterion: The experimental Platform browser retains explicit account and organization context and isolated read-only monitoring.
+    evidence: source-and-runtime
+    sourcePath: AGENTS.md
+    lastVerified: "2026-10-13"
+  - id: project.performance.quiet-interface
+    authority: project
+    criterion: The interface has no continuous animation or countdown repaint timer and redraws only when displayed state changes.
+    evidence: source-and-runtime
+    sourcePath: docs/NATIVE-DESIGN.md
+    lastVerified: "2026-10-13"

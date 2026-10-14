@@ -37,6 +37,7 @@ Build a small native macOS menu bar utility for viewing Claude and Codex account
 ## Native interface
 
 - Use standard AppKit controls, menu behavior, keyboard access, and accessibility labels. Consult current Apple HIG guidance for the affected interaction.
+- For interface design and accessibility reviews, use the repository's [Apple HIG skill](.agents/skills/apple-hig-expert/SKILL.md), adapted for this app's native macOS surfaces and data contracts.
 - Keep the interface information-dense. No decorative cards or pills, gray subtitle lines above sections, em dashes, or continuous animations.
 - Preserve stable account order and identity during refresh. Redraw only when displayed state changes.
 - Validate changed UI in the running `.app`. Compilation does not prove layout, focus, accessibility, or menu-bar behavior.
