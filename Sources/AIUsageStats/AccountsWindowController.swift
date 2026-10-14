@@ -452,6 +452,11 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             text = "Sign-in required"
             state = "Sign-in required. Choose Reconnect… on the account page."
         }
+        if model.isAwaitingCodexSignIn(profile.id) {
+            indicator = .none
+            text = "Waiting for sign-in"
+            state = "Waiting for Codex sign-in in Terminal."
+        }
         var description = "\(InterfaceFormatting.provider(profile.provider)), \(InterfaceFormatting.accountIdentity(profile)). \(state)"
         if let lastRead { description += " Last read \(InterfaceFormatting.exactDate(lastRead))." }
         if InterfaceFormatting.accountEmail(profile) == "Email unavailable" { description += " Email unavailable." }
