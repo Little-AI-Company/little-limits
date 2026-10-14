@@ -7,7 +7,7 @@ metadata:
   author: Alireza Rezvani
   adapted-by: AI Usage Stats contributors
   category: design
-  updated: "2026-10-13"
+  updated: "2026-10-14"
 ---
 
 # Apple HIG Expert
@@ -25,6 +25,7 @@ Record the surface, macOS version, SDK, window size, input methods, appearance s
 - Read [design-principles.md](references/design-principles.md) when choosing structure or weighing product tradeoffs.
 - Read [visual-design.md](references/visual-design.md) for typography, color, layout, menu icons, and Liquid Glass.
 - Read [accessibility.md](references/accessibility.md) for control sizes, contrast, focus, display settings, and assistive technology.
+- Read [macos-components.md](references/macos-components.md) for current sidebar, toolbar, scroll edge, settings, sheet, alert, chart, writing, and menu bar extra rules.
 - Use [hig-rubric.yaml](config/hig-rubric.yaml) for stable requirement IDs, source URLs, and verification dates. Its `apple-hig` and `project` authorities keep Apple recommendations separate from this repository's decisions.
 
 This product monitors accounts; it does not generate content or execute agent tasks. Do not add a generative AI workflow because the app's name includes AI. Its ordinary controls are native, so browser DOM measurements, CSS rules, and web component contracts do not apply. Use native inspection instead of importing the source skill's browser measurement scripts or their Bun dependency.
@@ -48,6 +49,6 @@ Follow the verification requirements in `AGENTS.md`. Changed native UI requires 
 
 ## Keep guidance current
 
-The applicable HIG sources were reviewed on October 13, 2026, including Apple-hosted documentation JSON where the HTML required JavaScript. Review [What's new in design](https://developer.apple.com/design/whats-new/) and the relevant live HIG page before a time-sensitive recommendation, especially after WWDC or a September release.
+The applicable HIG sources were reviewed on October 13, 2026, and the component pages in `macos-components.md` on October 14, 2026, including Apple-hosted documentation JSON where the HTML required JavaScript. Review [What's new in design](https://developer.apple.com/design/whats-new/) and the relevant live HIG page before a time-sensitive recommendation, especially after WWDC or a September release.
 
 Record the URL and actual review date. Reachability alone is not verification. Update only the rules whose meaning was checked; preserve earlier dates for unreviewed claims. Current Apple documentation owns Apple guidance, and repository documentation owns local product decisions. Report conflicts rather than silently promoting a local preference into an Apple requirement.

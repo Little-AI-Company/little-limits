@@ -13,3 +13,4 @@ auth.json
 accounts.json
 *.p12
 *.pfx
+.crit/

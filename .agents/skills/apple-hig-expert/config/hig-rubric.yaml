@@ -91,6 +91,48 @@ requirements:
     evidence: runtime
     sourceUrl: https://developer.apple.com/design/human-interface-guidelines/settings
     lastVerified: "2026-10-13"
+  - id: window.sidebar.native-glass
+    authority: apple-hig
+    criterion: The sidebar uses native sidebar material without a solid background, can be shown and hidden, and keeps critical items away from its bottom.
+    evidence: runtime
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/sidebars
+    lastVerified: "2026-10-14"
+  - id: window.toolbar.grouping
+    authority: apple-hig
+    criterion: Window-level actions sit in a toolbar with few functional groups, one prominent action at most, no custom background, and matching menu commands.
+    evidence: runtime
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/toolbars
+    lastVerified: "2026-10-14"
+  - id: window.scroll-edge
+    authority: apple-hig
+    criterion: Scroll views that pass under floating controls or pinned headers use the system scroll edge effect instead of a custom backdrop.
+    evidence: runtime
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/scroll-views
+    lastVerified: "2026-10-14"
+  - id: presentation.sheets-alerts
+    authority: apple-hig
+    criterion: Sheets and alerts use correct button pairs, order, default, and destructive styling.
+    evidence: runtime
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/alerts
+    lastVerified: "2026-10-14"
+  - id: data.chart-legibility
+    authority: apple-hig
+    criterion: Calendar and usage marks carry full-value accessible labels, do not rely on color alone, and keep critical values visible without hover.
+    evidence: runtime
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/charts
+    lastVerified: "2026-10-14"
+  - id: writing.labels-errors
+    authority: apple-hig
+    criterion: Labels are verb-first with consistent capitalization, and error text states what happened and how to fix it.
+    evidence: manual
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/writing
+    lastVerified: "2026-10-14"
+  - id: status-menu.alternate-access
+    authority: apple-hig
+    criterion: Functions reachable from the menu bar extra remain reachable when the system hides it.
+    evidence: runtime
+    sourceUrl: https://developer.apple.com/design/human-interface-guidelines/the-menu-bar
+    lastVerified: "2026-10-14"
   - id: project.menu.refresh-stability
     authority: project
     criterion: Account order and open-menu selection stay stable during refresh; changed data appears on the next opening.
