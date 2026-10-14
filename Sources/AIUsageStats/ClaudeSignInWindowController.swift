@@ -7,6 +7,8 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
     private let model: ApplicationModel
     private let existingProfileID: UUID?
     private let accountLabel: String
+    /// Called with the connected account after a successful sign-in closes the sheet.
+    var onConnected: ((UUID) -> Void)?
     private let status = InterfaceControls.label("Preparing sign-in…", size: 13)
     private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
     private var request: ClaudeAuthorizationRequest?
@@ -108,13 +110,13 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
                 guard !finished else { return }
                 finished = true
                 self.request = nil
-                let snapshot = model.snapshots[profile.id]
-                status.stringValue = snapshot?.state == .available
-                    ? "Connected. Subscription usage now appears on Home, on the account page, and in the menu bar."
-                    : "Signed in. \(snapshot?.detail ?? "Usage is unavailable. Choose Refresh All to try again.")"
-                finish(title: "Done")
+                // Success needs no confirmation: close the sheet and show the account, whose page states
+                // whether usage was read.
+                let parent = window?.sheetParent
+                if let window, let parent { parent.endSheet(window); window.orderOut(nil) }
                 NSApp.activate(ignoringOtherApps: true)
-                window?.sheetParent?.makeKeyAndOrderFront(nil)
+                parent?.makeKeyAndOrderFront(nil)
+                onConnected?(profile.id)
             } catch {
                 guard !finished else { return }
                 fail(error.localizedDescription)

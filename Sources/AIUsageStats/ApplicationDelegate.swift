@@ -393,6 +393,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         if let id { platformControllers.removeValue(forKey: id)?.retire() }
         let controller = ClaudeSignInWindowController(model: model, existingProfileID: id, label: label)
         claudeSignIn = controller
+        controller.onConnected = { [weak self] id in self?.accounts?.showAccount(id: id) }
         controller.presentSheet(in: parent)
     }
     private func refreshConsoleCredits() {
