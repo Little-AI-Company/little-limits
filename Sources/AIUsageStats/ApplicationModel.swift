@@ -232,7 +232,7 @@ final class ApplicationModel {
     private func validateConsoleIdentity(accountID: UUID, expectedIdentity: String?) throws {
         try Task.checkCancellation()
         guard let profile = profiles.first(where: { $0.id == accountID }), profile.providerAccountID == expectedIdentity else {
-            throw UsageError.authenticationRequired("The account changed during the Console request. Connect API Credits for the current account.")
+            throw UsageError.authenticationRequired("The account changed during the Claude Platform request. Connect API Credits for the current account.")
         }
     }
 

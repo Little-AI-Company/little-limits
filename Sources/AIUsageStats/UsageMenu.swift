@@ -110,7 +110,7 @@ enum UsageMenu {
             let value = isOutdated ? InterfaceFormatting.lastKnownRemaining(window) : InterfaceFormatting.remainingWithStatus(window)
             let timing = needsSignIn ? "" : window.isActive == false ? "Not current" : InterfaceFormatting.compactReset(window.resetsAt, now: now)
             metrics.append(Metric(label: InterfaceFormatting.usageTitle(window), value: value, timing: timing,
-                                  detail: "\(window.title): \(value). \(InterfaceFormatting.reset(window, now: now))"))
+                                  detail: "\(InterfaceFormatting.usageTitle(window)): \(value). \(InterfaceFormatting.reset(window, now: now))"))
         }
         let credits = snapshot?.credits ?? UsageService.unavailableCredits(for: profile.provider)
         if let earned = earnedResets(credits, now: now) { metrics.append(earned) }
@@ -120,7 +120,9 @@ enum UsageMenu {
             if let date = credit.expiresAt { timing.append(InterfaceFormatting.compactExpiry(date, now: now)) }
             else if credit.doesNotExpire { timing.append("No expiry") }
             if credit.source != .manual,
-               credit.asOf.map({ now.timeIntervalSince($0) >= 300 }) == true || credit.status == "Stale" { timing.append("Stale") }
+               credit.asOf.map({ now.timeIntervalSince($0) >= 300 }) == true || credit.status == "Stale" {
+                timing.append("Stale" + (credit.asOf.map { " · last read \($0.formatted(date: .omitted, time: .shortened))" } ?? ""))
+            }
             metrics.append(Metric(label: InterfaceFormatting.compactCreditTitle(credit), value: InterfaceFormatting.credit(credit),
                                   timing: timing.joined(separator: " · "), detail: InterfaceFormatting.creditDetail(credit, now: now)))
         }
