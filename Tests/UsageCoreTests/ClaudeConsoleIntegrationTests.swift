@@ -50,6 +50,34 @@ private func monthlyService(directory: URL) async throws -> (UsageService, Accou
     #expect(await service.manualCredits(for: profile.id).first { $0.id == "monthly_grant" }?.amount == 7)
 }
 
+@Test func disconnectingConsoleCreditsPreservesManualBalancesAndOtherAccounts() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AIUsageStatsDisconnection-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let (service, profile) = try await monthlyService(directory: directory)
+    let other = try await service.importClaudeCLI(label: "Other account", configurationURL: directory.appendingPathComponent("OtherClaude"))
+    try await service.setManualCredit(accountID: profile.id,
+                                     credit: CreditBalance(id: "api_balance", title: "Purchased credits", amount: 7,
+                                                           source: .manual, asOf: monthlyObservedAt))
+    try await service.setClaudeConsoleConnection(accountID: other.id, organizationID: monthlyOrganizationID, expectedIdentity: nil)
+    for id in [profile.id, other.id] {
+        try await service.updateClaudeConsoleCredits(accountID: id, organizationID: monthlyOrganizationID,
+                                                    responseData: monthlyBalance(), expectedIdentity: nil,
+                                                    linkStateData: monthlyLinkState, invoicesData: monthlyInvoices,
+                                                    observedAt: monthlyObservedAt)
+    }
+    try await service.setClaudeConsoleConnection(accountID: profile.id, organizationID: nil, expectedIdentity: nil)
+    #expect(await service.consoleConnection(for: profile.id) == nil)
+    #expect(await service.consoleConnection(for: other.id) == monthlyOrganizationID)
+    let disconnected = try #require(await service.snapshot(for: profile.id))
+    #expect(disconnected.credits.first { $0.id == "api_balance" }?.amount == 7)
+    #expect(disconnected.credits.first { $0.id == "api_balance" }?.source == .manual)
+    #expect(!disconnected.credits.contains { $0.id == "api_balance_USD" })
+    #expect(await service.snapshot(for: other.id)?.credits.first { $0.id == "api_balance_USD" }?.amount == 12)
+    let profiles = try await service.load()
+    #expect(profiles.map(\.id).contains(profile.id))
+    #expect(profiles.map(\.id).contains(other.id))
+}
+
 @Test func monthlyMetadataFailureRetainsDatedStaleGrantAndFreshPurchasedBalance() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AIUsageStatsMonthly-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: directory) }
