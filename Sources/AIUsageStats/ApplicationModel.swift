@@ -32,6 +32,7 @@ final class ApplicationModel {
     func load() async {
         if isDemo {
             message = nil
+            // Load failure and empty keep their existing precedence. Reading states and Home are additional demo sets.
             if CommandLine.arguments.contains("--demo-load-error"), !hasPresentedDemoLoadError {
                 hasPresentedDemoLoadError = true
                 profiles = []
@@ -40,6 +41,12 @@ final class ApplicationModel {
             } else if CommandLine.arguments.contains("--demo-empty") {
                 profiles = []
                 snapshots = [:]
+            } else if CommandLine.arguments.contains("--demo-reading-states") {
+                profiles = DemoFixtures.homeProfiles
+                snapshots = Dictionary(uniqueKeysWithValues: DemoFixtures.homeReadingStateSnapshots.map { ($0.profileID, $0) })
+            } else if CommandLine.arguments.contains("--demo-home") {
+                profiles = DemoFixtures.homeProfiles
+                snapshots = Dictionary(uniqueKeysWithValues: DemoFixtures.homeSnapshots.map { ($0.profileID, $0) })
             } else {
                 profiles = DemoFixtures.profiles
                 snapshots = Dictionary(uniqueKeysWithValues: DemoFixtures.snapshots.map { ($0.profileID, $0) })

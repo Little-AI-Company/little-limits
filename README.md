@@ -1,6 +1,6 @@
 # AI Usage Stats
 
-Claude and Codex usage, reset countdowns, and API credits in your menu bar. Keep several accounts in one place without replacing your everyday CLI login.
+Claude and Codex usage, reset countdowns, and API credits in your menu bar, with a calendar of account resets. Keep several accounts in one place without replacing your everyday CLI login.
 
 **Native AppKit · macOS 14+ runtime · Swift 6 · No external Swift dependencies**
 
@@ -8,7 +8,9 @@ Claude and Codex usage, reset countdowns, and API credits in your menu bar. Keep
 
 Clicking the menu bar item opens a standard macOS menu. Each account has a native section heading with its provider logo and verified email, followed by aligned usage and credit readings. Quota rows explicitly show the percentage used and a reset countdown; the compact menu bar preview shows provider logos with remaining-quota percentages. Full provider names and remaining-capacity meaning stay in its tooltip and accessibility text. **Manage Accounts…** opens the existing Accounts window. Tooltips and **Details…** keep exact dates and sources available. First-run account setup, Refresh, and Quit use standard status-menu commands. The bottom-left settings icon, app-menu Settings command, and Command-comma open App Settings inside the same window. Its title follows the selected account or settings screen. Open windows are available through Command-Tab; closing the window returns to menu-bar-only use.
 
-Account rows show the lowest complete current quota remaining, with green above 20%, orange from 10% through 20%, and red below 10%. Unknown, inactive, stale, unavailable, and sign-in states stay explicit. Routine account commands are direct buttons; right-click an account or press Delete in the sidebar to remove it with confirmation. Accounts and App Settings have a 960 × 760 point maximum content size.
+Manage Accounts opens Home, with two-week and month calendars. Each reported reset shows its provider icon, remaining percentage, account identity, and time. Hover or activate an event for account details. The account table shows reported plans, all quota windows, earned reset counts and expiry, and reading times. The account filter applies to both views. Calendar percentages reflect the latest reading; resets are not projected into later cycles.
+
+Account rows show the lowest complete current quota remaining, with green above 20%, orange from 10% through 20%, and red below 10%. Unknown, inactive, stale, unavailable, and sign-in states stay explicit. Refresh is beside a native Account menu; right-click an account or press Delete in the sidebar to remove it with confirmation. Accounts and App Settings have a 960 × 760 point maximum content size; Home can expand to 1680 × 1040 points.
 
 ## App Settings
 

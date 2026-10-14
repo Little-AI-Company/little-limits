@@ -538,7 +538,7 @@ public actor UsageService {
             observed = AccountSnapshot(profileID: profile.id, fetchedAt: previous?.fetchedAt,
                                        windows: previous?.windows ?? [], credits: previous?.credits ?? [],
                                        state: authentication ? .authenticationRequired : previous?.fetchedAt == nil ? .unavailable : .stale,
-                                       detail: error.localizedDescription)
+                                       detail: error.localizedDescription, planName: previous?.planName)
         }
         guard generations[profile.id, default: 0] == generation else {
             return snapshot(for: profile.id) ?? AccountSnapshot(profileID: profile.id, state: .unavailable,
@@ -550,7 +550,8 @@ public actor UsageService {
             do { try storage.save(configuration) } catch {
                 observed = AccountSnapshot(profileID: observed.profileID, fetchedAt: observed.fetchedAt,
                                            windows: observed.windows, credits: observed.credits, state: observed.state,
-                                           detail: "Usage read, but could not save it: \(error.localizedDescription)")
+                                           detail: "Usage read, but could not save it: \(error.localizedDescription)",
+                                           planName: observed.planName)
             }
         }
         return decorate(observed, state: observed.state, detail: observed.detail)
@@ -588,7 +589,7 @@ public actor UsageService {
         _ = try providerProfile.resolvedIdentity(expected: profile.providerAccountID)
         let usage = try await claudeClient.usage(accessToken: credentials.accessToken)
         try validateClaudeCredentials(credentials, profileID: profile.id, generation: generation)
-        return try usage.snapshot(profileID: profile.id)
+        return try usage.snapshot(profileID: profile.id, planName: providerProfile.planName)
     }
 
     private func validateClaudeCredentials(_ credentials: ClaudeCredentials, profileID: UUID, generation: Int) throws {
@@ -619,7 +620,8 @@ public actor UsageService {
         }
         let details = [detail, claudeCaptureCleanupMessages[snapshot.profileID]].compactMap { $0 }.joined(separator: "\n")
         return AccountSnapshot(profileID: snapshot.profileID, fetchedAt: snapshot.fetchedAt, windows: snapshot.windows,
-                               credits: credits, state: state, detail: details.isEmpty ? nil : details)
+                               credits: credits, state: state, detail: details.isEmpty ? nil : details,
+                               planName: snapshot.planName)
     }
 
     public static var unavailableAPICredits: [CreditBalance] {

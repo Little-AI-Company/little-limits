@@ -69,7 +69,7 @@ public struct CodexUsageResponse: Decodable, Sendable {
     public let rateLimitResetCredits: ResetCredits?
     public let accountId: String?
 
-    public func snapshot(profileID: UUID, observedAt: Date = Date()) -> AccountSnapshot {
+    public func snapshot(profileID: UUID, observedAt: Date = Date(), planType: String? = nil) -> AccountSnapshot {
         var windows: [UsageWindow] = []
         var credits: [CreditBalance] = []
         let groups: [(String, RateLimits)]
@@ -88,7 +88,8 @@ public struct CodexUsageResponse: Decodable, Sendable {
                 let prefix = groups.count > 1 ? (rateLimit.limitName ?? identifier) + ": " : ""
                 windows.append(UsageWindow(id: identifier + "_" + position, title: prefix + duration,
                                            utilizationPercent: window.usedPercent,
-                                           resetsAt: window.resetsAt.map(Date.init(timeIntervalSince1970:))))
+                                           resetsAt: window.resetsAt.map(Date.init(timeIntervalSince1970:)),
+                                           windowDurationMinutes: window.windowDurationMins))
             }
         }
         // The subscription credit object appears on each meter; keep one balance.
@@ -113,7 +114,32 @@ public struct CodexUsageResponse: Decodable, Sendable {
         let expiredWindow = windows.contains { $0.resetsAt.map { $0 <= observedAt } == true }
         return AccountSnapshot(profileID: profileID, fetchedAt: observedAt, windows: windows,
                                credits: credits, state: empty ? .unavailable : expiredWindow ? .stale : .available,
-                               detail: empty ? "The Codex CLI returned no usage data." : expiredWindow ? "A reported quota reset has passed. Refresh to obtain current usage." : nil)
+                               detail: empty ? "The Codex CLI returned no usage data." : expiredWindow ? "A reported quota reset has passed. Refresh to obtain current usage." : nil,
+                               planName: Self.planName(explicit: planType, groups: groups))
+    }
+
+    private static func planName(explicit: String?, groups: [(String, RateLimits)]) -> String? {
+        let names = Set(groups.compactMap { displayPlanName($0.1.planType) })
+        if names.count == 1 { return names.first }
+        if names.count > 1 { return nil }
+        return displayPlanName(explicit)
+    }
+
+    /// Maps a provider plan code to its name. Unrecognized codes stay as reported. Capacity multipliers are not inferred.
+    private static func displayPlanName(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        switch raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "plus": return "Plus"
+        case "pro": return "Pro"
+        case "free": return "Free"
+        case "team": return "Team"
+        case "business": return "Business"
+        case "enterprise": return "Enterprise"
+        case "edu": return "Edu"
+        case "go": return "Go"
+        case "", "unknown": return nil
+        default: return raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
     }
 }
 
@@ -199,7 +225,8 @@ struct CodexClient: Sendable {
         if let expectedIdentity, expectedIdentity != identity {
             throw UsageError.authenticationRequired("This Codex profile now belongs to a different login. Create a separate profile for that account.")
         }
-        return Result(snapshot: response.snapshot(profileID: profileID), accountIdentity: identity, accountEmail: account.account?.email)
+        return Result(snapshot: response.snapshot(profileID: profileID, planType: account.account?.planType),
+                      accountIdentity: identity, accountEmail: account.account?.email)
     }
 }
 

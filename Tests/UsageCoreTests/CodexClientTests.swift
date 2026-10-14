@@ -121,6 +121,63 @@ final class CodexClientTests: XCTestCase {
     #expect(try await reloaded.load().first?.providerEmail == "fixture@example.com")
 }
 
+@Test func codexAccountPlanAndMeasuredDurationsPersistThroughFailedRefresh() async throws {
+    let fixture = try CodexProcessFixture(script: CodexProcessFixture.responses)
+    defer { fixture.remove() }
+    let directory = fixture.directory.appendingPathComponent("Store")
+    let service = UsageService(directory: directory, codexExecutableURL: fixture.executable)
+    let profile = try await service.createCodexProfile(label: "Work")
+    let fresh = await service.refreshAccount(id: profile.id)
+    #expect(fresh.planName == "Plus")
+    #expect(fresh.windows.map(\.windowDurationMinutes) == [300, 10_080])
+    let original = try String(contentsOf: fixture.executable, encoding: .utf8)
+    try original.replacingOccurrences(of: "account-a", with: "account-b").write(to: fixture.executable, atomically: false, encoding: .utf8)
+    let failed = await service.refreshAccount(id: profile.id)
+    #expect(failed.state == .authenticationRequired)
+    #expect(failed.planName == "Plus")
+    #expect(failed.windows.map(\.windowDurationMinutes) == [300, 10_080])
+    let reloaded = UsageService(directory: directory, codexExecutableURL: fixture.executable)
+    _ = try await reloaded.load()
+    let stored = try #require(await reloaded.snapshot(for: profile.id))
+    #expect(stored.planName == "Plus")
+    #expect(stored.state == .authenticationRequired)
+    #expect(stored.windows.map(\.windowDurationMinutes) == [300, 10_080])
+}
+
+@Test func codexPlanNameUsesKnownCodesWithoutInventingCapacityOrDuration() throws {
+    func snapshot(_ json: String, planType: String? = nil) throws -> AccountSnapshot {
+        try JSONDecoder().decode(CodexUsageResponse.self, from: Data(json.utf8))
+            .snapshot(profileID: UUID(), observedAt: Date(timeIntervalSince1970: 1_000), planType: planType)
+    }
+    let explicit = try snapshot(#"{"rateLimits":{"planType":"pro","primary":{"usedPercent":25,"resetsAt":2000}}}"#, planType: " plus ")
+    #expect(explicit.planName == "Pro")
+    #expect(explicit.windows.map(\.windowDurationMinutes) == [nil])
+    let measured = try snapshot(#"{"rateLimits":{"planType":"PLUS","primary":{"usedPercent":0,"windowDurationMins":300,"resetsAt":2000}}}"#)
+    #expect(measured.planName == "Plus")
+    #expect(measured.windows.first?.windowDurationMinutes == 300)
+    let suppressed = try snapshot(#"{"rateLimits":{"planType":"plus","primary":{"usedPercent":1,"windowDurationMins":300,"resetsAt":2000}}}"#, planType: " unknown ")
+    #expect(suppressed.planName == "Plus")
+    let blank = try snapshot(#"{"rateLimits":{"planType":"pro","primary":{"usedPercent":1,"windowDurationMins":10080,"resetsAt":2000}}}"#, planType: " ")
+    #expect(blank.planName == "Pro")
+    #expect(blank.windows.first?.windowDurationMinutes == 10_080)
+    let conflict = try snapshot(#"{"rateLimitsByLimitId":{"b":{"planType":"pro","primary":{"usedPercent":2,"windowDurationMins":10080}},"a":{"planType":"plus","primary":{"usedPercent":1,"windowDurationMins":300}}}}"#)
+    #expect(conflict.planName == nil)
+    #expect(conflict.windows.map(\.windowDurationMinutes) == [300, 10_080])
+    let raw = try snapshot(#"{"rateLimits":{"planType":"pro","primary":{"usedPercent":4,"windowDurationMins":300,"resetsAt":2000}}}"#, planType: "max_5x")
+    #expect(raw.planName == "Pro")
+    let fallback = try snapshot(#"{"rateLimits":{"primary":{"usedPercent":4,"resetsAt":2000}}}"#, planType: "plus")
+    #expect(fallback.planName == "Plus")
+    let conflictingFallback = try snapshot(#"{"rateLimitsByLimitId":{"a":{"planType":"plus"},"b":{"planType":"pro"}}}"#, planType: "plus")
+    #expect(conflictingFallback.planName == nil)
+    let reported = try snapshot(#"{"rateLimits":{"planType":"max_5x","primary":{"usedPercent":4,"windowDurationMins":300,"resetsAt":2000}}}"#)
+    #expect(reported.planName == "max_5x")
+    let unknown = try snapshot(#"{"rateLimits":{"planType":"unknown","primary":{"usedPercent":4,"resetsAt":2000}}}"#)
+    #expect(unknown.planName == nil)
+    #expect(unknown.windows.first?.windowDurationMinutes == nil)
+    let enterprise = try snapshot(#"{"rateLimits":{"planType":"enterprise","primary":{"usedPercent":1,"windowDurationMins":300,"resetsAt":2000}}}"#)
+    #expect(enterprise.planName == "Enterprise")
+}
+
 private struct RequestRecord: Decodable {
     struct Parameters: Decodable { let refreshToken: Bool? }
     let method: String

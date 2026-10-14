@@ -6,6 +6,8 @@ AI Usage Stats has one purpose: show the available Claude and Codex usage state 
 
 For each account, show the provider, a stable account label, subscription usage percentages, reset countdowns, and the time of the last reading. Keep account order stable while data refreshes. Support the windows the provider returns rather than assuming every plan has the same duration.
 
+The management window opens to Home. Its two-week or month calendar places each current, provider-reported quota reset on its local date, with the provider icon, remaining percentage, and account identity. Hover or activate an event to inspect that account and open its existing management view. An aligned account table shows reported plans, quota windows, earned reset counts, and observation times. Account filtering applies to both views. Calendar percentages are the latest reading, not predicted capacity on the reset date. Do not repeat resets into future cycles or infer plan multipliers.
+
 Show monetary API credit balances and expiry separately from subscription limits. Show Codex credit units separately from dollars. Earned Codex limit resets are a count with their own expiry, not a purchased credit balance. Never infer remaining prepaid dollars from token totals, API costs, or a subscription usage percentage.
 
 Unknown, unsupported, failed, and stale readings must remain recognizable. A missing percentage is not zero. A reset time is not an account billing date. A credit expiry is not a quota reset time.
