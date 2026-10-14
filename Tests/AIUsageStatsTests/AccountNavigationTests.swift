@@ -1,6 +1,18 @@
 import AppKit
 import Testing
 @testable import AIUsageStats
+import UsageCore
+
+@MainActor
+private func descendants<View: NSView>(of root: NSView, as type: View.Type) -> [View] {
+    var pending = [root]
+    var found: [View] = []
+    while let view = pending.popLast() {
+        if let match = view as? View { found.append(match) }
+        pending.append(contentsOf: view.subviews)
+    }
+    return found
+}
 
 @Test @MainActor
 func accountNavigationPreservesTheUserWindowSize() async throws {
@@ -38,4 +50,33 @@ func accountNavigationPreservesTheUserWindowSize() async throws {
     #expect(window.title == "Home")
     #expect(!toolbarItems().contains(NSToolbarItem.Identifier("AccountRefreshAll")))
     #expect(window.frame == originalFrame)
+}
+
+/// Each account identity has line 1 to itself: it is not truncated when it fits the sidebar, and a longer one
+/// keeps the whole line instead of yielding to quota text. Line 2 names the limiting window with the state word.
+@Test @MainActor
+func sidebarRowsGiveTheIdentityItsOwnLineAndNameTheLimitingWindow() async throws {
+    _ = NSApplication.shared
+    let model = ApplicationModel(isDemo: true)
+    await model.load()
+    let controller = AccountsWindowController(model: model)
+    controller.isAccountLoadComplete = { true }
+    controller.render()
+    let window = try #require(controller.window)
+    defer { window.close() }
+    let root = try #require(window.contentView)
+    root.layoutSubtreeIfNeeded()
+    let rows = descendants(of: root, as: AccountSidebarCellView.self)
+    #expect(rows.count == model.profiles.count)
+    var quotaLines: Set<String> = []
+    for row in rows {
+        row.layoutSubtreeIfNeeded()
+        let identity = try #require(row.textField)
+        let fits = identity.intrinsicContentSize.width <= identity.frame.width + 0.5
+        let spansLine = identity.convert(identity.bounds, to: row).maxX >= row.bounds.width - 4.5
+        #expect(fits || spansLine, "\(identity.stringValue) yields its line")
+        if identity.stringValue == "personal@example.invalid" { #expect(fits) }
+        quotaLines.formUnion(descendants(of: row, as: NSTextField.self).filter { $0 !== identity }.map(\.stringValue))
+    }
+    #expect(quotaLines == ["39% left · Weekly", "18% left, Low · 5-hour", "0% left, Limit reached · 5-hour", "Unavailable"])
 }

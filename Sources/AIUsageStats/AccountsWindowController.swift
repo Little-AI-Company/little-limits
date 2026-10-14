@@ -10,7 +10,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private static let windowMinimumSize = NSSize(width: 1020, height: 640)
     private static let windowMaximumSize = NSSize(width: 1680, height: 1040)
     private static let windowDefaultSize = NSSize(width: 1280, height: 780)
-    private static let sidebarDefaultWidth: CGFloat = 250
+    private static let sidebarDefaultWidth: CGFloat = 260
     private static let fixedToolbarItems: [NSToolbarItem.Identifier] = [.toggleSidebar, .sidebarTrackingSeparator]
     private let model: ApplicationModel
     private let home: HomeViewController
@@ -412,43 +412,40 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         let snapshot = model.snapshots[profile.id]
         let summary = AccountQuotaSummary(snapshot: snapshot, accountID: profile.id, now: now)
         let lastRead = snapshot.flatMap { $0.profileID == profile.id ? $0.fetchedAt : nil }
-        var texts: [String]
+        var text: String
         var indicator = AccountSidebarCellView.Indicator.none
         var state: String
         switch summary {
         case let .available(remaining, _, windowTitle):
-            let value = "\(Self.remainingText(remaining)) left"
             let window = snapshot?.currentWindows.first(where: { $0.title == windowTitle }).map(InterfaceFormatting.usageTitle) ?? windowTitle
-            var status: String?
-            if remaining <= 0 { status = "Limit reached"; indicator = .limitReached }
-            else if remaining <= 20 { status = "Low"; indicator = .low }
-            let valueWithStatus = [value, status].compactMap { $0 }.joined(separator: " · ")
-            texts = ["\(valueWithStatus) · \(window)", valueWithStatus, value]
-            state = "\(valueWithStatus). Lowest remaining current quota: \(window)."
+            var value = "\(Self.remainingText(remaining)) left"
+            if remaining <= 0 { value += ", Limit reached"; indicator = .limitReached }
+            else if remaining <= 20 { value += ", Low"; indicator = .low }
+            text = "\(value) · \(window)"
+            state = "\(value). Lowest remaining current quota: \(window)."
         case .unknown:
-            texts = ["Unavailable"]
+            text = "Unavailable"
             state = "Unavailable. A complete current usage reading is not available."
         case .inactive:
-            texts = ["Inactive"]
+            text = "Inactive"
             state = "Inactive. All reported quota windows are inactive."
         case .stale:
             indicator = .stale
-            let time = lastRead.map(Self.shortTime)
-            texts = time.map { ["Stale · last read \($0)", "Stale"] } ?? ["Stale"]
+            text = lastRead.map { "Stale · last read \(Self.shortTime($0))" } ?? "Stale"
             state = "Stale. The last reading is at least five minutes old or a reset has passed. Choose Refresh All to check usage."
         case .unavailable:
-            texts = ["Unavailable"]
+            text = "Unavailable"
             state = "Unavailable. The provider could not supply current usage."
         case .authenticationRequired:
             indicator = .signInRequired
-            texts = ["Sign-in required"]
+            text = "Sign-in required"
             state = "Sign-in required. Choose Reconnect… on the account page."
         }
         var description = "\(InterfaceFormatting.provider(profile.provider)), \(InterfaceFormatting.accountIdentity(profile)). \(state)"
         if let lastRead { description += " Last read \(InterfaceFormatting.exactDate(lastRead))." }
         if InterfaceFormatting.accountEmail(profile) == "Email unavailable" { description += " Email unavailable." }
         return AccountSidebarCellView.Display(identity: InterfaceFormatting.accountIdentity(profile), provider: profile.provider,
-                                              quotaTexts: texts, indicator: indicator, description: description)
+                                              quotaText: text, indicator: indicator, description: description)
     }
 
     private static func remainingText(_ remaining: Double) -> String {
@@ -463,6 +460,18 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         Calendar.current.isDateInToday(date)
             ? date.formatted(date: .omitted, time: .shortened)
             : date.formatted(.dateTime.month(.abbreviated).day().hour().minute())
+    }
+
+    /// Home keeps the system sidebar row height; account rows add the quota line below the identity.
+    func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+        guard row != Self.homeRow else { return tableView.rowHeight }
+        let identitySize: CGFloat = switch tableView.effectiveRowSizeStyle {
+        case .small: 11
+        case .large: 15
+        default: NSFont.systemFontSize
+        }
+        let quotaFont = AccountSidebarCellView.quotaFont(identitySize: identitySize)
+        return tableView.rowHeight + ceil(NSLayoutManager().defaultLineHeight(for: quotaFont)) + AccountSidebarCellView.lineSpacing
     }
 
     func tableViewSelectionDidChange(_ notification: Notification) {
