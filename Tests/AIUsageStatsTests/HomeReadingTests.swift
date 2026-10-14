@@ -74,16 +74,34 @@ func earnedCountHasItsOwnObservationTime() {
     let currentQuota = homeRow(windows: [homeWindow(used: 20)], credits: [homeResetCount(2, observed: old)])
     #expect(homeLines(currentQuota.session)[0].primary == "80% left")
     #expect(homeLines(currentQuota.earned)[0].primary == "Last known 2")
-    #expect(homeLines(currentQuota.earned)[0].tertiary?.hasPrefix("Stale") == true)
+    #expect(homeLines(currentQuota.earned)[0].tertiary?.hasPrefix("Last read") == true)
 
     let oldQuota = homeRow(windows: [homeWindow(used: 20)], observed: old,
                            state: .stale, credits: [homeResetCount(2)])
-    #expect(homeLines(oldQuota.session)[0].primary == "Last known 80% left")
+    #expect(homeLines(oldQuota.session)[0].preface == ["Last known"])
+    #expect(homeLines(oldQuota.session)[0].primary == "80% left")
     #expect(homeLines(oldQuota.earned)[0].primary == "2 available")
 
     let unknownCount = homeRow(windows: [homeWindow(used: 20)],
                                credits: [homeResetCount(2, observed: nil)])
     #expect(homeLines(unknownCount.earned)[0].primary == "Unknown")
+}
+
+/// ACCOUNT-05: a sign-in failure shows the last known value without its timing, as the status menu does, and an
+/// account with no reading says `Unavailable` in every cell instead of four different names.
+@Test @MainActor
+func outdatedAndMissingReadingsUseOneWording() {
+    let signIn = homeRow(windows: [homeWindow(used: 20)], state: .authenticationRequired)
+    let line = homeLines(signIn.session)[0]
+    #expect(line.preface == ["Last known"])
+    #expect(line.primary == "80% left")
+    #expect(line.secondary == nil)
+    #expect(signIn.status == "Sign-in required")
+
+    let empty = homeRow(windows: [], observed: nil)
+    #expect([empty.session, empty.weekly, empty.other].allSatisfy { homeLines($0).map(\.primary) == ["Unavailable"] })
+    #expect(empty.status == "Unavailable")
+    #expect(empty.updatedPrimary == "Unavailable")
 }
 
 @Test @MainActor

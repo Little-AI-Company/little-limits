@@ -52,6 +52,26 @@ enum InterfaceFormatting {
         return value == "Unavailable" || value == "Inactive" ? value : "Last known \(value)"
     }
 
+    /// A reading that must not pass for current: stale, sign-in required, a passed reset, or older than five minutes.
+    static func isOutdated(_ snapshot: AccountSnapshot, now: Date) -> Bool {
+        switch snapshot.state {
+        case .authenticationRequired, .stale: return true
+        case .unavailable: return false
+        case .available:
+            return snapshot.fetchedAt.map { now.timeIntervalSince($0) >= 300 } == true
+                || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
+        }
+    }
+
+    /// Value and compact timing for one window, shared by the status menu and the account page. An outdated
+    /// value reads `Last known 63% left`; sign-in required omits the timing.
+    static func reading(_ window: UsageWindow, snapshot: AccountSnapshot, now: Date) -> (value: String, timing: String) {
+        let value = isOutdated(snapshot, now: now) ? lastKnownRemaining(window) : remainingWithStatus(window)
+        let timing = snapshot.state == .authenticationRequired ? ""
+            : window.isActive == false ? "Not current" : compactReset(window.resetsAt, now: now)
+        return (value, timing)
+    }
+
     static func reset(_ window: UsageWindow, now: Date = Date()) -> String {
         if window.isActive == false {
             return window.resetsAt.map { "Provider reported reset: \(exactDate($0))" } ?? "Reset time unknown"

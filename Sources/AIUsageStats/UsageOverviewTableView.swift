@@ -378,6 +378,9 @@ private final class MeterCell: NSTableCellView {
             group.orientation = .vertical
             group.alignment = .leading
             group.spacing = 1
+            for line in record.preface {
+                group.addArrangedSubview(HomeText.label(line, size: 12))
+            }
             let primary = record.isQuiet
                 ? HomeText.label(record.primary, size: 12, color: .secondaryLabelColor)
                 : HomeText.label(record.primary, size: 12, weight: .semibold, digits: true)
@@ -409,7 +412,7 @@ private final class MeterCell: NSTableCellView {
     static func height(for cell: HomeMeterCell) -> CGFloat {
         let records = records(in: cell)
         let body = records.reduce(CGFloat(0)) { total, record in
-            var line: CGFloat = 18
+            var line: CGFloat = 18 + CGFloat(record.preface.count) * 16
             if record.tone.word != nil { line += 16 }
             if record.secondary != nil { line += 15 }
             if record.tertiary != nil { line += 15 }

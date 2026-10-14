@@ -404,14 +404,15 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         let now = Date()
         let windows = snapshot?.windows ?? []
         usageReadings.render(windows.isEmpty
-            ? [AccountReadingView.Reading(label: "Quota", value: "Unavailable", timing: "",
+            ? [AccountReadingView.Reading(label: "Usage", value: "Unavailable", timing: "",
                                           detail: snapshot?.detail ?? "No usage reading yet. Choose Refresh All to read usage.")]
             : windows.map { usage in
+                // The same value and timing as the status menu, so an outdated reading never passes for current.
                 let title = InterfaceFormatting.usageTitle(usage)
-                let remaining = InterfaceFormatting.remaining(usage)
-                return AccountReadingView.Reading(label: title, value: remaining,
-                                                  timing: usage.isActive == false ? "" : InterfaceFormatting.compactReset(usage.resetsAt, now: now),
-                                                  detail: "\(title): \(remaining). \(InterfaceFormatting.reset(usage, now: now))")
+                let reading = snapshot.map { InterfaceFormatting.reading(usage, snapshot: $0, now: now) }
+                    ?? (value: InterfaceFormatting.remaining(usage), timing: "")
+                return AccountReadingView.Reading(label: title, value: reading.value, timing: reading.timing,
+                                                  detail: "\(title): \(reading.value). \(InterfaceFormatting.reset(usage, now: now))")
             })
         let credits = snapshot?.credits ?? UsageService.unavailableCredits(for: profile.provider)
         creditReadings.render(credits.map { credit in

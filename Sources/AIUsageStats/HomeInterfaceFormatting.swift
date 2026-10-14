@@ -53,9 +53,12 @@ enum StateSymbolColor {
     }
 }
 
-/// One quota reading in a table cell. `primary` is the value alone; a non-neutral `tone` supplies the
-/// `Low` or `Limit reached` line, and the accessibility label carries the full "0% left, Limit reached" phrase.
+/// One quota reading in a table cell. `preface` lines name the window (`Weekly · Fable 5`) and qualify an old
+/// value (`Last known`) above it, so `primary` is the value alone and stays whole in a narrow column. A
+/// non-neutral `tone` supplies the `Low` or `Limit reached` line below, and the accessibility label carries the
+/// full "0% left, Limit reached" phrase.
 struct HomeReadingLine: Equatable {
+    var preface: [String] = []
     var primary: String
     var secondary: String?
     var tertiary: String?
@@ -310,7 +313,7 @@ enum HomeInterfaceFormatting {
             case .authentication: state = "Sign-in required. Choose Reconnect…"
             case .historical: state = "\(staleText(account, now: now)). Choose Refresh All to read it again."
             case .unavailable: state = "Unavailable. Choose Refresh All to try again."
-            case .absent: state = "No usage data. Choose Refresh All to try again."
+            case .absent: state = "\(absentStatus(account)). Choose Refresh All to try again."
             case .current: state = accountStatus(account, basis: basis, now: now) ?? "Some usage unknown"
             }
             return HomeAttentionItem(id: account.id, text: "\(account.profile.provider.title) \(account.shortIdentity): \(state)",
@@ -451,26 +454,25 @@ enum HomeInterfaceFormatting {
 
     private static func meterCell(_ role: HomeWindowRole, account: UsageOverviewAccount, namesWindow: Bool,
                                   now: Date, calendar: Calendar, basis: ReadingBasis) -> HomeMeterCell {
-        func named(_ window: UsageWindow, _ value: String) -> String {
-            namesWindow ? "\(calendarScope(window)): \(value)" : value
-        }
+        let windows = account.snapshot?.windows ?? []
+        let matching = windows.filter { self.role($0) == role }
+        func preface(_ window: UsageWindow) -> [String] { namesWindow ? [scopeLabel(window)] : [] }
         switch basis {
-        case .authentication:
-            return .message(message("Unavailable", help: "Sign-in required. Choose Reconnect… to read this quota."))
         case .unavailable:
             return .message(message("Unavailable", help: "The provider did not return this quota. Choose Refresh All to try again."))
+        case .authentication where windows.isEmpty:
+            return .message(message("Unavailable", help: "Sign-in required. Choose Reconnect… to read this quota."))
         case .absent:
-            let matching = account.snapshot?.windows.filter { self.role($0) == role } ?? []
+            if windows.isEmpty { return .message(message("Unavailable", help: noReadingHelp)) }
             if matching.isEmpty { return .message(message("Unknown", help: "No measured value. Unknown is not zero.")) }
             return .meters(matching.map { window in
                 if window.isActive == false { return inactiveLine(window, now: now, calendar: calendar) }
                 let scope = scopeLabel(window)
-                return HomeReadingLine(primary: named(window, "Unknown"), secondary: "Reading time unknown", tertiary: nil,
+                return HomeReadingLine(preface: preface(window), primary: "Unknown", secondary: "Reading time unknown", tertiary: nil,
                                        tone: .neutral, accessibilityLabel: "\(scope), unknown remaining. Reading time unknown.",
                                        toolTip: "No trustworthy observation time was reported. Unknown is not zero.")
             })
-        case .current, .historical:
-            let matching = account.snapshot?.windows.filter { self.role($0) == role } ?? []
+        case .authentication, .current, .historical:
             if matching.isEmpty {
                 var line = message("Not supported", help: "This account does not report a quota for this column.")
                 line.isQuiet = true
@@ -479,22 +481,26 @@ enum HomeInterfaceFormatting {
             return .meters(matching.map { window -> HomeReadingLine in
                 if window.isActive == false { return inactiveLine(window, now: now, calendar: calendar) }
                 let scope = scopeLabel(window)
-                let schedule = window.resetsAt.map { resetText($0, now: now, calendar: calendar) } ?? unknownResetText
+                // A sign-in failure keeps the last known value but not its timing, as in the status menu.
+                let schedule = basis == .authentication ? nil
+                    : window.resetsAt.map { resetText($0, now: now, calendar: calendar) } ?? unknownResetText
                 let exact = exactReset(window.resetsAt)
                 guard let remaining = remainingPercent(window) else {
-                    return HomeReadingLine(primary: named(window, "Unknown"), secondary: schedule, tertiary: nil, tone: .neutral,
-                                           accessibilityLabel: "\(scope), unknown remaining, \(schedule). Unknown is not zero.",
+                    return HomeReadingLine(preface: preface(window), primary: "Unknown", secondary: schedule, tertiary: nil, tone: .neutral,
+                                           accessibilityLabel: "\(scope), unknown remaining\(schedule.map { ", \($0)" } ?? ""). Unknown is not zero.",
                                            toolTip: "\(scope). Remaining quota is unknown. \(exact)")
                 }
-                if basis == .historical {
-                    let value = "Last known \(percentText(remaining)) left"
-                    let spoken = "\(scope), \(value). \(exact). Stale reading."
-                    return HomeReadingLine(primary: named(window, value), secondary: schedule, tertiary: nil, tone: .neutral,
+                if basis != .current {
+                    // `Last known` sits on its own line above the value, so the value never truncates.
+                    let reason = basis == .authentication ? "Sign-in required" : "Stale reading"
+                    let spoken = "\(scope), Last known \(percentText(remaining)) left. \(exact). \(reason)."
+                    return HomeReadingLine(preface: preface(window) + ["Last known"], primary: "\(percentText(remaining)) left",
+                                           secondary: schedule, tertiary: nil, tone: .neutral,
                                            accessibilityLabel: spoken, toolTip: spoken)
                 }
                 // The table draws the state word on its own line, so the percentage and the word both stay whole.
                 let spoken = "\(scope), \(remainingText(remaining)), \(exact)"
-                return HomeReadingLine(primary: named(window, "\(percentText(remaining)) left"), secondary: schedule, tertiary: nil,
+                return HomeReadingLine(preface: preface(window), primary: "\(percentText(remaining)) left", secondary: schedule, tertiary: nil,
                                        tone: tone(for: remaining), accessibilityLabel: spoken, toolTip: spoken)
             })
         }
@@ -517,7 +523,8 @@ enum HomeInterfaceFormatting {
             return .message(line)
         }
         let primary = facts.countText ?? "Unknown"
-        return .meters([HomeReadingLine(primary: primary, secondary: facts.expiryText, tertiary: facts.staleMarker,
+        // `Last known` on the value already marks it old; the third line gives only the read time, so it fits the column.
+        return .meters([HomeReadingLine(primary: primary, secondary: facts.expiryText, tertiary: facts.staleReadTime.map { "Last read \($0)" },
                                         tone: .neutral, accessibilityLabel: facts.help, toolTip: facts.help)])
     }
 
@@ -527,7 +534,7 @@ enum HomeInterfaceFormatting {
         var expiryLabel: String?
         var expiryExact: String?
         var unavailableReason: String?
-        var staleMarker: String?
+        var staleReadTime: String?
         var isSupported = true
         var help: String
     }
@@ -547,6 +554,9 @@ enum HomeInterfaceFormatting {
             if account.profile.provider == .claude {
                 return EarnedFacts(unavailableReason: "Not supported", isSupported: false,
                                    help: "Claude accounts do not report earned resets.")
+            }
+            if basis == .absent, (account.snapshot?.windows ?? []).isEmpty {
+                return EarnedFacts(unavailableReason: "Unavailable", help: noReadingHelp)
             }
             return EarnedFacts(unavailableReason: "Unknown", help: "No earned reset count was reported. Unknown is not zero.")
         }
@@ -572,8 +582,8 @@ enum HomeInterfaceFormatting {
         let expiryText: String?
         let expiryExact: String?
         if amount > 0, let earliest {
-            expiryLabel = stale ? "Last reported expiry" : "Next expiry"
-            expiryText = compactExpiry(earliest, label: passedExpiry != nil ? "Expired" : stale ? "Reported expiry" : "Next expires", now: now, calendar: calendar)
+            expiryLabel = "Next expiry"
+            expiryText = compactExpiry(earliest, label: passedExpiry != nil ? "Expired" : "Next expires", now: now, calendar: calendar)
             expiryExact = InterfaceFormatting.exactDate(earliest) + (passedExpiry != nil ? " (expired)" : "")
         } else if amount > 0, !grants.isEmpty, amount == Decimal(grants.count),
                   grants.allSatisfy({ $0.doesNotExpire }) {
@@ -596,7 +606,7 @@ enum HomeInterfaceFormatting {
         help += ". Earned reset expiry is separate from usage window resets."
         return EarnedFacts(countText: countText, expiryText: expiryText, expiryLabel: expiryLabel,
                            expiryExact: expiryExact,
-                           staleMarker: stale ? "Stale · last read \(timeText(observed))" : nil, help: help)
+                           staleReadTime: stale ? timeText(observed) : nil, help: help)
     }
 
     private static func detailRows(_ account: UsageOverviewAccount, now: Date, calendar: Calendar) -> [HomeDetailContent.Row] {
@@ -617,7 +627,7 @@ enum HomeInterfaceFormatting {
         }
         let status = accountStatus(account, basis: basis, now: now)
         if windows.isEmpty {
-            let value = status ?? "Unknown"
+            let value = status ?? "Unavailable"
             rows.append(HomeDetailContent.Row(label: "Usage", value: value, detail: nil, tone: .neutral,
                                               toolTip: "No quota windows were reported. \(value). Unknown is not zero."))
         } else if let status {
@@ -632,7 +642,8 @@ enum HomeInterfaceFormatting {
             rows.append(HomeDetailContent.Row(label: "Earned resets", value: reason, detail: nil, tone: .neutral, toolTip: earned.help))
         } else {
             rows.append(HomeDetailContent.Row(label: "Earned resets", value: earned.countText ?? "Unknown",
-                                              detail: earned.staleMarker, tone: .neutral, toolTip: earned.help))
+                                              detail: earned.staleReadTime.map { "Stale · last read \($0)" }, tone: .neutral,
+                                              toolTip: earned.help))
             if let label = earned.expiryLabel {
                 rows.append(HomeDetailContent.Row(label: label, value: earned.expiryExact ?? earned.expiryText ?? "Expiry unavailable",
                                                   detail: nil, tone: .neutral, toolTip: earned.help))
@@ -644,9 +655,9 @@ enum HomeInterfaceFormatting {
     private static func detailValue(_ window: UsageWindow, basis: ReadingBasis) -> String {
         if window.isActive == false { return "Inactive" }
         switch basis {
-        case .authentication, .unavailable: return "Unavailable"
+        case .unavailable: return "Unavailable"
         case .absent: return "Unknown"
-        case .historical:
+        case .historical, .authentication:
             if let remaining = remainingPercent(window) { return "Last known \(percentText(remaining)) left" }
             return "Unknown"
         case .current:
@@ -661,9 +672,9 @@ enum HomeInterfaceFormatting {
         }
         guard let date = window.resetsAt else { return unknownResetText }
         switch basis {
-        case .historical:
+        case .historical, .authentication:
             return "Last reported reset \(InterfaceFormatting.exactDate(date))"
-        case .authentication, .unavailable, .absent:
+        case .unavailable, .absent:
             return InterfaceFormatting.exactDate(date)
         case .current:
             if date <= now { return "Reset due \(InterfaceFormatting.exactDate(date))" }
@@ -694,7 +705,7 @@ enum HomeInterfaceFormatting {
         switch basis {
         case .authentication: return "Sign-in required"
         case .unavailable: return "Unavailable"
-        case .absent: return "No usage data"
+        case .absent: return absentStatus(account)
         case .historical: return staleText(account, now: now)
         case .current:
             let active = account.snapshot?.currentWindows ?? []
@@ -704,12 +715,20 @@ enum HomeInterfaceFormatting {
         }
     }
 
+    /// No reading at all is `Unavailable`; retained windows without a trustworthy time are `Observation time unknown`.
+    private static func absentStatus(_ account: UsageOverviewAccount) -> String {
+        (account.snapshot?.windows ?? []).isEmpty ? "Unavailable" : "Observation time unknown"
+    }
+
+    static let noReadingHelp = "No usage reading yet. Choose Refresh All to read usage."
+
     private static func updatedParts(_ account: UsageOverviewAccount, now: Date, basis: ReadingBasis) -> (primary: String, secondary: String?) {
         let observed = account.snapshot?.fetchedAt.flatMap { $0 <= now ? $0 : nil }
         switch basis {
         case .authentication:
             return ("Not refreshed", nil)
         case .absent:
+            if (account.snapshot?.windows ?? []).isEmpty { return observed.map { (timeText($0), nil) } ?? ("Unavailable", nil) }
             return observed.map { (timeText($0), nil) } ?? ("No reading", nil)
         case .unavailable:
             return observed.map { (timeText($0), "Not refreshed") } ?? ("Not refreshed", nil)

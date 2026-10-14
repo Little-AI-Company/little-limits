@@ -79,14 +79,15 @@ func calendarEventTextFitsItsFrameAtTheMinimumColumnWidth() throws {
     }
 }
 
-/// HOME-14: at the minimum window (1020 pt beside a 260 pt sidebar, less margins and a vertical
-/// scroller: 712 pt of table), no current quota cell truncates. `0% left`, `Limit reached`, and the
-/// reset time each fit on their own line.
+/// HOME-14, HOME-22: at the minimum window (1020 pt beside a 260 pt sidebar, less margins and a vertical
+/// scroller: 712 pt of table), no quota cell truncates. `0% left`, `Limit reached`, `Last known`, a
+/// model-scoped window name, and the reset time each fit on their own line, for current, sign-in, stale,
+/// and missing readings.
 @Test @MainActor
 func quotaCellTextFitsAtTheMinimumWindowWidth() throws {
     _ = NSApplication.shared
     var states: Set<String> = []
-    for fixture in [DemoFixtures.homeSnapshots] {
+    for fixture in [DemoFixtures.homeSnapshots, DemoFixtures.homeReadingStateSnapshots] {
         let snapshots = Dictionary(uniqueKeysWithValues: fixture.map { ($0.profileID, $0) })
         let now = Date()
         let overview = UsageOverview(profiles: DemoFixtures.homeProfiles, snapshots: snapshots, now: now)
@@ -127,6 +128,8 @@ func quotaCellTextFitsAtTheMinimumWindowWidth() throws {
     }
     #expect(states.contains("Limit reached"))
     #expect(states.contains("Low"))
+    #expect(states.contains("Last known"))
+    #expect(states.contains("Weekly · Fable 5"))
 }
 
 /// The size the field's cell needs to draw its whole string. A tail-truncating field reports a smaller

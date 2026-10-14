@@ -101,14 +101,12 @@ enum UsageMenu {
     private static func accountMetrics(profile: AccountProfile, snapshot: AccountSnapshot?, now: Date) -> [Metric] {
         var metrics: [Metric] = []
         let windows = snapshot?.windows ?? []
-        let needsSignIn = snapshot?.state == .authenticationRequired
-        let isOutdated = snapshot.map { isOutdated($0, now: now) } ?? false
         if windows.isEmpty {
             metrics.append(Metric(label: "Usage", value: "Unavailable", timing: "", detail: snapshot?.detail ?? "No usage reading yet."))
         }
         for window in windows {
-            let value = isOutdated ? InterfaceFormatting.lastKnownRemaining(window) : InterfaceFormatting.remainingWithStatus(window)
-            let timing = needsSignIn ? "" : window.isActive == false ? "Not current" : InterfaceFormatting.compactReset(window.resetsAt, now: now)
+            guard let snapshot else { continue }
+            let (value, timing) = InterfaceFormatting.reading(window, snapshot: snapshot, now: now)
             metrics.append(Metric(label: InterfaceFormatting.usageTitle(window), value: value, timing: timing,
                                   detail: "\(InterfaceFormatting.usageTitle(window)): \(value). \(InterfaceFormatting.reset(window, now: now))"))
         }
@@ -154,16 +152,6 @@ enum UsageMenu {
         return Metric(label: "Earned resets", value: "\(count) available", timing: timing, detail: lines.joined(separator: "\n"))
     }
 
-    private static func isOutdated(_ snapshot: AccountSnapshot, now: Date) -> Bool {
-        switch snapshot.state {
-        case .authenticationRequired, .stale: return true
-        case .unavailable: return false
-        case .available:
-            return snapshot.fetchedAt.map { now.timeIntervalSince($0) >= 300 } == true
-                || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
-        }
-    }
-
     private static func accountState(_ snapshot: AccountSnapshot, now: Date) -> String? {
         let lastRead = snapshot.fetchedAt.map { " · last read \($0.formatted(date: .omitted, time: .shortened))" } ?? ""
         switch snapshot.state {
@@ -171,7 +159,7 @@ enum UsageMenu {
         case .unavailable: return snapshot.windows.isEmpty ? nil : "Unavailable"
         case .stale: return "Stale" + lastRead
         case .available:
-            if isOutdated(snapshot, now: now) { return "Stale" + lastRead }
+            if InterfaceFormatting.isOutdated(snapshot, now: now) { return "Stale" + lastRead }
             return snapshot.fetchedAt == nil && !snapshot.windows.isEmpty ? "Observation time unknown" : nil
         }
     }
