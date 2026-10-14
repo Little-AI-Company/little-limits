@@ -18,8 +18,10 @@ enum InterfaceFormatting {
     static func usageTitle(_ window: UsageWindow) -> String {
         if window.title == "5 hours" { return "5-hour" }
         if window.title == "7 days" { return "Weekly" }
-        if window.title.hasPrefix("5 hours (") { return window.title.replacingOccurrences(of: "5 hours", with: "5-hour") }
-        if window.title.hasPrefix("7 days (") { return window.title.replacingOccurrences(of: "7 days", with: "Weekly") }
+        for (raw, name) in [("5 hours", "5-hour"), ("7 days", "Weekly")] where window.title.hasPrefix(raw + " (") && window.title.hasSuffix(")") {
+            let scope = window.title.dropFirst(raw.count + 2).dropLast()
+            return "\(name) · \(scope)"
+        }
         return window.title
     }
 
