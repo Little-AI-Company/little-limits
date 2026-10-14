@@ -15,14 +15,17 @@ enum InterfaceFormatting {
         return fallback.isEmpty ? "\(provider(profile.provider)) Account" : fallback
     }
 
-    static func usageTitle(_ window: UsageWindow) -> String {
-        if window.title == "5 hours" { return "5-hour" }
-        if window.title == "7 days" { return "Weekly" }
-        for (raw, name) in [("5 hours", "5-hour"), ("7 days", "Weekly")] where window.title.hasPrefix(raw + " (") && window.title.hasSuffix(")") {
-            let scope = window.title.dropFirst(raw.count + 2).dropLast()
+    static func usageTitle(_ window: UsageWindow) -> String { usageTitle(window.title) }
+
+    /// Maps a provider window title such as `7 days (Fable 5)` to its display name, `Weekly · Fable 5`.
+    static func usageTitle(_ title: String) -> String {
+        if title == "5 hours" { return "5-hour" }
+        if title == "7 days" { return "Weekly" }
+        for (raw, name) in [("5 hours", "5-hour"), ("7 days", "Weekly")] where title.hasPrefix(raw + " (") && title.hasSuffix(")") {
+            let scope = title.dropFirst(raw.count + 2).dropLast()
             return "\(name) · \(scope)"
         }
-        return window.title
+        return title
     }
 
     /// Remaining quota, the one percentage meaning shown everywhere in the interface.

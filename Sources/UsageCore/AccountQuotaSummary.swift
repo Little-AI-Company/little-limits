@@ -33,4 +33,18 @@ public enum AccountQuotaSummary: Sendable, Equatable {
                           severity: remaining > 20 ? .normal : remaining >= 10 ? .warning : .critical,
                           windowTitle: limiting.title)
     }
+
+    /// The account and window with the lowest remaining quota among current readings, in stored account order
+    /// for ties. Stale, sign-in-required, unavailable, inactive, and unknown readings are excluded, so an old
+    /// value never stands for the provider. Nil when no account has a current reading.
+    public static func lowestCurrent(accountIDs: [UUID], snapshots: [UUID: AccountSnapshot], now: Date = Date())
+        -> (accountID: UUID, remainingPercent: Double, windowTitle: String)? {
+        var lowest: (accountID: UUID, remainingPercent: Double, windowTitle: String)?
+        for id in accountIDs {
+            guard case let .available(remaining, _, title) = AccountQuotaSummary(snapshot: snapshots[id], accountID: id, now: now),
+                  remaining < lowest?.remainingPercent ?? .infinity else { continue }
+            lowest = (id, remaining, title)
+        }
+        return lowest
+    }
 }
