@@ -35,6 +35,12 @@ if [[ "$distribution" == 1 ]]; then
         printf 'DISTRIBUTION=1 requires a Developer ID Application signing identity.\n' >&2
         exit 1
     fi
+    # Releases ship under the RAPTURE ENTERTAINERS, INC. team only.
+    release_team="${RELEASE_TEAM_ID:-9FL5S77YVH}"
+    if [[ "$identity_name" != *"($release_team)" ]]; then
+        printf 'DISTRIBUTION=1 requires the Developer ID certificate of team %s.\n' "$release_team" >&2
+        exit 1
+    fi
 fi
 
 build_arguments=(-c release)
