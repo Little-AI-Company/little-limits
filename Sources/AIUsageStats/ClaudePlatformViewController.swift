@@ -490,14 +490,32 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
     }
 
     @objc private func disconnect(_ sender: Any?) {
-        guard !isFetching else { return }
+        disconnectConnection()
+    }
+
+    func disconnectConnection() {
+        guard !isRetired, !model.isDemo, !model.isRefreshing, !model.isChangingAccounts,
+              model.consoleConnections[profile.id] != nil else { return }
+        guard !isFetching else {
+            model.onError?("API credits are refreshing. Try Disconnect API Credits after the refresh finishes.")
+            return
+        }
+        isFetching = true
+        updateControls()
         Task {
+            defer {
+                isFetching = false
+                updateControls()
+            }
             do {
                 try await model.setConsoleConnection(accountID: profile.id, organizationID: nil, expectedIdentity: profile.providerAccountID)
                 await model.load()
                 setStatus("API credits disconnected.", detail: "Saved manual balances are available again.")
                 updateControls()
-            } catch { setStatus("Could not disconnect.", detail: error.localizedDescription) }
+            } catch {
+                setStatus("Could not disconnect.", detail: error.localizedDescription)
+                model.onError?(error.localizedDescription)
+            }
         }
     }
 }

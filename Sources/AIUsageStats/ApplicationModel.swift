@@ -216,6 +216,7 @@ final class ApplicationModel {
         try await service.setClaudeConsoleConnection(accountID: accountID, organizationID: organizationID, expectedIdentity: expectedIdentity)
         try validateConsoleIdentity(accountID: accountID, expectedIdentity: expectedIdentity)
         consoleConnections[accountID] = organizationID
+        if organizationID == nil { consoleMessages[accountID] = nil }
     }
 
     func updateConsoleCredits(accountID: UUID, organizationID: String, responseData: Data, expectedIdentity: String?,

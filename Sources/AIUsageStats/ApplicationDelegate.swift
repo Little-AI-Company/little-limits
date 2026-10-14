@@ -166,6 +166,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         if accounts == nil {
             accounts = AccountsWindowController(model: model)
             accounts?.onConsoleConnection = { [weak self] id in self?.showClaudePlatform(id) }
+            accounts?.onConsoleDisconnection = { [weak self] id in self?.platformController(id)?.disconnectConnection() }
             accounts?.onClaudeConnection = { [weak self] id, label in self?.showClaudeSignIn(id: id, label: label) }
             accounts?.isAccountLoadComplete = { [weak self] in self?.accountsLoaded == true }
             accounts?.onRetryAccountLoad = { [weak self] in self?.reloadAccounts(nil) }

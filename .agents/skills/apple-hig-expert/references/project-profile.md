@@ -27,14 +27,14 @@ The compact template image uses provider logos and remaining-capacity percentage
 
 Use the single existing management window with its stable account sidebar. App Settings and the Platform pane share that window. Preserve selection and unfinished manual edits across refresh and navigation. Command-comma opens settings, Command-W closes, Command-M minimizes, and reopening restores the existing window. Verify Command-Tab return while the management window is open and accessory activation after it closes, including attached sheets.
 
-Keep routine actions in native commands and show detail on demand. Retain the removal confirmation. App Settings is a screen inside the management window; do not impose the sizing and window-button rules for a separate dedicated Settings window on it without recognizing this local choice.
+Use direct native account buttons and inline scrollable Connection Details. Preserve the window frame across Home, accounts, App Settings, and Platform. Add/remove use plus/minus buttons below the account list; retain the removal confirmation. App Settings is a screen inside the management window; do not impose the sizing and window-button rules for a separate dedicated Settings window on it without recognizing this local choice.
 
 ## Readings, identity, and privacy
 
 - Use verified provider email where available; saved names are fallbacks, not verified identity. Missing email remains explicit in details.
 - Keep subscription percentages and reset times separate from API currency, promotional grants, Codex credit units, and earned reset counts.
 - Preserve zero, unknown, unsupported, inactive, expired, stale, and failed states. A refresh must not make manual data newly confirmed or hide a failed reading behind an old value.
-- Keep exact dates, time zone, provenance, and recovery diagnostics available through keyboard-accessible Connection Details; tooltips alone are insufficient.
+- Keep exact dates, time zone, provenance, and recovery diagnostics available through keyboard-accessible inline Connection Details; tooltips alone are insufficient.
 - Platform authentication is separate from Claude subscription sign-in. Keep the intended account, discovered login, selected organization, experimental status, and recovery action understandable. Background refresh must not navigate or reveal the browser.
 - Monitoring stays read-only. Review must not buy credits, change plans, consume a model request, alter a CLI login, or expose credentials.
 
