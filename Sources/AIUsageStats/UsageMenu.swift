@@ -49,13 +49,15 @@ enum UsageMenu {
             let provider = InterfaceFormatting.provider(profile.provider)
             let email = InterfaceFormatting.accountEmail(profile)
             let identity = InterfaceFormatting.accountIdentity(profile)
-            let observation = snapshot?.fetchedAt.map { "Last reading: \(InterfaceFormatting.exactDate($0))" } ?? "No usage reading yet."
+            let observation = snapshot?.fetchedAt.map { "Last reading: \(InterfaceFormatting.exactDate($0))" } ?? HomeInterfaceFormatting.noReadingHelp
             let heading = NSMenuItem.sectionHeader(title: "\(provider) • \(identity)")
             heading.image = ProviderIcons.images[profile.provider]
             if #available(macOS 27, *) { heading.preferredImageVisibility = .visible }
             heading.toolTip = ["\(provider) · \(identity)", email == "Email unavailable" ? email : nil, observation, snapshot?.detail].compactMap { $0 }.joined(separator: "\n")
             items.append(heading)
+            // No snapshot or no windows is a section without readings: it still gets a state line and Open Account.
             let state = snapshot.flatMap { accountState($0, now: now) }
+                ?? ((snapshot?.windows ?? []).isEmpty ? "Unavailable" : nil)
             if let state {
                 let item = stateLine(state, detail: [observation, snapshot?.detail].compactMap { $0 }.joined(separator: "\n"),
                                      target: target, action: openAction, accountID: profile.id)
@@ -101,9 +103,6 @@ enum UsageMenu {
     private static func accountMetrics(profile: AccountProfile, snapshot: AccountSnapshot?, now: Date) -> [Metric] {
         var metrics: [Metric] = []
         let windows = snapshot?.windows ?? []
-        if windows.isEmpty {
-            metrics.append(Metric(label: "Usage", value: "Unavailable", timing: "", detail: snapshot?.detail ?? "No usage reading yet."))
-        }
         for window in windows {
             guard let snapshot else { continue }
             let (value, timing) = InterfaceFormatting.reading(window, snapshot: snapshot, now: now)

@@ -47,4 +47,22 @@ public enum AccountQuotaSummary: Sendable, Equatable {
         }
         return lowest
     }
+
+    /// The account and window with the lowest last known remaining quota, from any reading with a trustworthy
+    /// observation time: stale, sign-in required, older than five minutes, or past a reset. The status item shows
+    /// it, with its stale mark, only when `lowestCurrent` is nil. Nil when no account was ever measured.
+    public static func lowestLastKnown(accountIDs: [UUID], snapshots: [UUID: AccountSnapshot], now: Date = Date())
+        -> (accountID: UUID, remainingPercent: Double, windowTitle: String)? {
+        var lowest: (accountID: UUID, remainingPercent: Double, windowTitle: String)?
+        for id in accountIDs {
+            guard let snapshot = snapshots[id], snapshot.profileID == id,
+                  let fetchedAt = snapshot.fetchedAt, fetchedAt <= now else { continue }
+            for window in snapshot.windows where window.isActive != false {
+                guard let used = window.utilizationPercent, used.isFinite,
+                      100 - used < lowest?.remainingPercent ?? .infinity else { continue }
+                lowest = (id, 100 - used, window.title)
+            }
+        }
+        return lowest
+    }
 }

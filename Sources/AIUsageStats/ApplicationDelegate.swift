@@ -76,16 +76,22 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             platformControllers.removeValue(forKey: id)?.retire()
         }
         if accounts?.window?.isVisible == true { accounts?.render() }
-        // The number per provider comes only from current readings, so an old or signed-out zero never
-        // stands for the provider. The tooltip names the account and window behind the number.
+        // The number per provider prefers current readings, so an old or signed-out zero never hides a current
+        // value. With no current reading the provider shows its lowest last known value with the stale mark;
+        // `?` means it was never measured. The tooltip names the account and window behind the number.
         let now = Date()
+        var showsLastKnown = false
         var readings: [StatusItemSummary.Reading] = []
         var descriptions: [String] = []
         for provider in [Provider.claude, .codex] {
             let profiles = model.profiles.filter { $0.provider == provider }
             guard !profiles.isEmpty else { continue }
             let name = InterfaceFormatting.provider(provider)
-            let lowest = AccountQuotaSummary.lowestCurrent(accountIDs: profiles.map(\.id), snapshots: model.snapshots, now: now)
+            let ids = profiles.map(\.id)
+            let current = AccountQuotaSummary.lowestCurrent(accountIDs: ids, snapshots: model.snapshots, now: now)
+            let lastKnown = current == nil ? AccountQuotaSummary.lowestLastKnown(accountIDs: ids, snapshots: model.snapshots, now: now) : nil
+            if lastKnown != nil { showsLastKnown = true }
+            let lowest = current ?? lastKnown
             let remaining = lowest.map { Int(min(100, max(0, $0.remainingPercent)).rounded()) }
             readings.append(StatusItemSummary.Reading(provider: provider, remainingPercent: remaining))
             let notCurrent = profiles.compactMap { profile -> String? in
@@ -93,10 +99,13 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
                 guard let reason = Self.notCurrentReason(summary) else { return nil }
                 return "\(InterfaceFormatting.accountIdentity(profile)): \(reason)"
             }
-            if let lowest, let remaining, let profile = profiles.first(where: { $0.id == lowest.accountID }) {
+            if let current, let remaining, let profile = profiles.first(where: { $0.id == current.accountID }) {
                 let others = notCurrent.isEmpty ? "" : " (\(notCurrent.count) other account\(notCurrent.count == 1 ? "" : "s") not current)"
                 descriptions.append("\(name): \(remaining)% left on \(InterfaceFormatting.accountIdentity(profile)), "
-                    + InterfaceFormatting.usageTitle(lowest.windowTitle) + others)
+                    + InterfaceFormatting.usageTitle(current.windowTitle) + others)
+            } else if let lastKnown, let remaining, let profile = profiles.first(where: { $0.id == lastKnown.accountID }) {
+                descriptions.append("\(name): no current reading. Last known \(remaining)% left on \(InterfaceFormatting.accountIdentity(profile)), "
+                    + InterfaceFormatting.usageTitle(lastKnown.windowTitle) + ". " + notCurrent.joined(separator: "; "))
             } else {
                 descriptions.append("\(name): no current reading. " + notCurrent.joined(separator: "; "))
             }
@@ -107,7 +116,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
                 || snapshot.fetchedAt.map { now.timeIntervalSince($0) >= 300 } == true
                 || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
         }
-        let summary = StatusItemSummary(readings: readings, isStale: stale)
+        let summary = StatusItemSummary(readings: readings, isStale: stale || showsLastKnown)
         if displayedStatusSummary != summary, let button = statusItem?.button {
             button.title = readings.isEmpty ? "AI" : ""
             button.image = readings.isEmpty ? nil : StatusItemImage.render(summary)
@@ -115,10 +124,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             button.imageScaling = .scaleProportionallyDown
             displayedStatusSummary = summary
         }
-        let help = "AI Usage Stats\n" + descriptions.joined(separator: "\n") + (stale ? "\nSome usage is stale or needs sign-in. Open for details." : "")
+        let marked = summary.isStale
+        let help = "AI Usage Stats\n" + descriptions.joined(separator: "\n") + (marked ? "\nSome usage is stale or needs sign-in. Open for details." : "")
         if statusItem?.button?.toolTip != help {
             statusItem?.button?.toolTip = help
-            statusItem?.button?.setAccessibilityValue(descriptions.joined(separator: ". ") + (stale ? ". Some usage is stale or needs sign-in." : ""))
+            statusItem?.button?.setAccessibilityValue(descriptions.joined(separator: ". ") + (marked ? ". Some usage is stale or needs sign-in." : ""))
         }
     }
 
@@ -243,7 +253,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         accounts?.showAccount(id: id)
     }
     @objc private func reconnectAccountFromMenu(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? UUID else { return }
+        guard canReconnectFromMenu, let id = sender.representedObject as? UUID else { return }
         presentAccountsWindow(sender, presentation: .preserve)
         accounts?.reconnectAccount(id: id)
     }
@@ -279,9 +289,16 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
                 && !model.isRefreshing && !model.isChangingAccounts
         case #selector(reloadAccounts(_:)):
             return accountsLoaded
+        case #selector(reconnectAccountFromMenu(_:)):
+            return canReconnectFromMenu
         default:
             return true
         }
+    }
+
+    /// The account page's rule for Reconnect…: not demo, not refreshing, not changing accounts, no sheet open.
+    private var canReconnectFromMenu: Bool {
+        !model.isDemo && !model.isRefreshing && !model.isChangingAccounts && accounts?.window?.attachedSheet == nil
     }
 
     private func rebuildStatusMenu() {
@@ -311,6 +328,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
                                            consoleMessages: model.consoleMessages, now: now, target: self,
                                            openAction: #selector(openAccountFromMenu(_:)),
                                            reconnectAction: #selector(reconnectAccountFromMenu(_:))) {
+            // The status menu does not autoenable items, so validate Reconnect… here.
+            if item.action == #selector(reconnectAccountFromMenu(_:)) { item.isEnabled = validateMenuItem(item) }
             statusMenu.addItem(item)
         }
         if let message = model.message {
