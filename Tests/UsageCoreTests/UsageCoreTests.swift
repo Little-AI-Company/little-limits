@@ -11,7 +11,7 @@ import Testing
     #expect(decoded.utilizationPercent == 100)
     #expect(UsageFormatting.countdown(to: now.addingTimeInterval(3_601), now: now) == "1h 1m")
     #expect(UsageFormatting.countdown(to: now.addingTimeInterval(-1), now: now) == "Reset due")
-    #expect(UsageFormatting.countdown(to: nil, now: now) == "Reset unavailable")
+    #expect(UsageFormatting.countdown(to: nil, now: now) == "Reset time unknown")
     #expect(CreditBalance.dollars(fromCents: 1_250) == Decimal(string: "12.50"))
 }
 

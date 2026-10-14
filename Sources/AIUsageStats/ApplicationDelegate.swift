@@ -76,32 +76,36 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             platformControllers.removeValue(forKey: id)?.retire()
         }
         if accounts?.window?.isVisible == true { accounts?.render() }
+        // The number per provider comes only from current readings, so an old or signed-out zero never
+        // stands for the provider. The tooltip names the account and window behind the number.
+        let now = Date()
         var readings: [StatusItemSummary.Reading] = []
         var descriptions: [String] = []
         for provider in [Provider.claude, .codex] {
             let profiles = model.profiles.filter { $0.provider == provider }
             guard !profiles.isEmpty else { continue }
-            var limiting: (used: Double, profile: AccountProfile)?
-            for profile in profiles {
-                let used = (model.snapshots[profile.id]?.currentWindows ?? []).compactMap(\.utilizationPercent).filter(\.isFinite).max()
-                if let used, used > (limiting?.used ?? -.infinity) { limiting = (used, profile) }
-            }
-            let remaining = limiting.map { Int((100 - min(100, max(0, $0.used))).rounded()) }
-            readings.append(StatusItemSummary.Reading(provider: provider, remainingPercent: remaining))
             let name = InterfaceFormatting.provider(provider)
-            let count = "\(profiles.count) account\(profiles.count == 1 ? "" : "s")"
-            if let remaining, let limiting {
-                let account = profiles.count > 1 ? " on \(InterfaceFormatting.accountIdentity(limiting.profile))" : ""
-                descriptions.append("\(name): \(remaining)% left\(account), lowest of \(count)")
+            let lowest = AccountQuotaSummary.lowestCurrent(accountIDs: profiles.map(\.id), snapshots: model.snapshots, now: now)
+            let remaining = lowest.map { Int(min(100, max(0, $0.remainingPercent)).rounded()) }
+            readings.append(StatusItemSummary.Reading(provider: provider, remainingPercent: remaining))
+            let notCurrent = profiles.compactMap { profile -> String? in
+                let summary = AccountQuotaSummary(snapshot: model.snapshots[profile.id], accountID: profile.id, now: now)
+                guard let reason = Self.notCurrentReason(summary) else { return nil }
+                return "\(InterfaceFormatting.accountIdentity(profile)): \(reason)"
+            }
+            if let lowest, let remaining, let profile = profiles.first(where: { $0.id == lowest.accountID }) {
+                let others = notCurrent.isEmpty ? "" : " (\(notCurrent.count) other account\(notCurrent.count == 1 ? "" : "s") not current)"
+                descriptions.append("\(name): \(remaining)% left on \(InterfaceFormatting.accountIdentity(profile)), "
+                    + InterfaceFormatting.usageTitle(lowest.windowTitle) + others)
             } else {
-                descriptions.append("\(name): usage unavailable across \(count)")
+                descriptions.append("\(name): no current reading. " + notCurrent.joined(separator: "; "))
             }
         }
         let stale = model.profiles.contains {
             guard let snapshot = model.snapshots[$0.id] else { return false }
             return snapshot.state == .stale || snapshot.state == .authenticationRequired
-                || snapshot.fetchedAt.map { Date().timeIntervalSince($0) >= 300 } == true
-                || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= Date() } == true }
+                || snapshot.fetchedAt.map { now.timeIntervalSince($0) >= 300 } == true
+                || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
         }
         let summary = StatusItemSummary(readings: readings, isStale: stale)
         if displayedStatusSummary != summary, let button = statusItem?.button {
@@ -115,6 +119,17 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         if statusItem?.button?.toolTip != help {
             statusItem?.button?.toolTip = help
             statusItem?.button?.setAccessibilityValue(descriptions.joined(separator: ". ") + (stale ? ". Some usage is stale or needs sign-in." : ""))
+        }
+    }
+
+    /// Why an account's reading does not count toward the status item number, or nil when it is current.
+    private static func notCurrentReason(_ summary: AccountQuotaSummary) -> String? {
+        switch summary {
+        case .available: nil
+        case .authenticationRequired: "Sign-in required"
+        case .stale: "Stale"
+        case .inactive: "No active usage window"
+        case .unavailable, .unknown: "Unavailable"
         }
     }
 
@@ -273,13 +288,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         statusMenu.removeAllItems()
         statusItem?.button?.setAccessibilityHelp(model.profiles.isEmpty ? "Add an account or open settings" : "Open account usage and remaining quota")
         guard accountsLoaded else {
-            statusMenu.addItem(UsageMenu.reading("Loading Accounts…"))
+            statusMenu.addItem(UsageMenu.progress("Loading Accounts…"))
             statusMenu.addItem(.separator())
             appendApplicationCommands(includeRefresh: false)
             return
         }
         if model.hasAccountLoadFailure {
-            statusMenu.addItem(UsageMenu.reading("Accounts could not be loaded", detail: model.message))
+            // Opens the window, whose Home page explains the failure and offers Retry.
+            statusMenu.addItem(UsageMenu.stateLine("Accounts could not be loaded", detail: model.message,
+                                                   target: self, action: #selector(showAccounts(_:))))
             statusMenu.addItem(command(title: "Retry Loading Accounts", action: #selector(reloadAccounts(_:))))
             statusMenu.addItem(.separator())
             appendApplicationCommands(includeRefresh: false)
@@ -296,8 +313,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
                                            reconnectAction: #selector(reconnectAccountFromMenu(_:))) {
             statusMenu.addItem(item)
         }
-        if let message = model.message { statusMenu.addItem(UsageMenu.reading(message)) }
-        if model.isChangingAccounts { statusMenu.addItem(UsageMenu.reading("Saving account…")) }
+        if let message = model.message {
+            statusMenu.addItem(UsageMenu.stateLine(message, detail: message, target: self, action: #selector(showAccounts(_:))))
+        }
+        if model.isChangingAccounts { statusMenu.addItem(UsageMenu.progress("Saving account…")) }
         appendApplicationCommands(includeRefresh: !model.profiles.isEmpty, includeSetup: model.profiles.isEmpty)
     }
 
@@ -378,6 +397,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let file = NSMenuItem()
         let fileMenu = NSMenu(title: "File")
         fileMenu.addItem(nilTargetItem("Add Account…", #selector(WindowCommandHandling.addAccount(_:)), "n"))
+        fileMenu.addItem(.separator())
+        // Selected-account commands; disabled until the window or account page implements and validates them.
+        fileMenu.addItem(nilTargetItem("Reconnect…", #selector(WindowCommandHandling.reconnectSelectedAccount(_:)), ""))
+        fileMenu.addItem(nilTargetItem("Open Billing", #selector(WindowCommandHandling.openSelectedAccountBilling(_:)), ""))
+        fileMenu.addItem(nilTargetItem("Remove Account…", #selector(WindowCommandHandling.removeSelectedAccount(_:)), ""))
         fileMenu.addItem(.separator())
         fileMenu.addItem(NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
         file.submenu = fileMenu

@@ -10,17 +10,26 @@ enum UsageMenu {
         let detail: String
     }
 
-    static func reading(_ title: String, detail: String? = nil) -> NSMenuItem {
+    /// A transient progress line with nothing to open, such as `Loading Accounts…`. AppKit draws it disabled.
+    static func progress(_ title: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = false
-        // Informational readings retain ordinary semantic text without becoming commands.
-        item.attributedTitle = NSAttributedString(string: title, attributes: [.foregroundColor: NSColor.labelColor])
+        return item
+    }
+
+    /// A state or error line. It is an enabled item with a real action so AppKit draws it at label
+    /// contrast, not disabled contrast; the full explanation is in the tooltip.
+    static func stateLine(_ title: String, detail: String?, target: AnyObject, action: Selector,
+                          accountID: UUID? = nil) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = target
+        item.representedObject = accountID
         item.toolTip = detail
         return item
     }
 
-    /// Account sections for the status menu. Reading rows open the account page; failure rows
-    /// carry `Reconnect…` or `Open Account…`. Both actions read the account id from `representedObject`.
+    /// Account sections for the status menu. State lines and reading rows open the account page; sections
+    /// that need attention end with `Reconnect…` or `Open Account`. Both actions read the account id from `representedObject`.
     static func accountItems(profiles: [AccountProfile], snapshots: [UUID: AccountSnapshot],
                              consoleMessages: [UUID: String], now: Date,
                              target: AnyObject, openAction: Selector, reconnectAction: Selector) -> [NSMenuItem] {
@@ -48,12 +57,13 @@ enum UsageMenu {
             items.append(heading)
             let state = snapshot.flatMap { accountState($0, now: now) }
             if let state {
-                let item = reading(state, detail: [observation, snapshot?.detail].compactMap { $0 }.joined(separator: "\n"))
+                let item = stateLine(state, detail: [observation, snapshot?.detail].compactMap { $0 }.joined(separator: "\n"),
+                                     target: target, action: openAction, accountID: profile.id)
                 item.indentationLevel = 1
                 items.append(item)
             }
             if let message = consoleMessages[profile.id] {
-                let item = reading("API Credits need attention", detail: message)
+                let item = stateLine("API Credits need attention", detail: message, target: target, action: openAction, accountID: profile.id)
                 item.indentationLevel = 1
                 items.append(item)
             }
@@ -76,7 +86,7 @@ enum UsageMenu {
             }
             if state != nil || consoleMessages[profile.id] != nil {
                 let needsSignIn = snapshot?.state == .authenticationRequired
-                let item = NSMenuItem(title: needsSignIn ? "Reconnect…" : "Open Account…",
+                let item = NSMenuItem(title: needsSignIn ? "Reconnect…" : "Open Account",
                                       action: needsSignIn ? reconnectAction : openAction, keyEquivalent: "")
                 item.target = target
                 item.representedObject = profile.id
@@ -100,7 +110,7 @@ enum UsageMenu {
             let value = isOutdated ? InterfaceFormatting.lastKnownRemaining(window) : InterfaceFormatting.remainingWithStatus(window)
             let timing = needsSignIn ? "" : window.isActive == false ? "Not current" : InterfaceFormatting.compactReset(window.resetsAt, now: now)
             metrics.append(Metric(label: InterfaceFormatting.usageTitle(window), value: value, timing: timing,
-                                  detail: "\(window.title): \(value). \(InterfaceFormatting.reset(window, now: now))"))
+                                  detail: "\(InterfaceFormatting.usageTitle(window)): \(value). \(InterfaceFormatting.reset(window, now: now))"))
         }
         let credits = snapshot?.credits ?? UsageService.unavailableCredits(for: profile.provider)
         if let earned = earnedResets(credits, now: now) { metrics.append(earned) }
@@ -110,7 +120,9 @@ enum UsageMenu {
             if let date = credit.expiresAt { timing.append(InterfaceFormatting.compactExpiry(date, now: now)) }
             else if credit.doesNotExpire { timing.append("No expiry") }
             if credit.source != .manual,
-               credit.asOf.map({ now.timeIntervalSince($0) >= 300 }) == true || credit.status == "Stale" { timing.append("Stale") }
+               credit.asOf.map({ now.timeIntervalSince($0) >= 300 }) == true || credit.status == "Stale" {
+                timing.append("Stale" + (credit.asOf.map { " · last read \($0.formatted(date: .omitted, time: .shortened))" } ?? ""))
+            }
             metrics.append(Metric(label: InterfaceFormatting.compactCreditTitle(credit), value: InterfaceFormatting.credit(credit),
                                   timing: timing.joined(separator: " · "), detail: InterfaceFormatting.creditDetail(credit, now: now)))
         }

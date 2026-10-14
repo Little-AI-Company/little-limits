@@ -46,7 +46,7 @@ public actor UsageService {
         try retryClaudeCredentialCleanup(allowInteraction: true)
         if let existingProfileID {
             guard configuration.profiles.contains(where: { $0.id == existingProfileID && $0.provider == .claude }) else {
-                throw UsageError.invalidConfiguration("Select a Claude account to connect again.")
+                throw UsageError.invalidConfiguration("Select a Claude account to reconnect.")
             }
         }
         let profileID = existingProfileID ?? UUID()
@@ -63,7 +63,7 @@ public actor UsageService {
         guard let profile = configuration.profiles.first(where: { $0.id == id && $0.provider == .claude && $0.source == .claudeOAuth }),
               let credentials = try claudeCredentials.read(accountID: id, allowInteraction: true),
               credentials.identity == profile.providerAccountID else {
-            throw UsageError.authenticationRequired("Claude credentials are missing or belong to another account. Connect this account again.")
+            throw UsageError.authenticationRequired("Claude credentials are missing or belong to another account. Reconnect this account.")
         }
     }
 
@@ -76,7 +76,7 @@ public actor UsageService {
 
     public func completeClaudeSignIn(requestID: UUID, callbackURL: URL) async throws -> AccountProfile {
         guard let pending = claudeAuthorizations[requestID] else {
-            throw UsageError.authenticationRequired("Claude sign-in is no longer active. Connect again.")
+            throw UsageError.authenticationRequired("Claude sign-in is no longer active. Try again.")
         }
         guard completingClaudeAuthorizations.insert(requestID).inserted else {
             throw UsageError.authenticationRequired("Claude sign-in is already being completed.")
@@ -103,7 +103,7 @@ public actor UsageService {
             return existingParts.first == identityParts.first
                 && (existingParts.count == 1 || identityParts.count == 1 || existingIdentity == identity)
         }) {
-            throw UsageError.invalidConfiguration("This Claude account is already listed. Select it and connect again.")
+            throw UsageError.invalidConfiguration("This Claude account is already listed. Select it, then choose Reconnect.")
         }
         let reportedEmail = providerProfile.account.email?.trimmingCharacters(in: .whitespacesAndNewlines)
         let verifiedEmail = existing?.providerAccountID == nil ? nil : existing?.providerEmail
@@ -146,7 +146,7 @@ public actor UsageService {
                     ? "The account could not be saved and its sign-in could not be removed. Cleanup will retry when accounts load or you choose Add Claude Account."
                     : "The account could not be saved and its previous sign-in could not be restored. Reconnect this account.")
             }
-            throw UsageError.providerFailure("Claude sign-in completed, but the account could not be saved. Connect again.")
+            throw UsageError.providerFailure("Claude sign-in completed, but the account could not be saved. Try again.")
         }
         configuration = updated
         retireClaudeCapture(accountID: profile.id)
@@ -160,7 +160,7 @@ public actor UsageService {
     private func validateClaudeAuthorization(_ pending: PendingClaudeAuthorization, requestID: UUID) throws {
         guard claudeAuthorizations[requestID] != nil,
               generations[pending.profileID, default: 0] == pending.generation, !Task.isCancelled else {
-            throw UsageError.authenticationRequired("Claude sign-in was cancelled or the account changed. Connect again.")
+            throw UsageError.authenticationRequired("Claude sign-in was cancelled or the account changed. Try again.")
         }
     }
 
@@ -224,7 +224,7 @@ public actor UsageService {
             ?? AccountSnapshot(profileID: accountID, state: .unavailable,
                                detail: profile.provider == .claude
                                ? (profile.source == .claudeOAuth
-                                  ? "Check usage to read this Claude account's current quota."
+                                  ? "Refresh to read this Claude account's current quota."
                                   : "Reconnect this account in your browser to read usage immediately.")
                                : "Sign in to this Codex profile, then refresh.")
         let stale = saved.state == .available && (saved.fetchedAt.map { Date().timeIntervalSince($0) > freshnessInterval } == true
@@ -387,10 +387,10 @@ public actor UsageService {
         try ensureLoaded()
         guard let profile = configuration.profiles.first(where: { $0.id == accountID && $0.provider == .claude }),
               profile.providerAccountID == expectedIdentity else {
-            throw UsageError.authenticationRequired("This Console connection belongs to an earlier account. Connect API Credits for the current account.")
+            throw UsageError.authenticationRequired("This API Credits connection belongs to an earlier account. Connect API Credits for the current account.")
         }
         if let organizationID, UUID(uuidString: organizationID) == nil {
-            throw UsageError.invalidConfiguration("The Claude Console organization identifier must be a UUID.")
+            throw UsageError.invalidConfiguration("The Claude Platform organization identifier must be a UUID. Connect API Credits again.")
         }
         let organizationID = organizationID.flatMap { UUID(uuidString: $0)?.uuidString.lowercased() }
         var updated = configuration
@@ -408,12 +408,12 @@ public actor UsageService {
         try ensureLoaded()
         guard let profile = configuration.profiles.first(where: { $0.id == accountID && $0.provider == .claude }),
               profile.providerAccountID == expectedIdentity else {
-            throw UsageError.authenticationRequired("This Console response belongs to an earlier account. Connect API Credits for the current account.")
+            throw UsageError.authenticationRequired("This Claude Platform response belongs to an earlier account. Connect API Credits for the current account.")
         }
         guard let connectedOrganization = configuration.consoleConnections[accountID.uuidString],
               UUID(uuidString: organizationID)?.uuidString.lowercased() == connectedOrganization,
               configuration.profiles.contains(where: { $0.id == accountID && $0.provider == .claude }) else {
-            throw UsageError.invalidConfiguration("The Console response no longer matches this profile's connected organization.")
+            throw UsageError.invalidConfiguration("The Claude Platform response no longer matches this account's connected organization. Connect API Credits again.")
         }
         var linkState: ClaudeConsoleLinkState?
         var invoices: ClaudeConsoleInvoices?
@@ -542,7 +542,7 @@ public actor UsageService {
         }
         guard generations[profile.id, default: 0] == generation else {
             return snapshot(for: profile.id) ?? AccountSnapshot(profileID: profile.id, state: .unavailable,
-                                                              detail: "The account connection changed. Check usage again.")
+                                                              detail: "The account connection changed. Refresh to read current usage.")
         }
         if configuration.profiles.contains(where: { $0.id == profile.id }) {
             configuration.snapshots.removeAll { $0.profileID == profile.id }
@@ -560,14 +560,14 @@ public actor UsageService {
     private func fetchClaudeOAuth(_ profile: AccountProfile, generation: Int) async throws -> AccountSnapshot {
         guard var credentials = try claudeCredentials.read(accountID: profile.id, allowInteraction: false),
               credentials.identity == profile.providerAccountID else {
-            throw UsageError.authenticationRequired("Claude credentials are missing or belong to another account. Connect this account again.")
+            throw UsageError.authenticationRequired("Claude credentials are missing or belong to another account. Reconnect this account.")
         }
         guard !credentials.refreshPending else {
-            throw UsageError.authenticationRequired("The previous Claude sign-in renewal did not finish safely. Connect this account again.")
+            throw UsageError.authenticationRequired("The previous Claude sign-in renewal did not finish safely. Reconnect this account.")
         }
         if credentials.expiresAt <= Date().addingTimeInterval(60) {
             guard let refreshToken = credentials.refreshToken, !refreshToken.isEmpty else {
-                throw UsageError.authenticationRequired("Claude access expired. Connect this account again.")
+                throw UsageError.authenticationRequired("Claude access expired. Reconnect this account.")
             }
             credentials.refreshPending = true
             // Persist before rotation: a crash or uncertain response must never retry this refresh token.
@@ -582,7 +582,7 @@ public actor UsageService {
                 try validateClaudeCredentials(pendingCredentials, profileID: profile.id, generation: generation)
                 try claudeCredentials.save(credentials, accountID: profile.id, allowInteraction: false)
             } catch {
-                throw UsageError.authenticationRequired("Claude sign-in renewal could not be confirmed. Connect this account again.")
+                throw UsageError.authenticationRequired("Claude sign-in renewal could not be confirmed. Reconnect this account.")
             }
         }
         let providerProfile = try await claudeClient.profile(accessToken: credentials.accessToken)
@@ -596,7 +596,7 @@ public actor UsageService {
         guard !Task.isCancelled, generations[profileID, default: 0] == generation,
               configuration.profiles.contains(where: { $0.id == profileID && $0.source == .claudeOAuth }),
               try claudeCredentials.read(accountID: profileID, allowInteraction: false) == credentials else {
-            throw UsageError.authenticationRequired("The Claude account connection changed during this check. Check usage again.")
+            throw UsageError.authenticationRequired("The Claude account connection changed during this refresh. Refresh to read current usage.")
         }
     }
 
@@ -631,12 +631,12 @@ public actor UsageService {
     public static func unavailableCredits(for provider: Provider) -> [CreditBalance] {
         var credits = [CreditBalance(id: "api_balance", title: provider == .claude ? "Purchased API credits" : "OpenAI API credits", amount: nil,
                        detail: provider == .claude
-                           ? "Connect Claude Platform to read API credit balances."
+                           ? "Connect API Credits to read purchased credit balances."
                            : "OpenAI API balances are entered manually."),
         ]
         if provider == .claude {
             credits.append(CreditBalance(id: "monthly_grant", title: "Monthly included API grant", amount: nil,
-                                        detail: "Connect Claude Platform to read API grants and their expiry."))
+                                        detail: "Connect API Credits to read monthly grants and their expiry."))
         } else {
             credits.append(CreditBalance(id: "provider_credits", title: "Codex credits", amount: nil, unit: .credits,
                                         detail: "Codex has not supplied a credit balance."))

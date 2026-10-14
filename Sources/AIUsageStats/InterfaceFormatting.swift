@@ -15,14 +15,17 @@ enum InterfaceFormatting {
         return fallback.isEmpty ? "\(provider(profile.provider)) Account" : fallback
     }
 
-    static func usageTitle(_ window: UsageWindow) -> String {
-        if window.title == "5 hours" { return "5-hour" }
-        if window.title == "7 days" { return "Weekly" }
-        for (raw, name) in [("5 hours", "5-hour"), ("7 days", "Weekly")] where window.title.hasPrefix(raw + " (") && window.title.hasSuffix(")") {
-            let scope = window.title.dropFirst(raw.count + 2).dropLast()
+    static func usageTitle(_ window: UsageWindow) -> String { usageTitle(window.title) }
+
+    /// Maps a provider window title such as `7 days (Fable 5)` to its display name, `Weekly · Fable 5`.
+    static func usageTitle(_ title: String) -> String {
+        if title == "5 hours" { return "5-hour" }
+        if title == "7 days" { return "Weekly" }
+        for (raw, name) in [("5 hours", "5-hour"), ("7 days", "Weekly")] where title.hasPrefix(raw + " (") && title.hasSuffix(")") {
+            let scope = title.dropFirst(raw.count + 2).dropLast()
             return "\(name) · \(scope)"
         }
-        return window.title
+        return title
     }
 
     /// Remaining quota, the one percentage meaning shown everywhere in the interface.
@@ -38,8 +41,8 @@ enum InterfaceFormatting {
         guard window.isActive != false, let used = window.utilizationPercent, used.isFinite else { return value }
         switch HomeInterfaceFormatting.tone(for: max(0, 100 - used)) {
         case .neutral: return value
-        case .warning: return "\(value) Low"
-        case .critical: return "\(value) Limit reached"
+        case .warning: return "\(value), Low"
+        case .critical: return "\(value), Limit reached"
         }
     }
 
@@ -49,21 +52,15 @@ enum InterfaceFormatting {
         return value == "Unavailable" || value == "Inactive" ? value : "Last known \(value)"
     }
 
-    static func used(_ window: UsageWindow) -> String {
-        if window.isActive == false { return "Inactive" }
-        guard let used = window.utilizationPercent, used.isFinite else { return "Unavailable" }
-        return "\(UsageFormatting.percentage(used)) used"
-    }
-
     static func reset(_ window: UsageWindow, now: Date = Date()) -> String {
         if window.isActive == false {
-            return window.resetsAt.map { "Provider reported reset: \(exactDate($0))" } ?? "Provider reset time unavailable"
+            return window.resetsAt.map { "Provider reported reset: \(exactDate($0))" } ?? "Reset time unknown"
         }
         return reset(window.resetsAt, now: now)
     }
 
     static func reset(_ date: Date?, now: Date = Date()) -> String {
-        guard let date else { return "Reset time unavailable" }
+        guard let date else { return "Reset time unknown" }
         let duration = UsageFormatting.countdown(to: date, now: now)
         let countdown = date <= now ? "Reset due" : "Resets in \(duration)"
         return "\(countdown) · \(exactDate(date))"
@@ -74,7 +71,7 @@ enum InterfaceFormatting {
     }
 
     static func compactReset(_ date: Date?, now: Date = Date()) -> String {
-        guard let date else { return "Reset unknown" }
+        guard let date else { return "Reset time unknown" }
         guard date > now else { return "Reset due" }
         return "Resets in \(UsageFormatting.countdown(to: date, now: now))"
     }
@@ -126,7 +123,7 @@ enum InterfaceFormatting {
             lines.append("Original grant: \(formatAmount(original, unit: balance.unit, currencyCode: balance.currencyCode)).")
         }
         if let date = balance.asOf { lines.append("Observed \(exactDate(date)).") }
-        else { lines.append("Observation time unavailable.") }
+        else { lines.append("Observation time unknown.") }
         if let date = balance.expiresAt { lines.append("\(compactExpiry(date, now: now)) · \(exactDate(date)).") }
         else { lines.append(balance.doesNotExpire ? "Does not expire." : "Expiration date unavailable.") }
         if let status = balance.status { lines.append("Status: \(status)") }

@@ -103,7 +103,7 @@ import Testing
 @Test func creditExpiryDoesNotCreateEvents() {
     let profile = overviewProfile("000000000351")
     let expiry = overviewNow.addingTimeInterval(86_400)
-    let credit = CreditBalance(id: "quota_reset_credits", title: "Quota resets", amount: 2, unit: .resets,
+    let credit = CreditBalance(id: "quota_reset_credits", title: "Earned resets", amount: 2, unit: .resets,
                                expiresAt: expiry, asOf: overviewNow)
     let result = overview([profile], [overviewSnapshot(profile, windows: [overviewWindow("quota", used: 10)], credits: [credit])])
     #expect(result.resetEvents.map(\.window.id) == ["quota"])
@@ -245,7 +245,7 @@ import Testing
 @Test func homeFixturesPublishRepresentativeResetsAndReadingStates() throws {
     #expect(DemoFixtures.profiles.map(\.label) == ["Example personal", "Example work", "Example research", "Example unverified"])
     #expect(DemoFixtures.snapshots.first?.credits.map(\.title) == ["Purchased API credits", "Monthly included API grant"])
-    #expect(DemoFixtures.snapshots.dropFirst().first?.credits.map(\.title) == ["OpenAI API credits", "Codex credits", "Quota resets", "Example reset grant"])
+    #expect(DemoFixtures.snapshots.dropFirst().first?.credits.map(\.title) == ["OpenAI API credits", "Codex credits", "Earned resets", "Example reset grant"])
     #expect(Set(DemoFixtures.profiles.map(\.id)).isDisjoint(with: Set(DemoFixtures.homeProfiles.map(\.id))))
 
     let snapshots = DemoFixtures.homeSnapshots

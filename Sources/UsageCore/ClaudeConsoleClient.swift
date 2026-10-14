@@ -21,7 +21,7 @@ public enum ClaudeConsoleClient {
 
     static func validatedOrganizationID(_ value: String) throws -> String {
         guard let identifier = UUID(uuidString: value), identifier.uuidString.lowercased() == value.lowercased() else {
-            throw UsageError.invalidConfiguration("Claude Console organization must be a UUID.")
+            throw UsageError.invalidConfiguration("The Claude Platform organization identifier must be a UUID. Connect API Credits again.")
         }
         return identifier.uuidString.lowercased()
     }
@@ -29,10 +29,10 @@ public enum ClaudeConsoleClient {
     static func decode<Response: Decodable>(_ type: Response.Type, from data: Data) throws -> Response {
         if let text = String(data: data.prefix(256), encoding: .utf8),
            text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<") {
-            throw UsageError.authenticationRequired("Sign in to Claude Console to refresh API credits.")
+            throw UsageError.authenticationRequired("Sign in to Claude Platform to refresh API Credits.")
         }
         do { return try JSONDecoder().decode(type, from: data) }
-        catch { throw UsageError.providerFailure("Claude Console returned an unsupported response.") }
+        catch { throw UsageError.providerFailure("Claude Platform returned an unsupported response. API Credits were not updated.") }
     }
 }
 
@@ -88,12 +88,12 @@ public struct ClaudeConsoleLinkState: Sendable, Equatable {
         let response = try ClaudeConsoleClient.decode(Response.self, from: data)
         let plan = response.plan.flatMap { $0.isEmpty ? nil : $0 }
         guard response.status != .eligible || plan != nil else {
-            throw UsageError.providerFailure("Claude Console did not identify the eligible plan.")
+            throw UsageError.providerFailure("Claude Platform did not identify the eligible plan.")
         }
         let allowance: ClaudeConsoleMoney?
         if response.status != .ineligible, let cents = response.monthly_credit_usd_cents {
             guard cents > 0 else {
-                throw UsageError.providerFailure("Claude Console returned an invalid monthly allowance.")
+                throw UsageError.providerFailure("Claude Platform returned an invalid monthly allowance.")
             }
             allowance = ClaudeConsoleMoney(currency: "USD", amount: try ConsoleCurrency.majorUnits(cents, currency: "USD"))
         } else { allowance = nil }
@@ -107,13 +107,13 @@ public struct ClaudeConsoleLinkState: Sendable, Equatable {
         switch status {
         case .eligible:
             creditStatus = "Not linked"
-            detail = "An eligible Claude plan can be linked to this Console organization in Claude Settings > Billing.\(allowance) No monthly balance has been established."
+            detail = "An eligible Claude plan can be linked to this Claude Platform organization in Claude Settings > Billing.\(allowance) No monthly balance has been established."
         case .linked:
             creditStatus = "Balance unidentified"
-            detail = "This Console organization is linked to a Claude plan.\(allowance) No promotional grant could be uniquely matched to a monthly API credit invoice, so the remaining monthly balance and expiry are unknown."
+            detail = "This Claude Platform organization is linked to a Claude plan.\(allowance) No promotional grant could be uniquely matched to a monthly API credit invoice, so the remaining monthly balance and expiry are unknown."
         case .ineligible:
             creditStatus = "Not eligible"
-            detail = "Console reports no eligible Claude plan for this organization. Existing promotional grants remain separate."
+            detail = "Claude Platform reports no eligible Claude plan for this organization. Existing promotional grants remain separate."
         }
         return CreditBalance(id: "monthly_grant", title: "Monthly included API grant", amount: nil,
                              asOf: observedAt, detail: detail, status: creditStatus)
@@ -207,7 +207,7 @@ public struct ClaudeConsoleBalance: Sendable, Equatable {
                           title: monthlyName != nil ? "Monthly included API grant"
                               : grant.supportsAPI == true ? "Promotional API grant" : "Promotional grant (scope unavailable)",
                           amount: grant.remainingAmount, unit: .currency, expiresAt: grant.expiresAt,
-                          asOf: observedAt, detail: monthlyName.map { "\($0). Matched to the Console invoice by original amount, grant date, and expiry. \(grant.scopeDescription)" } ?? grant.scopeDescription,
+                          asOf: observedAt, detail: monthlyName.map { "\($0). Matched to the Claude Platform invoice by original amount, grant date, and expiry. \(grant.scopeDescription)" } ?? grant.scopeDescription,
                           currencyCode: grant.currency, originalAmount: grant.grantedAmount)
         }
         let monthlyStatus = monthlyGrantNames.isEmpty ? linkState.map { [$0.monthlyCredit(observedAt: observedAt)] } ?? [] : []
@@ -218,14 +218,14 @@ public struct ClaudeConsoleBalance: Sendable, Equatable {
                               linkState: ClaudeConsoleLinkState? = nil, invoices: ClaudeConsoleInvoices? = nil) throws -> Self {
         let identifier = try ClaudeConsoleClient.validatedOrganizationID(organizationID)
         guard linkState == nil || linkState?.organizationID == identifier else {
-            throw UsageError.providerFailure("Claude Console monthly grant linkage belongs to another organization.")
+            throw UsageError.providerFailure("Claude Platform monthly grant linkage belongs to another organization.")
         }
         guard invoices == nil || invoices?.organizationID == identifier else {
-            throw UsageError.providerFailure("Claude Console invoices belong to another organization.")
+            throw UsageError.providerFailure("Claude Platform invoices belong to another organization.")
         }
         let response = try ClaudeConsoleClient.decode(ConsoleBalanceResponse.self, from: data)
         guard response.amount != nil || response.tranches != nil || response.promo_tranches != nil else {
-            throw UsageError.providerFailure("Claude Console did not return credit balances.")
+            throw UsageError.providerFailure("Claude Platform did not return credit balances.")
         }
         let total: ClaudeConsoleMoney?
         if let amount = response.amount, let currency = response.currency {
@@ -237,7 +237,7 @@ public struct ClaudeConsoleBalance: Sendable, Equatable {
             guard try tranche.isUnexpired(at: observedAt) else { continue }
             if let granted = tranche.granted_amount_minor_units,
                granted < tranche.remaining_amount_minor_units {
-                throw UsageError.providerFailure("Claude Console returned an invalid purchased credit balance.")
+                throw UsageError.providerFailure("Claude Platform returned an invalid purchased credit balance.")
             }
             let currency = try ConsoleCurrency.code(tranche.currency)
             let remaining = try ConsoleCurrency.majorUnits(tranche.remaining_amount_minor_units, currency: currency)
@@ -253,11 +253,11 @@ public struct ClaudeConsoleBalance: Sendable, Equatable {
             let currency = try ConsoleCurrency.code(tranche.currency)
             guard let granted = tranche.granted_amount_minor_units, granted > 0,
                   tranche.remaining_amount_minor_units <= granted else {
-                throw UsageError.providerFailure("Claude Console returned an invalid promotional grant.")
+                throw UsageError.providerFailure("Claude Platform returned an invalid promotional grant.")
             }
             let grantID = tranche.id ?? "observation-\(index)"
             guard !grantID.isEmpty, identifiers.insert(grantID).inserted else {
-                throw UsageError.providerFailure("Claude Console returned duplicate or missing grant identifiers.")
+                throw UsageError.providerFailure("Claude Platform returned duplicate or missing grant identifiers.")
             }
             if tranche.id != nil { providerGrantIdentifiers.insert(grantID) }
             grants.append(ClaudeConsoleGrant(id: grantID, currency: currency,
@@ -333,7 +333,7 @@ private enum ConsoleDate {
         if let date = formatter.date(from: value) { return date }
         formatter.formatOptions = [.withInternetDateTime]
         guard let date = formatter.date(from: value) else {
-            throw UsageError.providerFailure("Claude Console returned an invalid credit date.")
+            throw UsageError.providerFailure("Claude Platform returned an invalid credit date.")
         }
         return date
     }
@@ -343,7 +343,7 @@ private enum ConsoleCurrency {
     static func code(_ value: String) throws -> String {
         let code = value.uppercased()
         guard Locale.commonISOCurrencyCodes.contains(code), !["XAU", "XAG", "XPD", "XPT", "XXX", "XTS"].contains(code) else {
-            throw UsageError.providerFailure("Claude Console returned an unsupported credit currency.")
+            throw UsageError.providerFailure("Claude Platform returned an unsupported credit currency.")
         }
         return code
     }
@@ -354,7 +354,7 @@ private enum ConsoleCurrency {
         var rounded = Decimal()
         NSDecimalRound(&rounded, &valueCopy, 0, .plain)
         guard !value.isNaN, value >= 0, rounded == value else {
-            throw UsageError.providerFailure("Claude Console returned an invalid credit amount.")
+            throw UsageError.providerFailure("Claude Platform returned an invalid credit amount.")
         }
         let zero = ["BIF", "CLP", "DJF", "GNF", "ISK", "JPY", "KMF", "KRW", "PYG", "RWF", "UGX", "UYI", "VND", "VUV", "XAF", "XOF", "XPF"]
         let three = ["BHD", "IQD", "JOD", "KWD", "LYD", "OMR", "TND"]

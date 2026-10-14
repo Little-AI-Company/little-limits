@@ -177,7 +177,7 @@ public enum UsageFormatting {
     }
 
     public static func countdown(to date: Date?, now: Date = Date()) -> String {
-        guard let date else { return "Reset unavailable" }
+        guard let date else { return "Reset time unknown" }
         let seconds = max(0, date.timeIntervalSince(now))
         guard seconds > 0 else { return "Reset due" }
         let minutes = Int(ceil(seconds / 60))
