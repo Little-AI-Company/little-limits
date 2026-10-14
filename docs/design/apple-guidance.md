@@ -4,7 +4,7 @@ HIG guidance reviewed 2026-10-13 for a Swift 6 AppKit menu bar utility with a ma
 
 ## Current sources
 
-Apple's [design update index](https://developer.apple.com/design/whats-new/) lists the macOS 27 design kit on September 17, 2026, menu icon guidance and reintroduced design principles on June 8, 2026, and Liquid Glass updates for buttons and toolbars on December 16, 2025. Relevant live HIG pages and their Apple-hosted documentation JSON were reviewed on October 13, 2026 because several HTML pages require JavaScript. The latest layout update listed is September 9, 2026; apply its macOS considerations rather than importing guidance for another device.
+Apple's [design update index](https://developer.apple.com/design/whats-new/) lists the macOS 27 design kit on September 17, 2026, menu icon guidance and reintroduced design principles on June 8, 2026, and Liquid Glass updates for buttons and toolbars on December 16, 2025. Relevant live HIG pages and their Apple-hosted documentation JSON were reviewed on October 13, 2026 because several HTML pages require JavaScript. The latest layout update listed is September 9, 2026; apply its macOS considerations rather than importing guidance for another device. A follow-up check on October 14, 2026 found nothing newer that applies. The June 8, 2026 Sidebars, Scroll views, and Menus updates and the March 24, 2026 Sheets update are summarized for review use in the HIG skill's [macOS component guidance](../../.agents/skills/apple-hig-expert/references/macos-components.md).
 
 ## Recommended structure
 

@@ -1,0 +1,138 @@
+<title>{{title}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a specification sheet. Summary first, then one band per surface with the capture beside its findings. */
+:root {
+  --bg: #f6f7f9; --surface: #ffffff; --fg: #1b1f27; --muted: #5b6372; --rule: #d9dde4; --accent: #2f5bd3;
+  --s4: #9b1c1c; --s3: #c2410c; --s2: #a16207; --s1: #64748b; --pass: #15803d; --fail: #b91c1c; --untested: #a16207;
+  --sans: "IBM Plex Sans", -apple-system, "Helvetica Neue", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12151b; --surface: #1a1e26; --fg: #e6e9ef; --muted: #9aa3b2; --rule: #2c323d; --accent: #7aa2ff;
+  --s4: #f87171; --s3: #fb923c; --s2: #facc15; --s1: #94a3b8; --pass: #4ade80; --fail: #f87171; --untested: #facc15; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12151b; --surface: #1a1e26; --fg: #e6e9ef; --muted: #9aa3b2; --rule: #2c323d; --accent: #7aa2ff;
+  --s4: #f87171; --s3: #fb923c; --s2: #facc15; --s1: #94a3b8; --pass: #4ade80; --fail: #f87171; --untested: #facc15; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--fg); font: 14px/1.5 var(--sans); margin: 0; padding-inline: 16px; padding-block: 24px 64px }
+main { max-width: 1320px; margin: 0 auto; display: grid; gap: 40px }
+a { color: var(--accent) }
+a:focus-visible, .frame:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+code { font: 12px var(--mono); color: var(--muted) }
+h1 { font-size: 26px; font-weight: 600; margin: 0; text-wrap: balance }
+h2 { font-size: 18px; font-weight: 600; margin: 0 0 12px; display: flex; gap: 8px; align-items: baseline; border-bottom: 1px solid var(--rule); padding-bottom: 6px }
+h3 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px }
+.count { font: 12px var(--mono); color: var(--muted) }
+.header-line { font: 13px var(--mono); margin: 8px 0 0 }
+.meta { color: var(--muted); font-size: 12px; margin: 4px 0 0 }
+.summary { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 32px }
+.summary > div { min-width: 0 }
+.summary p { max-width: 68ch; margin: 0 0 10px }
+.top li, .batches li { margin-bottom: 6px }
+.top, .batches { padding-left: 20px; margin: 0 }
+.severity { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap }
+.severity.s4 { color: var(--s4) } .severity.s3 { color: var(--s3) } .severity.s2 { color: var(--s2) } .severity.s1 { color: var(--s1) }
+.surface-body { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 24px; align-items: start }
+.captures { display: grid; gap: 16px; position: sticky; top: env(safe-area-inset-top, 0px) }
+.capture { margin: 0 }
+.frame { position: relative; cursor: zoom-in; border: 1px solid var(--rule); background: var(--surface) }
+.frame img { display: block; width: 100%; height: auto }
+.capture.expanded { position: fixed; inset: 16px; z-index: 10; overflow: auto; background: var(--bg); padding: 16px; border: 1px solid var(--rule) }
+.capture.expanded .frame { cursor: zoom-out; max-width: 1600px; margin: 0 auto }
+figcaption { margin-top: 4px }
+.marker { position: absolute; transform: translate(-50%, -50%); min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px;
+  font: 600 11px/22px var(--mono); text-align: center; color: #fff; text-decoration: none; box-shadow: 0 0 0 2px var(--surface) }
+.marker.s4 { background: var(--s4) } .marker.s3 { background: var(--s3) } .marker.s2 { background: var(--s2) } .marker.s1, .marker.s0 { background: var(--s1) }
+:root[data-theme="dark"] .marker, :root:not([data-theme="light"]) .marker { color: #fff }
+.findings { list-style: none; margin: 0; padding: 0; display: grid; gap: 0 }
+.finding { padding: 10px 0 12px; border-bottom: 1px solid var(--rule); scroll-margin-top: 16px }
+.finding:target { background: color-mix(in srgb, var(--accent) 8%, transparent) }
+.finding p { margin: 4px 0 0 }
+.finding-head { display: flex; justify-content: space-between; gap: 8px }
+.finding-id { font: 500 12px var(--mono); text-decoration: none }
+.claim { font-weight: 500 }
+.label { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-right: 8px }
+.tables { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 32px }
+.table-wrap { overflow-x: auto; min-width: 0 }
+table { border-collapse: collapse; width: 100%; font-size: 13px }
+th, td { text-align: left; padding: 6px 8px 6px 0; border-bottom: 1px solid var(--rule); vertical-align: top }
+th { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .04em; color: var(--muted) }
+.outcome { font: 500 12px var(--mono) }
+.outcome.pass { color: var(--pass) } .outcome.fail { color: var(--fail) } .outcome.untested { color: var(--untested) } .outcome.na { color: var(--muted) }
+.lists { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px }
+.lists ul { padding-left: 20px; margin: 0 } .lists li { margin-bottom: 6px }
+@media (max-width: 900px) {
+  .summary, .surface-body, .tables, .lists { grid-template-columns: minmax(0, 1fr) }
+  .captures { position: static }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth } }
+</style>
+
+<main>
+  <header>
+    <h1>{{title}}</h1>
+    <p class="header-line">{{header}}</p>
+    <p class="meta">Revision {{revision}} · {{environment}}</p>
+  </header>
+
+  <section class="summary">
+    <div>
+      <h3>Verdict</h3>
+      <p><strong>{{verdict}}</strong></p>
+      <p>{{counts}}</p>
+      <h3>What a first-time user experiences</h3>
+      {{walkthrough}}
+    </div>
+    <div>
+      <h3>Major findings</h3>
+      <ol class="top">{{top}}</ol>
+      <h3 style="margin-top:20px">Proposed fix order</h3>
+      <ol class="batches">{{batches}}</ol>
+    </div>
+  </section>
+
+  {{sections}}
+
+  <section class="tables">
+    <div class="table-wrap">
+      <h2>UX quick diagnostic</h2>
+      <table><thead><tr><th>Question</th><th>Result</th><th>Findings</th></tr></thead><tbody>{{diagnostic}}</tbody></table>
+    </div>
+    <div class="table-wrap">
+      <h2>HIG requirements</h2>
+      <table><thead><tr><th>Requirement</th><th>Outcome</th><th>Evidence</th><th>Findings</th></tr></thead><tbody>{{hig}}</tbody></table>
+    </div>
+  </section>
+
+  <section class="lists">
+    <div><h2>Correct as designed</h2><ul>{{non_findings}}</ul></div>
+    <div><h2>Not tested this run</h2><ul>{{untested}}</ul></div>
+  </section>
+
+  <section class="lists">
+    <div><h2>Resolved since baseline</h2><ul>{{resolved}}</ul></div>
+    <div><h2>Fixed in source, awaiting verification</h2><ul>{{pending}}</ul></div>
+  </section>
+</main>
+
+<script>
+document.querySelectorAll('.frame').forEach(frame => {
+  frame.tabIndex = 0;
+  frame.setAttribute('role', 'button');
+  frame.setAttribute('aria-label', 'Enlarge screenshot');
+  const toggle = event => {
+    if (event.target.closest('.marker')) return;
+    frame.closest('.capture').classList.toggle('expanded');
+  };
+  frame.addEventListener('click', toggle);
+  frame.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(event); }
+    if (event.key === 'Escape') frame.closest('.capture').classList.remove('expanded');
+  });
+});
+document.querySelectorAll('.marker').forEach(marker => marker.addEventListener('click', () => {
+  document.querySelectorAll('.capture.expanded').forEach(capture => capture.classList.remove('expanded'));
+}));
+</script>
