@@ -140,7 +140,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
         let discovered = !organizations.isEmpty && !needsSignIn
         instruction.stringValue = discovered
             ? "Choose the organization linked to this Claude account."
-            : "Use your separate Claude Platform sign-in below, then choose Continue."
+            : "Sign in to Claude Platform below, then choose Continue. Passkeys and security keys do not work here: if Google or Claude asks for one, choose Try another way and use your password or a code."
         organizationControls.isHidden = !discovered
         organization.isEnabled = discovered && !isFetching
         if !discovered { readButton.title = "Continue" }
