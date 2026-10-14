@@ -6,9 +6,12 @@ import UsageCore
 final class AddAccountSheetController: NSWindowController {
     private let providerPicker = NSPopUpButton(frame: .zero, pullsDown: false)
     private let explanation = InterfaceControls.label("", size: 12)
+    /// Width of the text column. The sheet height follows the fitted content for the chosen provider.
+    private static let contentWidth: CGFloat = 380
+    private static let margin: CGFloat = 20
 
     init(provider: Provider) {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 180),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Self.contentWidth + Self.margin * 2, height: 180),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.title = "Add Account"
         window.isReleasedWhenClosed = false
@@ -27,7 +30,9 @@ final class AddAccountSheetController: NSWindowController {
         cancel.keyEquivalent = "\u{1b}"
         let proceed = NSButton(title: "Continue", target: self, action: #selector(proceed(_:)))
         proceed.keyEquivalent = "\r"
-        let buttons = NSStackView(views: [cancel, proceed])
+        // Trailing gravity keeps Continue at the trailing edge of the full-width button row.
+        let buttons = NSStackView()
+        buttons.setViews([cancel, proceed], in: .trailing)
         buttons.orientation = .horizontal
         buttons.spacing = 12
         let content = InterfaceControls.stack([title, providerRow, explanation, buttons], spacing: 14)
@@ -36,14 +41,16 @@ final class AddAccountSheetController: NSWindowController {
         if let root = window.contentView {
             root.addSubview(content)
             NSLayoutConstraint.activate([
-                content.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 20),
-                content.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -20),
-                content.topAnchor.constraint(equalTo: root.topAnchor, constant: 20),
-                content.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -20),
+                content.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: Self.margin),
+                content.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -Self.margin),
+                content.topAnchor.constraint(equalTo: root.topAnchor, constant: Self.margin),
+                content.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -Self.margin),
+                content.widthAnchor.constraint(equalToConstant: Self.contentWidth),
                 explanation.widthAnchor.constraint(equalTo: content.widthAnchor),
                 buttons.trailingAnchor.constraint(equalTo: content.trailingAnchor)
             ])
         }
+        explanation.preferredMaxLayoutWidth = Self.contentWidth
         window.initialFirstResponder = providerPicker
         updateExplanation()
     }
@@ -54,7 +61,6 @@ final class AddAccountSheetController: NSWindowController {
     /// detaches, so the next step can attach its own sheet.
     func present(in parent: NSWindow, onContinue: @escaping (Provider) -> Void) {
         guard let window, parent.attachedSheet == nil else { return }
-        window.layoutIfNeeded()
         parent.beginSheet(window) { [self] response in
             guard response == .continue else { return }
             let provider = selectedProvider
@@ -71,6 +77,16 @@ final class AddAccountSheetController: NSWindowController {
         explanation.stringValue = selectedProvider == .claude
             ? "Opens claude.ai in your browser to sign in to this Claude subscription and read its usage. API Credits use a separate Claude Platform sign-in that you can connect later on the account page."
             : "Creates a separate Codex CLI login for this account and opens Terminal to sign in through the official browser flow. Your existing CLI login is preserved."
+        fitWindowToContent()
+    }
+
+    /// Sizes the sheet to the fitted content, so the explanation and buttons are never clipped when the text changes.
+    private func fitWindowToContent() {
+        guard let window, let root = window.contentView else { return }
+        root.layoutSubtreeIfNeeded()
+        let size = root.fittingSize
+        guard window.contentRect(forFrameRect: window.frame).size != size else { return }
+        window.setContentSize(size)
     }
 
     @objc private func selectProvider(_ sender: Any?) { updateExplanation() }

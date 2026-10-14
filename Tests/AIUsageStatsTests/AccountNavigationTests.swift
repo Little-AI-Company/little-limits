@@ -80,3 +80,27 @@ func sidebarRowsGiveTheIdentityItsOwnLineAndNameTheLimitingWindow() async throws
     }
     #expect(quotaLines == ["39% left · Weekly", "18% left, Low · 5-hour", "0% left, Limit reached · 5-hour", "Unavailable"])
 }
+
+/// The add-account sheet sizes to its explanation for each provider, so no text or button is clipped.
+@Test @MainActor
+func addAccountSheetFitsItsContentForEachProvider() throws {
+    _ = NSApplication.shared
+    let sheet = AddAccountSheetController(provider: .codex)
+    let window = try #require(sheet.window)
+    let root = try #require(window.contentView)
+    let picker = try #require(descendants(of: root, as: NSPopUpButton.self).first)
+    for provider in [Provider.codex, .claude] {
+        picker.selectItem(withTitle: InterfaceFormatting.provider(provider))
+        picker.sendAction(picker.action, to: picker.target)
+        root.layoutSubtreeIfNeeded()
+        #expect(!root.hasAmbiguousLayout)
+        #expect(root.frame.size == root.fittingSize)
+        for view in descendants(of: root, as: NSView.self) where view is NSTextField || view is NSButton {
+            let frame = view.convert(view.bounds, to: root)
+            #expect(root.bounds.contains(frame), "\(view) is clipped")
+            if let label = view as? NSTextField, label.cell?.wraps == true {
+                #expect(label.intrinsicContentSize.height <= label.frame.height + 0.5, "\(label.stringValue) is clipped")
+            }
+        }
+    }
+}
