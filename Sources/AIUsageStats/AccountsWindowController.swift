@@ -532,7 +532,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         window?.recalculateKeyViewLoop()
     }
 
-    private func showAccount(id: UUID) {
+    func showAccount(id: UUID) {
         guard window?.attachedSheet == nil, model.profiles.contains(where: { $0.id == id }) else { return }
         let changed = selectedID != id
         selectedID = id
@@ -545,7 +545,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         render()
     }
 
-    private func reconnectAccount(id: UUID) {
+    func reconnectAccount(id: UUID) {
         guard canModifyAccounts, window?.attachedSheet == nil,
               let profile = model.profiles.first(where: { $0.id == id }) else { return }
         if profile.provider == .claude { onClaudeConnection?(id, InterfaceFormatting.accountIdentity(profile)) }

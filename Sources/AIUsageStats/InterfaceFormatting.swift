@@ -23,6 +23,13 @@ enum InterfaceFormatting {
         return window.title
     }
 
+    /// Remaining quota, the one percentage meaning shown everywhere in the interface.
+    static func remaining(_ window: UsageWindow) -> String {
+        if window.isActive == false { return "Inactive" }
+        guard let used = window.utilizationPercent, used.isFinite else { return "Unavailable" }
+        return "\(UsageFormatting.percentage(max(0, 100 - used))) left"
+    }
+
     static func used(_ window: UsageWindow) -> String {
         if window.isActive == false { return "Inactive" }
         guard let used = window.utilizationPercent, used.isFinite else { return "Unavailable" }

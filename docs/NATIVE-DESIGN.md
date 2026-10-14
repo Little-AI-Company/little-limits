@@ -2,6 +2,28 @@
 
 AI Usage Stats is an AppKit menu bar utility. A status item opens one standard native menu for first run and connected accounts. One native management window handles account setup, Claude Platform connections, and App Settings. Subscription sign-in uses an attached sheet and the external browser. `LSUIElement` keeps menu-only use out of the Dock. Opening the management window promotes the app to regular activation so Command-Tab can return to it after another app takes focus. Minimized windows remain open; closing the window returns the app to accessory activation after any attached sheet ends. Command-W closes the window, Command-M minimizes it, and reopening restores the same window.
 
+## Vocabulary
+
+One name per concept in every surface: status item, status menu, sidebar, Home, calendar, popover, account page, alerts, tooltips, and accessibility text. Adopted after the [2026-10-14 crit](design/crits/2026-10-14-baseline.md) (HOME-08).
+
+| Concept | Use | Do not use |
+| --- | --- | --- |
+| Subscription quota percentage | Remaining: `51% left` (`InterfaceFormatting.remaining`) with `Low` or `Limit reached` when applicable | `used`, `remaining` as a value suffix |
+| Usage windows | `5-hour`, `Weekly`, model-scoped `Weekly · Fable 5` | `5 hours`, `7 days`, `Model limit`, `Fable 5 weekly`, `Weekly (Fable 5)` |
+| Unknown reset | `Reset time unknown` | `Reset unknown`, `Time unavailable` |
+| Codex reset grants | `Earned resets`, value `2 available`, timing `Next expires in 12d` | `Quota resets`, `Quota reset` |
+| Failed authentication | State `Sign-in required`, command `Reconnect…` | `Subscription access required`, `Sign-in is required before…` |
+| Old reading | Value prefix `Last known`, state `Stale · last read 11:09` | `Usage stale`, `Stale usage reading`, `Stale historical reading` |
+| No reading | `Unavailable`, with the reason in the tooltip | `Usage unavailable.` without a reason |
+| Provider does not report a value | `Not supported` in secondary label color | bold `Not supported`, `Not applicable` |
+| Claude API billing | `API Credits`; the sign-in site is `Claude Platform` | `Claude Console`, `API billing`, `Platform sign-in`, `Manage Claude Platform…` |
+| Refresh every account | `Refresh All` (Command-R) | `Refresh`, `Check Usage` when the action refreshes every account |
+| Open the window | `Open AI Usage Stats` | `Manage Accounts…` |
+| App settings | Command `Settings…`, page title `Settings` | `App Settings`, a gear-only entry point |
+| Add an account | `Add Claude Account…`, `Add Codex Account…`; keep the verb through the flow | `Connect Claude…` then `Sign In…` |
+
+Page headings use title case. Error text says what happened and what to do next.
+
 ## First run
 
 Use an actual `NSMenu` with direct Add Claude Account… and Add Codex Account… commands, followed by Manage Accounts… and Quit. AppKit owns its appearance, keyboard selection, sizing, and dismissal. Explain Claude browser sign-in and Codex CLI sign-in in the corresponding setup dialog, rather than a technical paragraph in the menu.
