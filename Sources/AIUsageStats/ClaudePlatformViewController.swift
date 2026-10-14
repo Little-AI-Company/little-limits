@@ -116,7 +116,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
         NSLayoutConstraint.activate([
             chrome.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
             chrome.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
-            chrome.topAnchor.constraint(equalTo: root.topAnchor, constant: 16),
+            chrome.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor, constant: 16),
             webView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             webView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             webView.topAnchor.constraint(equalTo: chrome.bottomAnchor, constant: 12),
@@ -132,7 +132,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
         headingTitle.stringValue = connected ? "API Credits" : "Connect API Credits"
         let intendedAccount = "Claude account: \(InterfaceFormatting.accountIdentity(profile))"
         if hasDiscoveredAccount {
-            var context = ["Platform login: \(platformEmail ?? "Email unavailable")"]
+            var context = ["Claude Platform login: \(platformEmail ?? "Email unavailable")"]
             if platformEmail != InterfaceFormatting.accountEmail(profile) { context.append(intendedAccount) }
             accountContext.stringValue = context.joined(separator: "\n")
         } else { accountContext.stringValue = intendedAccount }
@@ -167,7 +167,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
     @objc private func showDetails(_ sender: Any?) {
         guard let statusDetail, let window = view.window else { return }
         let alert = NSAlert()
-        alert.messageText = "API Credit Connection"
+        alert.messageText = "API Credits Connection"
         alert.informativeText = statusDetail
         alert.addButton(withTitle: "Done")
         alert.beginSheetModal(for: window)
@@ -234,7 +234,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
                 platformEmail = email?.isEmpty == false ? email : nil
                 let previouslySelected = selectedOrganizationID
                 organizations = account.organizations.filter { $0.capabilities.isEmpty || $0.capabilities.contains("api") || $0.capabilities.contains("api_individual") }
-                guard !organizations.isEmpty else { throw UsageError.providerFailure("This Console login has no API organization.") }
+                guard !organizations.isEmpty else { throw UsageError.providerFailure("This Claude Platform login has no API organization.") }
                 let connectedID = model.consoleConnections[profile.id]
                 var selectedID = isInteractive ? (previouslySelected ?? connectedID) : connectedID
                 configureOrganizations(selectedID: selectedID)
@@ -244,7 +244,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
                         setStatus("Select an organization to continue.")
                         return
                     }
-                    throw UsageError.authenticationRequired("The saved Console login no longer has access to the connected organization. Open Account → Manage Claude Platform… to sign in again.")
+                    throw UsageError.authenticationRequired("The saved Claude Platform login no longer has access to the connected organization. Choose Manage API Credits… on this account, then choose Connection → Reload Sign-in.")
                 }
                 let url = try ClaudeConsoleClient.balanceURL(organizationID: selectedID)
                 let response = try await get(url)
@@ -335,7 +335,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
         let value = try await webView.callAsyncJavaScript(script, arguments: ["path": target], in: nil, contentWorld: .page)
         try Task.checkCancellation()
         guard let text = value as? String, let data = text.data(using: .utf8) else {
-            throw UsageError.providerFailure("Claude Console returned an unreadable response.")
+            throw UsageError.providerFailure("Claude Platform returned an unreadable response.")
         }
         let response = try JSONDecoder().decode(BrowserResponse.self, from: data)
         if response.status == 403 || response.status == 503 {
@@ -343,12 +343,12 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
             return try await responseFromOfficialPage(for: url)
         }
         if response.status == 401 || response.status == 403 || response.redirected || !response.contentType.lowercased().contains("json") {
-            throw UsageError.authenticationRequired("Sign in on the official Claude Platform page, then read credits again.")
+            throw UsageError.authenticationRequired("Sign in on the Claude Platform page below, then choose Continue.")
         }
         guard (200..<300).contains(response.status) else {
-            throw UsageError.providerFailure("Claude Console could not read credits (HTTP \(response.status)). Choose Connection → Reload Sign-in and try again.")
+            throw UsageError.providerFailure("Claude Platform could not read credits (HTTP \(response.status)). Choose Connection → Reload Sign-in, then try again.")
         }
-        guard response.body.utf8.count <= 1_048_576 else { throw UsageError.providerFailure("Claude Console returned too much credit data.") }
+        guard response.body.utf8.count <= 1_048_576 else { throw UsageError.providerFailure("Claude Platform returned too much credit data.") }
         return Data(response.body.utf8)
     }
 
@@ -378,12 +378,12 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
     }
 
     @objc private func navigationTimedOut(_ sender: Timer) {
-        completeNavigation(error: UsageError.providerFailure("Claude Console did not load within 20 seconds. Choose Connection → Reload Sign-in and try again."))
+        completeNavigation(error: UsageError.providerFailure("Claude Platform did not load within 20 seconds. Choose Connection → Reload Sign-in, then try again."))
         webView.stopLoading()
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        let error = UsageError.providerFailure("The Console browser stopped. Choose Connection → Reload Sign-in and try again.")
+        let error = UsageError.providerFailure("The Claude Platform page stopped. Choose Connection → Reload Sign-in, then try again.")
         completeNavigation(error: error)
         completeResponse(error: error)
         setStatus("Connection interrupted.", detail: error.localizedDescription)
@@ -410,7 +410,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
 
     private func responseFromOfficialPage(for url: URL) async throws -> Data {
         try Task.checkCancellation()
-        setStatus("Reading the official billing page…", detail: "If you have several organizations, select the same organization on the provider page.")
+        setStatus("Reading the Claude Platform billing page…", detail: "If you have several organizations, select the same organization on the Claude Platform page.")
         return try await withCheckedThrowingContinuation { continuation in
             responseWaiter = (url.path, continuation)
             responseTimer = Timer.scheduledTimer(timeInterval: 20, target: self,
@@ -420,7 +420,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
     }
 
     @objc private func responseTimedOut(_ sender: Timer) {
-        completeResponse(error: UsageError.authenticationRequired("The official Console page did not report credits for this organization. Sign in, select the organization on the provider page, then read credits again."))
+        completeResponse(error: UsageError.authenticationRequired("Claude Platform did not report credits for this organization. Sign in, select the organization on the Claude Platform page, then choose Continue."))
     }
 
     private func completeResponse(data: Data? = nil, error: Error? = nil) {
@@ -497,7 +497,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
         guard !isRetired, !model.isDemo, !model.isRefreshing, !model.isChangingAccounts,
               model.consoleConnections[profile.id] != nil else { return }
         guard !isFetching else {
-            model.onError?("API credits are refreshing. Try Disconnect API Credits after the refresh finishes.")
+            model.onError?("API Credits are refreshing. Choose Disconnect API Credits again after the refresh finishes.")
             return
         }
         isFetching = true
@@ -510,7 +510,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
             do {
                 try await model.setConsoleConnection(accountID: profile.id, organizationID: nil, expectedIdentity: profile.providerAccountID)
                 await model.load()
-                setStatus("API credits disconnected.", detail: "Saved manual balances are available again.")
+                setStatus("API Credits disconnected.", detail: "Saved manual balances are available again.")
                 updateControls()
             } catch {
                 setStatus("Could not disconnect.", detail: error.localizedDescription)
