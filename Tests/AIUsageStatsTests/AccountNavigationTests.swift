@@ -14,6 +14,11 @@ private func descendants<View: NSView>(of root: NSView, as type: View.Type) -> [
     return found
 }
 
+@MainActor
+private func menuItem(_ action: Selector) -> NSMenuItem {
+    NSMenuItem(title: "", action: action, keyEquivalent: "")
+}
+
 @Test @MainActor
 func accountNavigationPreservesTheUserWindowSize() async throws {
     _ = NSApplication.shared
@@ -42,6 +47,14 @@ func accountNavigationPreservesTheUserWindowSize() async throws {
     #expect(window.title == "personal@example.invalid")
     #expect(toolbarItems().contains(NSToolbarItem.Identifier("AccountRefreshAll")))
     #expect(window.frame == originalFrame)
+    // File menu account commands: demo accounts cannot be reconnected or removed; Open Billing reaches the account
+    // page through the split view controller even while keyboard focus is in the sidebar.
+    #expect(!controller.validateMenuItem(menuItem(#selector(WindowCommandHandling.reconnectSelectedAccount(_:)))))
+    #expect(!controller.validateMenuItem(menuItem(#selector(WindowCommandHandling.removeSelectedAccount(_:)))))
+    let billing = #selector(WindowCommandHandling.openSelectedAccountBilling(_:))
+    let billingTarget = window.contentViewController?.supplementalTarget(forAction: billing, sender: nil)
+    let accountPage = try #require(billingTarget as? AccountDetailViewController)
+    #expect(accountPage.validateMenuItem(menuItem(billing)))
     controller.showSettings()
     #expect(window.title == "Settings")
     #expect(toolbarItems() == [.toggleSidebar, .sidebarTrackingSeparator])
@@ -50,6 +63,7 @@ func accountNavigationPreservesTheUserWindowSize() async throws {
     #expect(window.title == "Home")
     #expect(!toolbarItems().contains(NSToolbarItem.Identifier("AccountRefreshAll")))
     #expect(window.frame == originalFrame)
+    #expect(window.contentViewController?.supplementalTarget(forAction: billing, sender: nil) == nil)
 }
 
 /// Each account identity has line 1 to itself: it is not truncated when it fits the sidebar, and a longer one

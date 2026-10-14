@@ -3,7 +3,7 @@ import UsageCore
 
 @MainActor
 final class AccountsWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate,
-                                      NSToolbarDelegate, WindowCommandHandling {
+                                      NSToolbarDelegate, NSMenuItemValidation, WindowCommandHandling {
     private enum Section: Equatable { case home, account, settings, platform }
     private static let homeRow = 0
     private static let accountRowOffset = 1
@@ -114,7 +114,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         table.setAccessibilityLabel("Sidebar")
         table.setAccessibilityHelp("Select Home or an account. Use Add Account below the list. Remove selected account and Delete ask for confirmation.")
         table.accountMenu = { [weak self] row in self?.accountContextMenu(row: row) }
-        table.removeSelectedAccount = { [weak self] in self?.removeSelectedAccount() }
+        table.removeSelectedAccount = { [weak self] in self?.removeSelectedAccount(nil) }
         let accountScroll = NSScrollView()
         accountScroll.documentView = table
         accountScroll.hasVerticalScroller = true
@@ -124,7 +124,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
 
         for (button, symbol, label, action) in [
             (addAccountButton, "plus", "Add Account", #selector(addAccount(_:))),
-            (removeAccountButton, "minus", "Remove selected account", #selector(removeSelectedAccountFromButton(_:)))
+            (removeAccountButton, "minus", "Remove selected account", #selector(removeSelectedAccount(_:)))
         ] {
             button.target = self
             button.action = action
@@ -490,8 +490,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     }
 
     private func updateRemoveAvailability() {
-        removeAccountButton.isEnabled = canModifyAccounts && section != .home && section != .settings
-            && accountID(forSidebarRow: table.selectedRow) != nil && window?.attachedSheet == nil
+        removeAccountButton.isEnabled = canModifyAccounts && selectedSidebarAccountID != nil && window?.attachedSheet == nil
     }
 
     // MARK: Account changes
@@ -537,12 +536,31 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         return menu
     }
 
-    private func removeSelectedAccount() {
-        guard section != .settings, section != .home, let id = accountID(forSidebarRow: table.selectedRow) else { return }
+    /// The account selected in the sidebar while its account page or Platform pane shows.
+    private var selectedSidebarAccountID: UUID? {
+        guard section == .account || section == .platform else { return nil }
+        return accountID(forSidebarRow: table.selectedRow)
+    }
+
+    /// File > Remove Account…, the sidebar minus button, and the Delete key. Asks for confirmation.
+    @objc func removeSelectedAccount(_ sender: Any?) {
+        guard let id = selectedSidebarAccountID else { return }
         confirmAccountRemoval(id: id)
     }
 
-    @objc private func removeSelectedAccountFromButton(_ sender: Any?) { removeSelectedAccount() }
+    /// File > Reconnect… for the selected account; the same route as the account page Reconnect… item.
+    @objc func reconnectSelectedAccount(_ sender: Any?) {
+        guard let id = selectedSidebarAccountID else { return }
+        reconnectAccount(id: id)
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        switch menuItem.action {
+        case #selector(removeSelectedAccount(_:)), #selector(reconnectSelectedAccount(_:)):
+            canModifyAccounts && window?.attachedSheet == nil && selectedSidebarAccountID != nil
+        default: true
+        }
+    }
 
     @objc private func removeAccountFromMenu(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? UUID else { return }
@@ -594,8 +612,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     }
 }
 
-/// Offers the visible page as a supplemental action target, so menu commands such as Home's period commands
-/// reach that page while keyboard focus is in the sidebar.
+/// Offers the visible page as a supplemental action target, so menu commands such as Home's period commands and
+/// the account page's Open Billing reach that page while keyboard focus is in the sidebar.
 @MainActor
 private final class PageCommandSplitViewController: NSSplitViewController {
     private static let pageActions: Set<Selector> = [
@@ -603,7 +621,8 @@ private final class PageCommandSplitViewController: NSSplitViewController {
         #selector(WindowCommandHandling.showNextPeriod(_:)),
         #selector(WindowCommandHandling.showCurrentPeriod(_:)),
         #selector(WindowCommandHandling.showMonthPeriod(_:)),
-        #selector(WindowCommandHandling.showTwoWeekPeriod(_:))
+        #selector(WindowCommandHandling.showTwoWeekPeriod(_:)),
+        #selector(WindowCommandHandling.openSelectedAccountBilling(_:))
     ]
     var commandPage: (() -> NSViewController?)?
 
