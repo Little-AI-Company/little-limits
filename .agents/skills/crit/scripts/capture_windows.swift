@@ -50,6 +50,13 @@ func backingScale(for frame: CGRect) -> CGFloat {
     return screen?.backingScaleFactor ?? 2
 }
 
+// Remove earlier captures with this prefix so a failed or absent window never
+// leaves a stale image that a report could present as current evidence.
+for name in try FileManager.default.contentsOfDirectory(atPath: outputDirectory.path)
+where name == "\(prefix).json" || (name.hasPrefix("\(prefix)-") && name.hasSuffix(".png")) {
+    try FileManager.default.removeItem(at: outputDirectory.appendingPathComponent(name))
+}
+
 var captured: [CapturedWindow] = []
 var layerCounts: [Int: Int] = [:]
 for info in windowList where (info[kCGWindowOwnerPID as String] as? Int) == processID {

@@ -4,7 +4,8 @@
 Usage: python3 build_report.py <register.json> <captures-directory> <output.html>
 
 Standard library only. Counts, sections, and the major list cover open findings;
-fixed and wontfix findings render in a separate resolved list.
+fixed and wontfix findings render in a resolved list; unverified findings (fixed in
+source only) render as awaiting verification and keep the verdict incomplete.
 
 Screenshots referenced by findings are downscaled to JPEG with sips and
 embedded as data URIs, so the page has no external image dependencies.
@@ -56,7 +57,7 @@ def diagnostic_result(row: dict) -> str:
     return result
 
 
-def assessment(findings: list, register: dict) -> tuple:
+def assessment(findings: list, pending: list, register: dict) -> tuple:
     """Derive the verdict and header from open findings, never from stored text."""
     worst = max((int(finding.get("severity", 0)) for finding in findings), default=0)
     outcomes = [outcome.get("outcome") for outcome in register.get("hig_outcomes", [])]
@@ -64,7 +65,7 @@ def assessment(findings: list, register: dict) -> tuple:
         verdict = "Blocked"
     elif worst == 3:
         verdict = "Changes required"
-    elif ("untested" in outcomes or register.get("untested")
+    elif (pending or "untested" in outcomes or register.get("untested")
           or any(row.get("result") == "untested" for row in register.get("diagnostic", {}).get("rows", []))):
         verdict = "Review incomplete"
     elif findings:
@@ -143,7 +144,8 @@ def main() -> None:
         key=lambda finding: (-int(finding.get("severity", 0)), surface_rank(finding), finding["id"]),
     )
     findings = [finding for finding in ordered if finding.get("status", "open") == "open"]
-    resolved = [finding for finding in ordered if finding.get("status", "open") != "open"]
+    pending = [finding for finding in ordered if finding.get("status") == "unverified"]
+    resolved = [finding for finding in ordered if finding.get("status") in ("fixed", "wontfix")]
 
     by_surface: "OrderedDict[str, list]" = OrderedDict((surface, []) for surface in SURFACE_ORDER)
     for finding in findings:
@@ -209,10 +211,15 @@ def main() -> None:
         f'<li><code>{escape(u.get("requirement", ""))}</code> {escape(u.get("needed"))}</li>' for u in register.get("untested", [])
     )
 
-    verdict, header = assessment(findings, register)
+    verdict, header = assessment(findings, pending, register)
     resolved_items = "".join(
         f'<li id="{escape(f["id"])}"><a href="#{escape(f["id"])}">{escape(f["id"])}</a> <span class="outcome">{escape(f.get("status"))}</span> {escape(f.get("claim"))}</li>'
         for f in resolved
+    )
+    pending_items = "".join(
+        f'<li id="{escape(f["id"])}"><a href="#{escape(f["id"])}">{escape(f["id"])}</a> {escape(f.get("claim"))} '
+        f'<span class="meta">{escape(f.get("round_note", ""))}</span></li>'
+        for f in pending
     )
     template = (Path(__file__).with_name("report_template.html")).read_text()
     page = (
@@ -231,9 +238,10 @@ def main() -> None:
         .replace("{{non_findings}}", non_findings)
         .replace("{{untested}}", untested)
         .replace("{{resolved}}", resolved_items or "<li>None</li>")
+        .replace("{{pending}}", pending_items or "<li>None</li>")
     )
     output.write_text(page)
-    print(f"wrote {output} ({output.stat().st_size // 1024} KB, {len(findings)} open, {len(resolved)} resolved)")
+    print(f"wrote {output} ({output.stat().st_size // 1024} KB, {len(findings)} open, {len(pending)} unverified, {len(resolved)} resolved)")
 
 
 if __name__ == "__main__":

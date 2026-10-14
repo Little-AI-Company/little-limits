@@ -4,7 +4,7 @@ Launch each row as its own instance: `open -n "dist/AI Usage Stats.app" --args <
 
 | Surface | Flags | Navigation after launch | Capture |
 | --- | --- | --- | --- |
-| status-item | `--demo-home` | None | `status-item` PNG from the script |
+| status-item | `--demo-home` | None | The system menu bar process owns this window, so the script cannot capture it. Only when no other AI Usage Stats instance is running, capture the menu bar strip with `screencapture -x -R0,0,<screen width in points>,40 <file>` and crop to the demo item before sharing. Otherwise record `status-menu.template-image` as untested. |
 | status-menu | `--demo-home --show-menu` | Menu opens itself | `menu` PNG, or computer-use screenshot |
 | status-menu-empty | `--demo --demo-empty --show-menu` | Menu opens itself | First-run menu |
 | status-menu-error | `--demo --demo-load-error --show-menu` | Menu opens itself | Load failure menu |
