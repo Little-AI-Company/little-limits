@@ -778,3 +778,23 @@ Tested revision `eac10b6` on branch `crit/fixes-2026-10-14`, with the merge comm
 The re-run crit captured 17 demo surfaces in light and dark appearance from the packaged app with fictional demo data. Its register has 40 findings: 19 fixed, 7 unverified (changed in source only), and 14 open, with a worst open severity of 3 (calendar events clipped mid-glyph, HOME-12). Contrast values in the report were measured from the captures.
 
 Not verified: keyboard paths (Tab order, Return and Escape on the Home popover, Command-1, Command-2, Command-[, Command-], Command-T, Command-N, arrow and Return on menu reading rows); VoiceOver speech for the sidebar, table, calendar events, and menu rows; surfaces that need pointer input (account page, Settings, add-account sheet, Claude sign-in sheet, Platform pane, empty-state add buttons); sidebar resize and collapse; the minimum 1020 × 640 point window and Month view; the status item glyph; real System Settings Increase Contrast and Reduce Transparency transitions; light system menu appearance. The HIG audit ran on the SDK 14 build before the packaging fix, so its materials and sidebar outcomes predate the Liquid Glass recapture. Earlier limits (live providers, Intel execution, macOS 14 runtime, notarization) remain in effect.
+
+
+## Design crit round 3 fixes, October 14, 2026
+
+Tested revision `d15aded` on branch `crit/round3-2026-10-14`, on macOS 27.0.1 (26A434), Apple silicon, macOS 27 SDK, and Swift 6.4. Three lanes with disjoint file ownership fixed the open findings of the [round 2 crit](design/crits/2026-10-14-after.md) and were merged in `0e00e8e` (calendar and table), `017d720` (sidebar and window), and `01c8705` (menu and strings), on top of `186908b`, which declares the File menu account commands in `WindowContracts.swift`. The re-run is [2026-10-14-round3](design/crits/2026-10-14-round3.md).
+
+| Command or inspection | Observed result |
+| --- | --- |
+| `swift test` | Passed. Swift Testing passed 56 tests and 17 tests in its two reported runs; XCTest ran with 0 failures. |
+| `swift build -c release` | Passed, with only the existing SecKeychain deprecation warnings. |
+| `scripts/package_app.sh` | Passed. |
+| `vtool -show-build` on the packaged executable | `minos 14.0`, `sdk 27.0`. |
+
+New focused tests: `calendarEventTextFitsItsFrameAtTheMinimumColumnWidth` and `quotaCellTextFitsAtTheMinimumWindowWidth` (HomeLayoutTests) measure drawn text with `cell.cellSize`, because a tail-truncating field reports an intrinsic width about 4 points short and an intrinsic-size test passed while the app truncated. `sidebarRowsGiveTheIdentityItsOwnLineAndNameTheLimitingWindow` and `addAccountSheetFitsItsContentForEachProvider` (AccountNavigationTests); the sheet test fails against the round 2 sheet code. `lowestCurrentExcludesStaleAndSignInRequiredReadings` (AccountQuotaSummaryTests).
+
+The crit captured 15 demo surfaces in light and dark appearance (30 PNGs with manifests) from the packaged app with fictional demo data. Its register has 51 findings: 29 fixed, 10 unverified, and 12 open, with a worst open severity of 2. Measured: status menu state lines 12.00:1 (2.25:1 before); sidebar state symbols 4.34:1 to 6.29:1 in light appearance (Low was 2.02:1); Home table and calendar Low triangle still 2.33:1 in light appearance (HOME-18).
+
+Sidebar material (HOME-04): Finder, Music, and a minimal `NSSplitViewController` sidebar app linked against SDK 27 show the same flat, full-height sidebar as this app in inactive-window captures on this machine. Toolbar items render as Liquid Glass capsules.
+
+Not verified: every surface that needs pointer input (account page, Settings, add-account and sign-in sheets, remove confirmation, Platform pane, File menu, popover, Month view, minimum window), because the shell has no Accessibility access; the status item glyph, number, and tooltip (MENU-07 is covered by a unit test only); keyboard paths; VoiceOver speech; key-window appearance; real Increase Contrast and Reduce Transparency (the `--increase-contrast` capture was pixel-identical to the light capture); light system menu appearance. Earlier limits (live providers, Intel execution, macOS 14 runtime, notarization) remain in effect.
