@@ -26,12 +26,16 @@ func accountNavigationPreservesTheUserWindowSize() async throws {
     }
     let accountList = try #require(sidebar)
     accountList.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
-    #expect(window.title.contains("personal@example.invalid"))
+    let toolbarItems = { window.toolbar?.items.map(\.itemIdentifier) ?? [] }
+    #expect(window.title == "personal@example.invalid")
+    #expect(toolbarItems().contains(NSToolbarItem.Identifier("AccountRefreshAll")))
     #expect(window.frame == originalFrame)
     controller.showSettings()
-    #expect(window.title == "App Settings")
+    #expect(window.title == "Settings")
+    #expect(toolbarItems() == [.toggleSidebar, .sidebarTrackingSeparator])
     #expect(window.frame == originalFrame)
     controller.showHome()
-    #expect(window.title == "AI Usage Stats")
+    #expect(window.title == "Home")
+    #expect(!toolbarItems().contains(NSToolbarItem.Identifier("AccountRefreshAll")))
     #expect(window.frame == originalFrame)
 }
