@@ -59,11 +59,7 @@ final class ApplicationModel {
 
     /// Accounts that each get their own menu bar number, or nil for the default: the lowest remaining quota
     /// per provider across every account. A display preference only; account data is unchanged.
-    var menuBarAccountIDs: Set<UUID>? {
-        if let chosen = chosenMenuBarAccountIDs { return chosen }
-        guard !legacyMenuBarHiddenAccountIDs.isEmpty else { return nil }
-        return Set(profiles.map(\.id)).subtracting(legacyMenuBarHiddenAccountIDs)
-    }
+    var menuBarAccountIDs: Set<UUID>? { chosenMenuBarAccountIDs }
 
     func showsInMenuBar(_ id: UUID) -> Bool { menuBarAccountIDs?.contains(id) == true }
 
@@ -71,6 +67,18 @@ final class ApplicationModel {
         var chosen = menuBarAccountIDs ?? []
         if shows { chosen.insert(id) } else { chosen.remove(id) }
         saveMenuBarChoice(chosen)
+    }
+
+    /// Saves the earlier hidden-account choice as the chosen-account list once, against the loaded accounts, so
+    /// accounts added later are not chosen automatically.
+    private func convertLegacyMenuBarChoice() {
+        guard chosenMenuBarAccountIDs == nil, !legacyMenuBarHiddenAccountIDs.isEmpty else { return }
+        chosenMenuBarAccountIDs = Set(profiles.map(\.id)).subtracting(legacyMenuBarHiddenAccountIDs)
+        legacyMenuBarHiddenAccountIDs = []
+        if !isDemo, let chosen = chosenMenuBarAccountIDs {
+            UserDefaults.standard.set(chosen.map(\.uuidString).sorted(), forKey: Self.menuBarAccountsKey)
+            UserDefaults.standard.removeObject(forKey: Self.legacyMenuBarHiddenKey)
+        }
     }
 
     /// Returns the menu bar to the lowest remaining quota per provider.
@@ -122,6 +130,7 @@ final class ApplicationModel {
                 pendingManualCredits[profile.id] = await service.pendingManualCredits(for: profile.id)
             }
             message = nil
+            convertLegacyMenuBarChoice()
         } catch {
             message = "Could not load accounts: \(error.localizedDescription)"
         }

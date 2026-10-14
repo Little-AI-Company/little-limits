@@ -63,7 +63,7 @@ The app is signed and notarized by Apple, so it opens without security warnings.
 
 ## Build from source
 
-You need Swift 6 (Xcode 16 or later).
+You need Xcode 27 or later, which includes Swift 6 and the macOS 27 SDK the source uses.
 
 ```sh
 git clone https://github.com/ParkerRex/ai-usage-stats.git
