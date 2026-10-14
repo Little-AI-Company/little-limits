@@ -102,7 +102,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         var readings: [StatusItemSummary.Reading] = []
         var descriptions: [String] = []
         for provider in [Provider.claude, .codex] {
-            let profiles = model.profiles.filter { $0.provider == provider }
+            // Only accounts chosen with Show in Menu Bar count toward the number.
+            let profiles = model.profiles.filter { $0.provider == provider && model.showsInMenuBar($0.id) }
             guard !profiles.isEmpty else { continue }
             let name = InterfaceFormatting.provider(provider)
             let ids = profiles.map(\.id)
@@ -129,7 +130,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             }
         }
         let stale = model.profiles.contains {
-            guard let snapshot = model.snapshots[$0.id] else { return false }
+            guard model.showsInMenuBar($0.id), let snapshot = model.snapshots[$0.id] else { return false }
             return snapshot.state == .stale || snapshot.state == .authenticationRequired
                 || snapshot.fetchedAt.map { now.timeIntervalSince($0) >= 300 } == true
                 || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
@@ -269,6 +270,28 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
     @objc func refreshAllAccounts(_ sender: Any?) { model.refresh() }
 
+    /// Show in Menu Bar ▸ one checkmarked item per account, choosing which accounts the menu bar number uses.
+    private func menuBarAccountsItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Show in Menu Bar", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: "Show in Menu Bar")
+        submenu.autoenablesItems = false
+        for profile in model.profiles {
+            let account = NSMenuItem(title: "\(InterfaceFormatting.provider(profile.provider)) · \(InterfaceFormatting.accountIdentity(profile))",
+                                     action: #selector(toggleMenuBarAccount(_:)), keyEquivalent: "")
+            account.target = self
+            account.representedObject = profile.id
+            account.state = model.showsInMenuBar(profile.id) ? .on : .off
+            submenu.addItem(account)
+        }
+        item.submenu = submenu
+        return item
+    }
+
+    @objc private func toggleMenuBarAccount(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? UUID else { return }
+        model.setShowsInMenuBar(!model.showsInMenuBar(id), for: id)
+    }
+
     @objc private func openAccountFromMenu(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? UUID else { return }
         presentAccountsWindow(sender, presentation: .preserve)
@@ -358,6 +381,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             statusMenu.addItem(UsageMenu.stateLine(message, detail: message, target: self, action: #selector(showAccounts(_:))))
         }
         if model.isChangingAccounts { statusMenu.addItem(UsageMenu.progress("Saving account…")) }
+        if !model.profiles.isEmpty { statusMenu.addItem(menuBarAccountsItem()) }
         appendApplicationCommands(includeRefresh: !model.profiles.isEmpty, includeSetup: model.profiles.isEmpty)
     }
 

@@ -40,7 +40,28 @@ final class ApplicationModel {
     var isSigningInClaude: Bool { claudeAuthorizationID != nil }
     var hasAccountLoadFailure: Bool { profiles.isEmpty && message != nil }
 
-    init(isDemo: Bool) { self.isDemo = isDemo }
+    init(isDemo: Bool) {
+        self.isDemo = isDemo
+        let stored = isDemo ? [] : UserDefaults.standard.stringArray(forKey: Self.menuBarHiddenKey) ?? []
+        menuBarHiddenAccountIDs = Set(stored.compactMap(UUID.init(uuidString:)))
+    }
+
+    // MARK: Menu bar accounts
+
+    private static let menuBarHiddenKey = "MenuBarHiddenAccountIDs"
+    /// Accounts left out of the menu bar number. A display preference only; account data is unchanged.
+    private(set) var menuBarHiddenAccountIDs: Set<UUID>
+
+    func showsInMenuBar(_ id: UUID) -> Bool { !menuBarHiddenAccountIDs.contains(id) }
+
+    func setShowsInMenuBar(_ shows: Bool, for id: UUID) {
+        guard showsInMenuBar(id) != shows else { return }
+        if shows { menuBarHiddenAccountIDs.remove(id) } else { menuBarHiddenAccountIDs.insert(id) }
+        if !isDemo {
+            UserDefaults.standard.set(menuBarHiddenAccountIDs.map(\.uuidString).sorted(), forKey: Self.menuBarHiddenKey)
+        }
+        onChange?()
+    }
 
     func load() async {
         if isDemo {

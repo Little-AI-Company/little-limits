@@ -577,6 +577,12 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             menu.addItem(move)
         }
         menu.addItem(.separator())
+        let menuBar = NSMenuItem(title: "Show in Menu Bar", action: #selector(toggleMenuBarFromMenu(_:)), keyEquivalent: "")
+        menuBar.target = self
+        menuBar.representedObject = id
+        menuBar.state = model.showsInMenuBar(id) ? .on : .off
+        menu.addItem(menuBar)
+        menu.addItem(.separator())
         let item = NSMenuItem(title: "Delete", action: #selector(removeAccountFromMenu(_:)), keyEquivalent: "")
         item.target = self
         item.representedObject = id
@@ -618,6 +624,11 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             canMoveSelectedAccount(by: 1)
         default: true
         }
+    }
+
+    @objc private func toggleMenuBarFromMenu(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? UUID else { return }
+        model.setShowsInMenuBar(!model.showsInMenuBar(id), for: id)
     }
 
     @objc private func removeAccountFromMenu(_ sender: NSMenuItem) {
