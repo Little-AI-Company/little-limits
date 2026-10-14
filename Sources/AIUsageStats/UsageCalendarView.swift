@@ -6,12 +6,8 @@ import UsageCore
 /// the supplied `UsageResetEvent` values, placed on the local day of each reported reset.
 @MainActor
 final class UsageCalendarView: NSView {
-    /// Click or Return on an event. The value is `UsageResetEvent.id`.
+    /// Click or Return on an event. The value is `UsageResetEvent.id`. Hover only highlights and shows the tooltip.
     var onActivate: ((String) -> Void)?
-    /// Pointer entered an event button.
-    var onHover: ((String) -> Void)?
-    /// Pointer left an event button.
-    var onHoverEnd: ((String) -> Void)?
 
     /// Selection survives `apply` when that event is still in the new readings.
     private(set) var selectedEventID: String?
@@ -30,14 +26,15 @@ final class UsageCalendarView: NSView {
         scroll.translatesAutoresizingMaskIntoConstraints = false
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
-        scroll.hasVerticalScroller = true
+        scroll.hasVerticalScroller = false
+        scroll.verticalScrollElasticity = .none
         scroll.hasHorizontalScroller = true
         scroll.autohidesScrollers = true
         scroll.documentView = grid
         scroll.onScrolled = { [weak self] in self?.syncHeader() }
         grid.onActivate = { [weak self] id in self?.activate(id) }
-        grid.onHover = { [weak self] id in self?.hover(id) }
-        grid.onHoverEnd = { [weak self] id in self?.hoverEnded(id) }
+        grid.onHover = { [weak self] id in self?.grid.setHovered(id) }
+        grid.onHoverEnd = { [weak self] id in self?.grid.clearHover(id) }
         addSubview(weekdayHeader)
         addSubview(scroll)
         NSLayoutConstraint.activate([
@@ -50,8 +47,8 @@ final class UsageCalendarView: NSView {
             scroll.topAnchor.constraint(equalTo: weekdayHeader.bottomAnchor),
             scroll.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
-        setContentHuggingPriority(.defaultHigh, for: .vertical)
-        setContentCompressionResistancePriority(NSLayoutConstraint.Priority(250), for: .vertical)
+        setContentHuggingPriority(.required, for: .vertical)
+        setContentCompressionResistancePriority(.required, for: .vertical)
         setContentCompressionResistancePriority(NSLayoutConstraint.Priority(250), for: .horizontal)
         setAccessibilityRole(.group)
         setAccessibilityLabel("Reset calendar")
@@ -59,7 +56,8 @@ final class UsageCalendarView: NSView {
 
     required init?(coder: NSCoder) { nil }
 
-    /// Height of the header plus every day row. The view scrolls when its bounds are shorter or narrower.
+    /// Height of the header plus every day row. The Home document scrolls vertically; the grid scrolls
+    /// horizontally only when the view is narrower than seven minimum columns.
     var preferredHeight: CGFloat { CalendarMetrics.headerHeight + grid.contentHeight }
 
     override var intrinsicContentSize: NSSize {
@@ -163,16 +161,6 @@ final class UsageCalendarView: NSView {
         onActivate?(id)
     }
 
-    private func hover(_ id: String) {
-        grid.setHovered(id)
-        onHover?(id)
-    }
-
-    private func hoverEnded(_ id: String) {
-        grid.clearHover(id)
-        onHoverEnd?(id)
-    }
-
     private func syncHeader() {
         let columnWidth = grid.bounds.width > 1 ? grid.bounds.width / 7 : bounds.width / 7
         weekdayHeader.columnWidth = columnWidth
@@ -225,18 +213,20 @@ private struct CalendarSnapshot: Equatable {
 
 private enum CalendarMetrics {
     static let headerHeight: CGFloat = 24
-    static let todayDiameter: CGFloat = 24
-    static let columnMinimum: CGFloat = 112
+    /// The badge sits inside the date band with 4 pt above and below, clear of the week's grid line.
+    static let todayDiameter: CGFloat = 22
+    /// Seven columns fit the content width of the minimum window beside the sidebar.
+    static let columnMinimum: CGFloat = 96
     static let minimumWidth: CGFloat = columnMinimum * 7
-    static let twoWeekRow: CGFloat = 120
+    static let twoWeekRow: CGFloat = 96
     static let monthRow: CGFloat = 72
     static let eventHeight: CGFloat = 36
     static let eventGap: CGFloat = 4
-    static let dateBand: CGFloat = 26
+    static let dateBand: CGFloat = 30
 }
 
 @MainActor
-private final class CalendarScrollView: NSScrollView {
+private final class CalendarScrollView: HomeNestedScrollView {
     var onScrolled: (() -> Void)?
 
     override func reflectScrolledClipView(_ cView: NSClipView) {
@@ -364,19 +354,22 @@ private final class CalendarGridView: NSView {
             let origin = cellOrigin(index, columnWidth: width)
             let today = index == todayIndex
             let circle = todayBadgeRect(index, columnWidth: width)
+            // Labels are centered on the date band, so the today numeral sits in the middle of its badge.
+            let labelHeight = ceil(dateLabels[index].intrinsicContentSize.height)
+            let labelY = origin.y + (CalendarMetrics.dateBand - labelHeight) / 2
             if today {
-                dateLabels[index].frame = circle
                 dateLabels[index].alignment = .center
+                dateLabels[index].frame = NSRect(x: circle.minX, y: labelY, width: circle.width, height: labelHeight)
             } else {
                 dateLabels[index].alignment = .left
-                dateLabels[index].frame = NSRect(x: origin.x + 8, y: origin.y + 5, width: width - 16, height: 18)
+                dateLabels[index].frame = NSRect(x: origin.x + 8, y: labelY, width: width - 16, height: labelHeight)
             }
             let showMonth = today && showsMonthName(index)
             monthLabels[index].isHidden = !showMonth
             if showMonth {
                 let monthX = circle.maxX + 4
-                monthLabels[index].frame = NSRect(x: monthX, y: origin.y + 5,
-                                                width: max(0, origin.x + width - 8 - monthX), height: 18)
+                monthLabels[index].frame = NSRect(x: monthX, y: labelY,
+                                                width: max(0, origin.x + width - 8 - monthX), height: labelHeight)
             }
             var eventY = origin.y + CalendarMetrics.dateBand
             for event in events(on: index) {
@@ -447,7 +440,8 @@ private final class CalendarGridView: NSView {
         if let todayIndex, days.indices.contains(todayIndex) {
             let columnWidth = bounds.width / 7
             let circle = todayBadgeRect(todayIndex, columnWidth: columnWidth)
-            NSColor.controlAccentColor.setFill()
+            // Label color with a background-color numeral keeps contrast in every accent color.
+            NSColor.labelColor.setFill()
             NSBezierPath(ovalIn: circle).fill()
         }
     }
@@ -469,7 +463,7 @@ private final class CalendarGridView: NSView {
     private func todayBadgeRect(_ index: Int, columnWidth: CGFloat) -> NSRect {
         let origin = cellOrigin(index, columnWidth: columnWidth)
         let labelWidth = dateLabels.indices.contains(index) ? dateLabels[index].intrinsicContentSize.width : 0
-        let diameter = max(CalendarMetrics.todayDiameter, labelWidth.rounded(.up))
+        let diameter = max(CalendarMetrics.todayDiameter, labelWidth.rounded(.up) + 6)
         return NSRect(x: origin.x + 6, y: origin.y + (CalendarMetrics.dateBand - diameter) / 2,
                       width: diameter, height: diameter)
     }
@@ -521,7 +515,7 @@ private final class CalendarGridView: NSView {
         for index in days.indices {
             let outside = limitToAnchorMonth && !calendar.isDate(days[index], equalTo: anchor, toGranularity: .month)
             if index == todayIndex {
-                dateLabels[index].textColor = .alternateSelectedControlTextColor
+                dateLabels[index].textColor = .textBackgroundColor
             } else {
                 dateLabels[index].textColor = outside ? .secondaryLabelColor : .labelColor
             }
@@ -604,10 +598,13 @@ private final class UsageEventButton: NSButton {
     var onHoverEnd: ((String) -> Void)?
 
     private let icon = HomePassImageView()
-    private let percent = HomeStaticTextField(labelWithString: "")
-    private let identity = HomeStaticTextField(labelWithString: "")
-    private let scope = HomeStaticTextField(labelWithString: "")
-    private var tone = HomeReadingTone.neutral
+    /// "13:11 · 5-hour resets". Tail truncation shortens the scope; the time is first and stays whole.
+    private let resetLine = HomeStaticTextField(labelWithString: "")
+    /// "17% left · personal", after the Low or Limit reached symbol.
+    private let detailLine = HomeStaticTextField(labelWithString: "")
+    private let detailRow = NSStackView()
+    private var symbol: NSImageView?
+    private var model: HomeCalendarEventModel?
     private var selected = false
     private var hovered = false
 
@@ -623,37 +620,31 @@ private final class UsageEventButton: NSButton {
         action = #selector(activate(_:))
         icon.imageScaling = .scaleProportionallyDown
         icon.setAccessibilityElement(false)
-        percent.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
-        percent.lineBreakMode = .byTruncatingTail
-        percent.setContentCompressionResistancePriority(.required, for: .horizontal)
-        percent.setContentHuggingPriority(.required, for: .horizontal)
-        percent.setAccessibilityElement(false)
-        identity.font = .systemFont(ofSize: 12)
-        identity.lineBreakMode = .byTruncatingTail
-        identity.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        identity.setAccessibilityElement(false)
-        scope.font = .systemFont(ofSize: 11)
-        scope.lineBreakMode = .byTruncatingTail
-        scope.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        scope.setAccessibilityElement(false)
+        for field in [resetLine, detailLine] {
+            field.lineBreakMode = .byTruncatingTail
+            field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            field.setAccessibilityElement(false)
+        }
+        detailLine.font = .systemFont(ofSize: 11)
         icon.translatesAutoresizingMaskIntoConstraints = false
-        let top = NSStackView(views: [icon, percent, identity])
+        let top = NSStackView(views: [icon, resetLine])
         top.orientation = .horizontal
         top.alignment = .centerY
         top.spacing = 4
         let spacer = NSView()
         spacer.translatesAutoresizingMaskIntoConstraints = false
-        spacer.widthAnchor.constraint(equalToConstant: 18).isActive = true
-        let bottom = NSStackView(views: [spacer, scope])
-        bottom.orientation = .horizontal
-        bottom.alignment = .centerY
-        bottom.spacing = 0
-        let lines = NSStackView(views: [top, bottom])
+        spacer.widthAnchor.constraint(equalToConstant: 14).isActive = true
+        detailRow.addArrangedSubview(spacer)
+        detailRow.addArrangedSubview(detailLine)
+        detailRow.orientation = .horizontal
+        detailRow.alignment = .centerY
+        detailRow.spacing = 4
+        let lines = NSStackView(views: [top, detailRow])
         lines.orientation = .vertical
         lines.alignment = .leading
-        lines.spacing = 0
+        lines.spacing = 1
         lines.translatesAutoresizingMaskIntoConstraints = false
-        for decorativeView in [top, bottom, lines, spacer] {
+        for decorativeView in [top, detailRow, lines, spacer] {
             decorativeView.setAccessibilityElement(false)
         }
         addSubview(lines)
@@ -663,30 +654,34 @@ private final class UsageEventButton: NSButton {
             lines.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
             lines.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -2),
             lines.centerYAnchor.constraint(equalTo: centerYAnchor),
-            bottom.trailingAnchor.constraint(lessThanOrEqualTo: lines.trailingAnchor)
+            top.trailingAnchor.constraint(lessThanOrEqualTo: lines.trailingAnchor),
+            detailRow.trailingAnchor.constraint(lessThanOrEqualTo: lines.trailingAnchor)
         ])
         setAccessibilityRole(.button)
         setAccessibilityElement(true)
         setAccessibilityChildren([])
-        setAccessibilityHelp("Press Return to activate this reset.")
+        setAccessibilityHelp("Press Return to show this account.")
     }
 
     required init?(coder: NSCoder) { nil }
 
     func apply(_ event: HomeCalendarEventModel) {
+        guard event != model else { return }
+        let toneChanged = event.tone != model?.tone
+        model = event
         eventID = event.id
-        tone = event.tone
         identifier = NSUserInterfaceItemIdentifier(event.id)
         setAccessibilityIdentifier(event.id)
         setAccessibilityLabel(event.accessibilityLabel)
         toolTip = event.toolTip
-        if percent.stringValue != event.percentText { percent.stringValue = event.percentText }
-        let name = event.shortIdentity
-        if identity.stringValue != name { identity.stringValue = name }
-        if scope.stringValue != event.scopeLine { scope.stringValue = event.scopeLine }
         let image = ProviderIcons.images[event.provider]
         if icon.image !== image { icon.image = image }
         icon.isHidden = image == nil
+        if toneChanged {
+            symbol?.removeFromSuperview()
+            symbol = HomeText.stateSymbol(event.tone, size: 10)
+            if let symbol { detailRow.insertArrangedSubview(symbol, at: 1) }
+        }
         refreshColors()
     }
 
@@ -745,7 +740,7 @@ private final class UsageEventButton: NSButton {
     @objc private func activate(_ sender: Any?) { onActivate?(eventID) }
 
     private func refreshColors() {
-        let emphasized = selected
+        guard let model else { return }
         effectiveAppearance.performAsCurrentDrawingAppearance {
             let fill: NSColor? = selected ? .selectedContentBackgroundColor
                 : hovered ? .unemphasizedSelectedContentBackgroundColor : nil
@@ -754,20 +749,18 @@ private final class UsageEventButton: NSButton {
             layer?.cornerRadius = fill == nil ? 0 : 5
             layer?.backgroundColor = fill?.cgColor
             CATransaction.commit()
-            let primary: NSColor = emphasized ? .alternateSelectedControlTextColor : .labelColor
-            let secondary: NSColor = emphasized ? .alternateSelectedControlTextColor : .secondaryLabelColor
-            percent.textColor = emphasized ? primary : percentColor(tone)
-            identity.textColor = primary
-            scope.textColor = secondary
+            let primary: NSColor = selected ? .alternateSelectedControlTextColor : .labelColor
+            let reset = NSMutableAttributedString(string: model.timeText, attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold), .foregroundColor: primary
+            ])
+            reset.append(NSAttributedString(string: " · \(model.scopeText)", attributes: [
+                .font: NSFont.systemFont(ofSize: 12), .foregroundColor: primary
+            ]))
+            resetLine.attributedStringValue = reset
+            detailLine.stringValue = "\(model.remainingText) · \(model.shortIdentity)"
+            detailLine.textColor = primary
             icon.contentTintColor = primary
-        }
-    }
-
-    private func percentColor(_ tone: HomeReadingTone) -> NSColor {
-        switch tone {
-        case .neutral: return .labelColor
-        case .warning: return .systemOrange
-        case .critical: return .systemRed
+            symbol?.contentTintColor = selected ? primary : model.tone.symbolColor
         }
     }
 }
