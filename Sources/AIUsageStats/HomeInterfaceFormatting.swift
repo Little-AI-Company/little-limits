@@ -185,7 +185,7 @@ enum HomeInterfaceFormatting {
     static let sessionColumnHelp = "Remaining quota for the 5-hour window. A window is placed here only when its reported duration is 5 hours, or when its name says 5 hours and no duration was reported."
     static let weeklyColumnHelp = "Remaining quota for the weekly window. Other durations stay in the last quota column."
     static let otherColumnHelp = "Every other reported quota window, including model-scoped limits such as Weekly · Fable 5. Names come from the reading."
-    static let earnedColumnHelp = "Earned resets available and their next expiry. Expiry is not a quota reset and is not placed on the calendar."
+    static let earnedColumnHelp = "Earned resets available and their next expiry. Expiry is separate from usage window resets and is not placed on the calendar."
     static let updatedColumnHelp = "When this account's usage was last read."
     static let unknownResetText = "Reset time unknown"
 
@@ -570,7 +570,7 @@ enum HomeInterfaceFormatting {
         if let expiryExact { help += ". \(expiryLabel ?? "Expiry") \(expiryExact)" }
         if stale { help += ". Stale" }
         if passedExpiry != nil { help += ". An earned reset expired after this reading. Refresh to check current availability." }
-        help += ". Earned reset expiry is separate from quota reset."
+        help += ". Earned reset expiry is separate from usage window resets."
         return EarnedFacts(countText: countText, expiryText: expiryText, expiryLabel: expiryLabel,
                            expiryExact: expiryExact,
                            staleMarker: stale ? "Stale · last read \(timeText(observed))" : nil, help: help)
@@ -698,7 +698,7 @@ enum HomeInterfaceFormatting {
     }
 
     private static func updatedSentence(_ account: UsageOverviewAccount, now: Date) -> String {
-        guard let date = account.snapshot?.fetchedAt, date <= now else { return "Updated time unavailable" }
+        guard let date = account.snapshot?.fetchedAt, date <= now else { return "Observation time unknown" }
         let prefix = readingBasis(account, now: now) == .current ? "Updated" : "Last read"
         return "\(prefix) \(InterfaceFormatting.exactDate(date))"
     }

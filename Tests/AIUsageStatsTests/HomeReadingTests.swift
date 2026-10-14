@@ -110,7 +110,7 @@ func ordinaryCodexWindowsKeepTheirColumnsWithAdditionalMeters() {
 func passedEarnedResetExpiryMakesTheCountHistorical() {
     let observed = homeReadingNow.addingTimeInterval(-120)
     let expiry = homeReadingNow.addingTimeInterval(-60)
-    let grant = CreditBalance(id: "quota_reset_available", title: "Quota reset", amount: nil,
+    let grant = CreditBalance(id: "quota_reset_available", title: "Earned reset", amount: nil,
                               unit: .resets, expiresAt: expiry, asOf: observed, status: "available")
     let row = homeRow(windows: [homeWindow(used: 20)],
                       credits: [homeResetCount(1, observed: observed), grant])
@@ -198,11 +198,11 @@ private func homeLines(_ cell: HomeMeterCell) -> [HomeReadingLine] {
 }
 
 private func homeResetCount(_ count: Int, observed: Date? = homeReadingNow) -> CreditBalance {
-    CreditBalance(id: "quota_reset_credits", title: "Quota resets", amount: Decimal(count),
+    CreditBalance(id: "quota_reset_credits", title: "Earned resets", amount: Decimal(count),
                   unit: .resets, asOf: observed)
 }
 
 private func homeGrant(_ name: String, status: String?, expires: Date?, doesNotExpire: Bool = false) -> CreditBalance {
-    CreditBalance(id: "quota_reset_" + name, title: "Quota reset", amount: nil, unit: .resets,
+    CreditBalance(id: "quota_reset_" + name, title: "Earned reset", amount: nil, unit: .resets,
                   expiresAt: expires, asOf: homeReadingNow, status: status, doesNotExpire: doesNotExpire)
 }
