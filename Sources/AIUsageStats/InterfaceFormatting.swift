@@ -52,13 +52,14 @@ enum InterfaceFormatting {
         return value == "Unavailable" || value == "Inactive" ? value : "Last known \(value)"
     }
 
-    /// A reading that must not pass for current: stale, sign-in required, a passed reset, or older than five minutes.
+    /// A reading that must not pass for current: stale, sign-in required, a passed reset, older than five minutes,
+    /// or observed in the future after a clock change.
     static func isOutdated(_ snapshot: AccountSnapshot, now: Date) -> Bool {
         switch snapshot.state {
         case .authenticationRequired, .stale: return true
         case .unavailable: return false
         case .available:
-            return snapshot.fetchedAt.map { now.timeIntervalSince($0) >= 300 } == true
+            return snapshot.fetchedAt.map { now.timeIntervalSince($0) >= 300 || $0 > now } == true
                 || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
         }
     }

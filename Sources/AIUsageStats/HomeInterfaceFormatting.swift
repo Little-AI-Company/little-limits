@@ -309,15 +309,18 @@ enum HomeInterfaceFormatting {
             }
             let basis = readingBasis(account, now: now)
             let state: String
+            // A reused Codex CLI login is signed in outside the app, so it offers no Reconnect….
+            let reconnectable = account.profile.source != .codexDefaultLogin
             switch basis {
-            case .authentication: state = "Sign-in required. Choose Reconnect…"
+            case .authentication:
+                state = reconnectable ? "Sign-in required. Choose Reconnect…" : "Sign-in required. Sign in to the Codex CLI in Terminal, then choose Refresh All."
             case .historical: state = "\(staleText(account, now: now)). Choose Refresh All to read it again."
             case .unavailable: state = "Unavailable. Choose Refresh All to try again."
             case .absent: state = "\(absentStatus(account)). Choose Refresh All to try again."
             case .current: state = accountStatus(account, basis: basis, now: now) ?? "Some usage unknown"
             }
             return HomeAttentionItem(id: account.id, text: "\(account.profile.provider.title) \(account.shortIdentity): \(state)",
-                                     showsReconnect: basis == .authentication)
+                                     showsReconnect: basis == .authentication && reconnectable)
         }
     }
 
@@ -417,7 +420,7 @@ enum HomeInterfaceFormatting {
         return HomeAccountRow(id: account.id, provider: account.profile.provider,
                               title: "\(account.profile.provider.title) \(account.shortIdentity)",
                               identity: identity, identityIsEmail: identityIsEmail, plan: plan, status: status,
-                              showsReconnect: basis == .authentication,
+                              showsReconnect: basis == .authentication && account.profile.source != .codexDefaultLogin,
                               session: cell(.session), weekly: cell(.weekly), other: cell(.other),
                               earned: earnedCell(account, now: now, calendar: calendar),
                               updatedPrimary: updated.primary, updatedSecondary: updated.secondary,

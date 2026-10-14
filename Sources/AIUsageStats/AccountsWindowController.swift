@@ -605,8 +605,13 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
-        case #selector(removeSelectedAccount(_:)), #selector(reconnectSelectedAccount(_:)):
+        case #selector(removeSelectedAccount(_:)):
             canModifyAccounts && window?.attachedSheet == nil && selectedSidebarAccountID != nil
+        case #selector(reconnectSelectedAccount(_:)):
+            canModifyAccounts && window?.attachedSheet == nil
+                && selectedSidebarAccountID.flatMap { id in model.profiles.first { $0.id == id } }.map { $0.source != .codexDefaultLogin } == true
+        case #selector(addAccount(_:)):
+            canModifyAccounts && isAccountLoadComplete() && !model.hasAccountLoadFailure && window?.attachedSheet == nil
         case #selector(moveSelectedAccountUp(_:)):
             canMoveSelectedAccount(by: -1)
         case #selector(moveSelectedAccountDown(_:)):

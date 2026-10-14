@@ -87,7 +87,8 @@ enum UsageMenu {
                 items.append(item)
             }
             if state != nil || consoleMessages[profile.id] != nil {
-                let needsSignIn = snapshot?.state == .authenticationRequired
+                // A reused Codex CLI login is signed in outside the app, so it opens the account instead.
+                let needsSignIn = snapshot?.state == .authenticationRequired && profile.source != .codexDefaultLogin
                 let item = NSMenuItem(title: needsSignIn ? "Reconnect…" : "Open Account",
                                       action: needsSignIn ? reconnectAction : openAction, keyEquivalent: "")
                 item.target = target
@@ -143,12 +144,17 @@ enum UsageMenu {
         let count = summary?.amount.map { NSDecimalNumber(decimal: $0).intValue } ?? grants.count
         let nextExpiry = grants.compactMap(\.expiresAt).filter { $0 > now }.min()
         let timing = nextExpiry.map { "Next expires in \(UsageFormatting.countdown(to: $0, now: now))" } ?? ""
-        var lines = ["Earned resets: \(count) available"]
+        // A grant that expired after the count was observed, or an old or future observation, makes the count
+        // historical, as on Home.
+        let grantExpired = grants.contains { $0.expiresAt.map { $0 <= now } == true }
+        let oldObservation = summary?.asOf.map { now.timeIntervalSince($0) >= 300 || $0 > now } == true
+        let value = grantExpired || oldObservation ? "Last known \(count)" : "\(count) available"
+        var lines = ["Earned resets: \(value)"]
         for grant in grants.sorted(by: { ($0.expiresAt ?? .distantFuture) < ($1.expiresAt ?? .distantFuture) }) {
             lines.append(grant.expiresAt.map { "\(InterfaceFormatting.compactExpiry($0, now: now)) · \(InterfaceFormatting.exactDate($0))" }
                 ?? (grant.doesNotExpire ? "Does not expire" : "Expiration date unavailable"))
         }
-        return Metric(label: "Earned resets", value: "\(count) available", timing: timing, detail: lines.joined(separator: "\n"))
+        return Metric(label: "Earned resets", value: value, timing: timing, detail: lines.joined(separator: "\n"))
     }
 
     private static func accountState(_ snapshot: AccountSnapshot, now: Date) -> String? {

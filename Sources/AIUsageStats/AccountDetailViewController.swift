@@ -88,7 +88,7 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         let canSave = !model.isDemo && profile != nil && !model.isRefreshing && !model.isChangingAccounts
         refreshAllToolbarItem?.isEnabled = !model.isDemo && !model.isRefreshing && !model.isChangingAccounts && !model.profiles.isEmpty
         refreshAllToolbarItem?.toolTip = model.isRefreshing ? "Refreshing…" : "Refresh All"
-        reconnectToolbarItem?.isEnabled = canSave
+        reconnectToolbarItem?.isEnabled = canSave && profile?.source != .codexDefaultLogin
         reconnectToolbarItem?.toolTip = profile?.source == .codexDefaultLogin
             ? "This account reads the Codex CLI login on this Mac"
             : profile?.provider == .codex
@@ -337,7 +337,7 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         let profile = profile
         let platformConnected = profile.map { $0.provider == .claude && model.consoleConnections[$0.id] != nil } ?? false
         updateToolbarItems()
-        recoveryButton.isEnabled = canSave
+        recoveryButton.isEnabled = canSave && profile?.source != .codexDefaultLogin
         consoleButton.isHidden = profile?.provider != .claude
         consoleButton.title = platformConnected ? "Manage API Credits…" : "Connect API Credits…"
         consoleButton.isEnabled = canSave && profile?.provider == .claude

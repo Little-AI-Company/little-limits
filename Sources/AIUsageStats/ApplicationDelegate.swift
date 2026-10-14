@@ -83,10 +83,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             platformControllers.removeValue(forKey: id)?.retire()
         }
         if accounts?.window?.isVisible == true { accounts?.render() }
-        // An open menu is not rebuilt, so keep its Reconnect… commands in step with refresh and account changes.
+        // An open menu is not rebuilt, so keep its Reconnect… and Refresh All commands in step with refresh and
+        // account changes.
         if isMenuTracking {
             for item in statusMenu.items where item.action == #selector(reconnectAccountFromMenu(_:)) {
                 item.isEnabled = canReconnectFromMenu
+            }
+            for item in statusMenu.items where item.action == #selector(refreshAllAccounts(_:)) {
+                item.title = model.isRefreshing ? "Refreshing…" : "Refresh All"
+                item.isEnabled = validateMenuItem(item)
             }
         }
         // The number per provider prefers current readings, so an old or signed-out zero never hides a current
