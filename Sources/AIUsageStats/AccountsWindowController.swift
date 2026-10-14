@@ -247,7 +247,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         render()
         guard entering, let window, window.isVisible else { return }
         window.contentView?.layoutSubtreeIfNeeded()
-        home.focusInitialControl()
+        if !home.focusInitialControl() { window.makeFirstResponder(table) }
     }
 
     func showSettings() {
@@ -346,7 +346,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         case .home: title = "Home"
         case .settings: title = "Settings"
         case .account, .platform:
-            title = model.profiles.first(where: { $0.id == selectedID }).map(InterfaceFormatting.accountIdentity) ?? "Accounts"
+            title = model.profiles.first(where: { $0.id == selectedID }).map(distinctIdentity) ?? "Accounts"
             if section == .platform { subtitle = "API Credits" }
         }
         if window.title != title { window.title = title }
@@ -379,7 +379,12 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         super.showWindow(sender)
         guard section == .home, !wasVisible else { return }
         window?.contentView?.layoutSubtreeIfNeeded()
-        home.focusInitialControl()
+        if !home.focusInitialControl() { window?.makeFirstResponder(table) }
+    }
+
+    /// View > Show Account items while Home shows; empty on other pages, where the filter does not apply.
+    func accountFilterMenuItems() -> [NSMenuItem] {
+        section == .home ? home.accountFilterMenuItems() : []
     }
 
     private func fittedContentSize(_ proposed: NSSize) -> NSSize {
@@ -446,8 +451,18 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         var description = "\(InterfaceFormatting.provider(profile.provider)), \(InterfaceFormatting.accountIdentity(profile)). \(state)"
         if let lastRead { description += " Last read \(InterfaceFormatting.exactDate(lastRead))." }
         if InterfaceFormatting.accountEmail(profile) == "Email unavailable" { description += " Email unavailable." }
-        return AccountSidebarCellView.Display(identity: InterfaceFormatting.accountIdentity(profile), provider: profile.provider,
+        return AccountSidebarCellView.Display(identity: distinctIdentity(profile), provider: profile.provider,
                                               quotaText: text, indicator: indicator, description: description)
+    }
+
+    /// The identity, prefixed with the provider when another saved account shows the same identity, as the
+    /// status menu heading does: `Claude · parker@example.invalid`.
+    private func distinctIdentity(_ profile: AccountProfile) -> String {
+        let identity = InterfaceFormatting.accountIdentity(profile)
+        let shared = model.profiles.contains {
+            $0.id != profile.id && InterfaceFormatting.accountIdentity($0).caseInsensitiveCompare(identity) == .orderedSame
+        }
+        return shared ? "\(InterfaceFormatting.provider(profile.provider)) · \(identity)" : identity
     }
 
     private static func remainingText(_ remaining: Double) -> String {

@@ -32,19 +32,15 @@ func accountNavigationPreservesTheUserWindowSize() async throws {
     window.setContentSize(NSSize(width: 1_360, height: 840))
     let originalFrame = window.frame
     let root = try #require(window.contentView)
-    var descendants = [root]
-    var sidebar: NSTableView?
-    while let view = descendants.popLast() {
-        if let table = view as? NSTableView, table.accessibilityLabel() == "Sidebar" {
-            sidebar = table
-            break
-        }
-        descendants.append(contentsOf: view.subviews)
-    }
+    let sidebar = descendants(of: root, as: NSTableView.self).first { $0.accessibilityLabel() == "Sidebar" }
     let accountList = try #require(sidebar)
     accountList.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
     let toolbarItems = { window.toolbar?.items.map(\.itemIdentifier) ?? [] }
-    #expect(window.title == "personal@example.invalid")
+    // The demo Claude and Codex accounts share one email, so the title and sidebar name the provider (HOME-19).
+    #expect(window.title == "Claude · personal@example.invalid")
+    let identities = descendants(of: root, as: AccountSidebarCellView.self).compactMap { $0.textField?.stringValue }
+    #expect(identities.contains("Claude · personal@example.invalid"))
+    #expect(identities.contains("Codex · personal@example.invalid"))
     #expect(toolbarItems().contains(NSToolbarItem.Identifier("AccountRefreshAll")))
     #expect(window.frame == originalFrame)
     // File menu account commands: demo accounts cannot be reconnected or removed; Open Billing reaches the account
@@ -117,4 +113,20 @@ func addAccountSheetFitsItsContentForEachProvider() throws {
             }
         }
     }
+}
+
+/// HOME-21: on an emphasized (accent) selection the state symbol takes the selected text color, like the quota
+/// text, and returns to its state color when the row is no longer emphasized.
+@Test @MainActor
+func sidebarStateSymbolFollowsTheEmphasizedSelection() throws {
+    _ = NSApplication.shared
+    let cell = AccountSidebarCellView(frame: NSRect(x: 0, y: 0, width: 240, height: 40))
+    cell.render(AccountSidebarCellView.Display(identity: "work@example.invalid", provider: .codex, quotaText: "17% left, Low · Weekly",
+                                               indicator: .low, description: "Low"))
+    let symbol = try #require(descendants(of: cell, as: NSImageView.self).first { $0.image?.name() == nil && $0.contentTintColor != nil })
+    #expect(symbol.contentTintColor == StateSymbolColor.warning)
+    cell.backgroundStyle = .emphasized
+    #expect(symbol.contentTintColor == .alternateSelectedControlTextColor)
+    cell.backgroundStyle = .normal
+    #expect(symbol.contentTintColor == StateSymbolColor.warning)
 }

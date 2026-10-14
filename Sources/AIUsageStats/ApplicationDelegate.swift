@@ -7,6 +7,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         || CommandLine.arguments.contains("--demo-home")
         || CommandLine.arguments.contains("--demo-reading-states"))
     private let statusMenu = NSMenu(title: "AI Usage Stats")
+    private let accountFilterMenu = NSMenu(title: "Show Account")
     private var isMenuTracking = false
     private var statusItem: NSStatusItem?
     private var displayedStatusSummary: StatusItemSummary?
@@ -149,6 +150,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        if menu === accountFilterMenu {
+            let items = accounts?.accountFilterMenuItems() ?? []
+            menu.items = items.isEmpty ? [NSMenuItem(title: "All Accounts", action: nil, keyEquivalent: "")] : items
+            return
+        }
         guard menu === statusMenu, !isMenuTracking else { return }
         rebuildStatusMenu()
     }
@@ -447,6 +453,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         viewMenu.addItem(nilTargetItem("Previous", #selector(WindowCommandHandling.showPreviousPeriod(_:)), "["))
         viewMenu.addItem(nilTargetItem("Next", #selector(WindowCommandHandling.showNextPeriod(_:)), "]"))
         viewMenu.addItem(nilTargetItem("Today", #selector(WindowCommandHandling.showCurrentPeriod(_:)), "t"))
+        viewMenu.addItem(.separator())
+        // The toolbar Accounts filter as a menu command; Home supplies the items each time the submenu opens.
+        let showAccount = NSMenuItem(title: "Show Account", action: nil, keyEquivalent: "")
+        accountFilterMenu.delegate = self
+        showAccount.submenu = accountFilterMenu
+        viewMenu.addItem(showAccount)
         view.submenu = viewMenu
         menu.addItem(view)
         let window = NSMenuItem()

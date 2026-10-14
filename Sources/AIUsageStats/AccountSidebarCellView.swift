@@ -91,12 +91,12 @@ final class AccountSidebarCellView: NSTableCellView {
         quota.stringValue = display.quotaText
         if let symbol = display.indicator.symbol {
             indicator.image = NSImage(systemSymbolName: symbol.name, accessibilityDescription: nil)
-            indicator.contentTintColor = symbol.color
             indicator.isHidden = false
         } else {
             indicator.image = nil
             indicator.isHidden = true
         }
+        updateIndicatorTint()
         toolTip = display.description
         setAccessibilityLabel(display.description)
     }
@@ -109,7 +109,18 @@ final class AccountSidebarCellView: NSTableCellView {
     }
 
     override var backgroundStyle: NSView.BackgroundStyle {
-        didSet { quota.cell?.backgroundStyle = backgroundStyle }
+        didSet {
+            quota.cell?.backgroundStyle = backgroundStyle
+            updateIndicatorTint()
+        }
+    }
+
+    /// On an emphasized (accent) selection the state tints can fall under 3:1, so the symbol takes the selected
+    /// text color like the quota text; its shape still carries the state. The calendar does the same.
+    private func updateIndicatorTint() {
+        guard let color = displayed?.indicator.symbol?.color else { return }
+        let tint: NSColor = backgroundStyle == .emphasized ? .alternateSelectedControlTextColor : color
+        if indicator.contentTintColor != tint { indicator.contentTintColor = tint }
     }
 
     static func quotaFont(identitySize: CGFloat) -> NSFont {

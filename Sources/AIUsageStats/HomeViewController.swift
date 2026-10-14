@@ -202,20 +202,27 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         refreshPresentedDetails()
     }
 
-    /// Toolbar items and menu commands carry period navigation, so focus starts in the content.
-    func focusInitialControl() {
+    /// Focuses the page's main action when there is one: Add Claude Account… on an empty page, Retry on a load
+    /// failure. With readings, the page takes no focus and returns false, so the window keeps focus on the
+    /// sidebar Home row; no calendar event looks selected on arrival, and Tab reaches the events after it.
+    @discardableResult
+    func focusInitialControl() -> Bool {
         if !isViewLoaded { _ = view }
-        guard let window = view.window else { return }
-        let eventID = calendarView.selectedEventID ?? visibleEvents.first?.id
-        if showsReadings, let eventID, let control = calendarView.eventView(for: eventID) {
-            window.makeFirstResponder(control)
-            return
-        }
+        guard let window = view.window, !showsReadings else { return false }
         for button in [addClaudeButton, retryButton] where !stateStack.isHidden && !button.isHiddenOrHasHiddenAncestor && button.isEnabled {
             window.makeFirstResponder(button)
-            return
+            return true
         }
-        window.makeFirstResponder(view)
+        return false
+    }
+
+    /// View > Show Account: All Accounts, then one item per account, sent to this page and checked by
+    /// `validateMenuItem(_:)`. The same choices as the toolbar Accounts pop-up.
+    func accountFilterMenuItems() -> [NSMenuItem] {
+        let menu = filterMenu(titles: ["All Accounts"] + filterChoices.map(\.title), action: #selector(chooseFilter(_:)))
+        let items = menu.items
+        menu.removeAllItems()
+        return items
     }
 
     func dismissDetails() {
