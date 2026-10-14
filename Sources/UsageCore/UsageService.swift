@@ -304,6 +304,19 @@ public actor UsageService {
         configuration = updated
     }
 
+    /// Moves the account so it sits at `index` in the saved order, counted after the account is taken out of the list.
+    public func moveAccount(id: UUID, toIndex index: Int) throws {
+        try ensureLoaded()
+        guard let source = configuration.profiles.firstIndex(where: { $0.id == id }) else { return }
+        let destination = min(max(index, 0), configuration.profiles.count - 1)
+        guard destination != source else { return }
+        var updated = configuration
+        let profile = updated.profiles.remove(at: source)
+        updated.profiles.insert(profile, at: destination)
+        try storage.save(updated)
+        configuration = updated
+    }
+
     public func removeAccount(id: UUID) throws {
         try ensureLoaded()
         generations[id, default: 0] += 1

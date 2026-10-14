@@ -204,6 +204,26 @@ final class ApplicationModel {
         onChange?()
     }
 
+    /// Shows the new order at once, then saves it. A failed save reloads the saved order.
+    func moveAccount(id: UUID, toIndex index: Int) {
+        guard !isDemo, !isChangingAccounts, !isRefreshing,
+              let source = profiles.firstIndex(where: { $0.id == id }) else { return }
+        let destination = min(max(index, 0), profiles.count - 1)
+        guard destination != source else { return }
+        profiles.insert(profiles.remove(at: source), at: destination)
+        isChangingAccounts = true
+        onChange?()
+        Task { [weak self, service] in
+            do { try await service.moveAccount(id: id, toIndex: destination) }
+            catch {
+                self?.onError?(error.localizedDescription)
+                await self?.load()
+            }
+            self?.isChangingAccounts = false
+            self?.onChange?()
+        }
+    }
+
     func removeAccount(_ id: UUID) {
         changeAccounts { service in try await service.removeAccount(id: id) }
     }

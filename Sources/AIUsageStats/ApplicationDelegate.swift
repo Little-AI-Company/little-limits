@@ -433,7 +433,13 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         // Selected-account commands; disabled until the window or account page implements and validates them.
         fileMenu.addItem(nilTargetItem("Reconnect…", #selector(WindowCommandHandling.reconnectSelectedAccount(_:)), ""))
         fileMenu.addItem(nilTargetItem("Open Billing", #selector(WindowCommandHandling.openSelectedAccountBilling(_:)), ""))
-        fileMenu.addItem(nilTargetItem("Remove Account…", #selector(WindowCommandHandling.removeSelectedAccount(_:)), ""))
+        for (title, action, key) in [("Move Up", #selector(WindowCommandHandling.moveSelectedAccountUp(_:)), NSUpArrowFunctionKey),
+                                     ("Move Down", #selector(WindowCommandHandling.moveSelectedAccountDown(_:)), NSDownArrowFunctionKey)] {
+            let item = nilTargetItem(title, action, String(UnicodeScalar(key)!))
+            item.keyEquivalentModifierMask = [.command, .option]
+            fileMenu.addItem(item)
+        }
+        fileMenu.addItem(nilTargetItem("Delete Account…", #selector(WindowCommandHandling.removeSelectedAccount(_:)), ""))
         fileMenu.addItem(.separator())
         fileMenu.addItem(NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
         file.submenu = fileMenu

@@ -5,6 +5,7 @@ import UsageCore
 final class AccountsWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate,
                                       NSToolbarDelegate, NSMenuItemValidation, WindowCommandHandling {
     private enum Section: Equatable { case home, account, settings, platform }
+    private static let accountPasteboardType = NSPasteboard.PasteboardType("com.parkerrex.ai-usage-stats.account-id")
     private static let homeRow = 0
     private static let accountRowOffset = 1
     private static let windowMinimumSize = NSSize(width: 1020, height: 640)
@@ -112,7 +113,10 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         table.rowSizeStyle = .default
         table.allowsEmptySelection = true
         table.setAccessibilityLabel("Sidebar")
-        table.setAccessibilityHelp("Select Home or an account. Use Add Account below the list. Remove selected account and Delete ask for confirmation.")
+        table.setAccessibilityHelp("Select Home or an account. Drag an account, or choose Move Up or Move Down, to change its order. Use Add Account below the list. Delete asks for confirmation.")
+        table.registerForDraggedTypes([Self.accountPasteboardType])
+        table.setDraggingSourceOperationMask(.move, forLocal: true)
+        table.draggingDestinationFeedbackStyle = .gap
         table.target = self
         table.action = #selector(selectClickedSidebarRow(_:))
         table.accountMenu = { [weak self] row in self?.accountContextMenu(row: row) }
@@ -126,7 +130,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
 
         for (button, symbol, label, action) in [
             (addAccountButton, "plus", "Add Account", #selector(addAccount(_:))),
-            (removeAccountButton, "minus", "Remove selected account", #selector(removeSelectedAccount(_:)))
+            (removeAccountButton, "minus", "Delete Account", #selector(removeSelectedAccount(_:)))
         ] {
             button.target = self
             button.action = action
@@ -554,10 +558,24 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         guard let id = accountID(forSidebarRow: row) else { return nil }
         let menu = NSMenu()
         menu.autoenablesItems = false
-        let item = NSMenuItem(title: "Remove Account…", action: #selector(removeAccountFromMenu(_:)), keyEquivalent: "")
+        let canChange = canModifyAccounts && window?.attachedSheet == nil
+        let index = displayedProfiles.firstIndex { $0.id == id }
+        for (title, action, key, enabled) in [
+            ("Move Up", #selector(moveAccountUpFromMenu(_:)), NSUpArrowFunctionKey, (index ?? 0) > 0),
+            ("Move Down", #selector(moveAccountDownFromMenu(_:)), NSDownArrowFunctionKey, (index ?? displayedProfiles.count) < displayedProfiles.count - 1)
+        ] {
+            let move = NSMenuItem(title: title, action: action, keyEquivalent: String(UnicodeScalar(key)!))
+            move.keyEquivalentModifierMask = [.command, .option]
+            move.target = self
+            move.representedObject = id
+            move.isEnabled = canChange && enabled
+            menu.addItem(move)
+        }
+        menu.addItem(.separator())
+        let item = NSMenuItem(title: "Delete", action: #selector(removeAccountFromMenu(_:)), keyEquivalent: "")
         item.target = self
         item.representedObject = id
-        item.isEnabled = canModifyAccounts && window?.attachedSheet == nil
+        item.isEnabled = canChange
         menu.addItem(item)
         return menu
     }
@@ -568,7 +586,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         return accountID(forSidebarRow: table.selectedRow)
     }
 
-    /// File > Remove Account…, the sidebar minus button, and the Delete key. Asks for confirmation.
+    /// File > Delete Account…, the sidebar minus button, and the Delete key. Asks for confirmation.
     @objc func removeSelectedAccount(_ sender: Any?) {
         guard let id = selectedSidebarAccountID else { return }
         confirmAccountRemoval(id: id)
@@ -584,6 +602,10 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         switch menuItem.action {
         case #selector(removeSelectedAccount(_:)), #selector(reconnectSelectedAccount(_:)):
             canModifyAccounts && window?.attachedSheet == nil && selectedSidebarAccountID != nil
+        case #selector(moveSelectedAccountUp(_:)):
+            canMoveSelectedAccount(by: -1)
+        case #selector(moveSelectedAccountDown(_:)):
+            canMoveSelectedAccount(by: 1)
         default: true
         }
     }
@@ -597,9 +619,9 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         guard canModifyAccounts, let window, window.attachedSheet == nil,
               let profile = model.profiles.first(where: { $0.id == id }) else { return }
         let alert = NSAlert()
-        alert.messageText = "Remove \(InterfaceFormatting.provider(profile.provider)) · \(InterfaceFormatting.accountIdentity(profile))?"
+        alert.messageText = "Delete \(InterfaceFormatting.accountIdentity(profile))?"
         alert.informativeText = "Removes this profile and its saved usage from AI Usage Stats."
-        alert.addButton(withTitle: "Remove")
+        alert.addButton(withTitle: "Delete")
         alert.addButton(withTitle: "Cancel")
         alert.beginSheetModal(for: window) { [weak self] response in
             guard let self, response == .alertFirstButtonReturn,
@@ -611,11 +633,89 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
 
     private func showAccountRemovalError() {
         let alert = NSAlert()
-        alert.messageText = "Could Not Remove Account"
-        alert.informativeText = model.isDemo ? "Demo accounts cannot be removed."
-            : model.isRefreshing ? "Usage is refreshing. Remove the account again after the refresh finishes."
-            : "An account update is in progress. Remove the account again after the update finishes."
+        alert.messageText = "Could Not Delete Account"
+        alert.informativeText = model.isDemo ? "Demo accounts cannot be deleted."
+            : model.isRefreshing ? "Usage is refreshing. Delete the account again after the refresh finishes."
+            : "An account update is in progress. Delete the account again after the update finishes."
         if let window { alert.beginSheetModal(for: window) }
+    }
+
+    // MARK: Reordering
+
+    /// File > Move Up and Move Down act on the selected account.
+    @objc func moveSelectedAccountUp(_ sender: Any?) { moveSelectedAccount(by: -1) }
+    @objc func moveSelectedAccountDown(_ sender: Any?) { moveSelectedAccount(by: 1) }
+    @objc private func moveAccountUpFromMenu(_ sender: NSMenuItem) { moveAccount(representedBy: sender, by: -1) }
+    @objc private func moveAccountDownFromMenu(_ sender: NSMenuItem) { moveAccount(representedBy: sender, by: 1) }
+
+    private func moveSelectedAccount(by offset: Int) {
+        guard let id = selectedSidebarAccountID else { return }
+        moveAccount(id: id, by: offset)
+    }
+
+    private func moveAccount(representedBy item: NSMenuItem, by offset: Int) {
+        guard let id = item.representedObject as? UUID else { return }
+        moveAccount(id: id, by: offset)
+    }
+
+    private func canMoveSelectedAccount(by offset: Int) -> Bool {
+        guard canModifyAccounts, window?.attachedSheet == nil, let id = selectedSidebarAccountID,
+              let index = displayedProfiles.firstIndex(where: { $0.id == id }) else { return false }
+        return displayedProfiles.indices.contains(index + offset)
+    }
+
+    private func moveAccount(id: UUID, by offset: Int) {
+        guard let index = displayedProfiles.firstIndex(where: { $0.id == id }) else { return }
+        moveAccount(id: id, toIndex: index + offset)
+    }
+
+    /// Slides the row to `index` in the saved account order, then saves it. Selection, page, and edits stay with the UUID.
+    private func moveAccount(id: UUID, toIndex index: Int) {
+        guard canModifyAccounts, window?.attachedSheet == nil,
+              let source = displayedProfiles.firstIndex(where: { $0.id == id }),
+              displayedProfiles.indices.contains(index), index != source else { return }
+        isUpdatingSelection = true
+        table.beginUpdates()
+        displayedProfiles.insert(displayedProfiles.remove(at: source), at: index)
+        table.moveRow(at: source + Self.accountRowOffset, to: index + Self.accountRowOffset)
+        table.endUpdates()
+        if section == .account || section == .platform, let selectedID, let row = sidebarRow(for: selectedID) {
+            table.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        }
+        isUpdatingSelection = false
+        model.moveAccount(id: id, toIndex: index)
+    }
+
+    func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> (any NSPasteboardWriting)? {
+        guard canModifyAccounts, let id = accountID(forSidebarRow: row) else { return nil }
+        let item = NSPasteboardItem()
+        item.setString(id.uuidString, forType: Self.accountPasteboardType)
+        return item
+    }
+
+    private func draggedAccountID(_ info: any NSDraggingInfo) -> UUID? {
+        info.draggingPasteboard.string(forType: Self.accountPasteboardType).flatMap(UUID.init(uuidString:))
+    }
+
+    /// A drop lands between account rows, never on a row and never above Home.
+    func tableView(_ tableView: NSTableView, validateDrop info: any NSDraggingInfo, proposedRow row: Int,
+                   proposedDropOperation dropOperation: NSTableView.DropOperation) -> NSDragOperation {
+        guard info.draggingSource as? NSTableView === tableView, canModifyAccounts, window?.attachedSheet == nil,
+              let id = draggedAccountID(info), let source = displayedProfiles.firstIndex(where: { $0.id == id }) else { return [] }
+        let gap = min(max(row, Self.accountRowOffset), displayedProfiles.count + Self.accountRowOffset)
+        if gap != row || dropOperation != .above { tableView.setDropRow(gap, dropOperation: .above) }
+        let insertion = gap - Self.accountRowOffset
+        return insertion == source || insertion == source + 1 ? [] : .move
+    }
+
+    func tableView(_ tableView: NSTableView, acceptDrop info: any NSDraggingInfo, row: Int,
+                   dropOperation: NSTableView.DropOperation) -> Bool {
+        guard let id = draggedAccountID(info), let source = displayedProfiles.firstIndex(where: { $0.id == id }) else { return false }
+        let insertion = row - Self.accountRowOffset
+        let destination = insertion > source ? insertion - 1 : insertion
+        guard destination != source else { return false }
+        moveAccount(id: id, toIndex: destination)
+        return true
     }
 
     // Row 0 is Home. Later rows follow the saved account order and are addressed by UUID.
