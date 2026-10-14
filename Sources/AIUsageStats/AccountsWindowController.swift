@@ -9,6 +9,9 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private static let platformWindowMinimumSize = NSSize(width: 960, height: 600)
     private static let platformWindowMaximumSize = NSSize(width: 1280, height: 900)
     private static let platformWindowDefaultSize = NSSize(width: 1000, height: 700)
+    // Source-list insets leave the identity label about 52 points narrower than the sidebar.
+    // 228 points keeps personal@example.invalid on one line. Longer identities wrap to two.
+    private static let sidebarWidth: CGFloat = 228
     private let model: ApplicationModel
     private var section = Section.account
     private let detailContainer = NSView()
@@ -22,9 +25,12 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private let creditHelp = InterfaceControls.label("", size: 12)
     private let usageReadings = AccountReadingView()
     private let creditReadings = AccountReadingView()
-    private let detailsButton = NSButton(title: "Details…", target: nil, action: nil)
-    private let reconnectButton = NSButton(title: "Reconnect…", target: nil, action: nil)
-    private let billingButton = NSButton(title: "Billing…", target: nil, action: nil)
+    private let accountActions = NSPopUpButton(frame: .zero, pullsDown: true)
+    private let detailsItem = NSMenuItem(title: "Details…", action: #selector(showConnectionDetails(_:)), keyEquivalent: "")
+    private let reconnectItem = NSMenuItem(title: "Reconnect…", action: #selector(signIn(_:)), keyEquivalent: "")
+    private let billingItem = NSMenuItem(title: "Billing…", action: #selector(openBilling(_:)), keyEquivalent: "")
+    private let creditsItem = NSMenuItem(title: "API Credits…", action: #selector(connectConsole(_:)), keyEquivalent: "")
+    private let removeAccountItem = NSMenuItem(title: "Remove Account…", action: #selector(removeSelectedAccountFromActions(_:)), keyEquivalent: "")
     private let addAccountButton = NSPopUpButton(frame: .zero, pullsDown: true)
     private let settingsButton = NSButton(title: "", target: nil, action: nil)
     private let manualDisclosure = NSButton(title: "", target: nil, action: nil)
@@ -54,7 +60,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private let recoveryButton = NSButton(title: "Review Access…", target: nil, action: nil)
     private let usageButton = NSButton(title: "Check Usage", target: nil, action: nil)
     var onClaudeConnection: ((UUID?, String) -> Void)?
-    private let consoleButton = NSButton(title: "Connect Claude Platform…", target: nil, action: nil)
+    private let consoleButton = NSButton(title: "Connect API Credits…", target: nil, action: nil)
     var onConsoleConnection: ((UUID) -> Void)?
     var isAccountLoadComplete: () -> Bool = { false }
     var onRetryAccountLoad: (() -> Void)?
@@ -92,7 +98,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         table.dataSource = self
         table.delegate = self
         table.style = .sourceList
-        table.rowHeight = 66
+        table.rowHeight = AccountSidebarCellView.singleLineRowHeight
         table.intercellSpacing = NSSize(width: 0, height: 2)
         table.allowsEmptySelection = true
         table.backgroundColor = .clear
@@ -122,6 +128,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         settingsButton.target = self
         settingsButton.action = #selector(selectSettings(_:))
         settingsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "App Settings")
+        settingsButton.setButtonType(.pushOnPushOff)
         settingsButton.imagePosition = .imageOnly
         settingsButton.bezelStyle = .texturedRounded
         settingsButton.showsBorderOnlyWhileMouseInside = true
@@ -140,25 +147,42 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         recoveryButton.target = self
         consoleButton.target = self
         consoleButton.action = #selector(connectConsole(_:))
-        for (button, action, label) in [
-            (detailsButton, #selector(showConnectionDetails(_:)), "Show account connection details"),
-            (reconnectButton, #selector(signIn(_:)), "Reconnect selected account"),
-            (billingButton, #selector(openBilling(_:)), "Open selected account billing")
+        consoleButton.title = "Connect API Credits…"
+        consoleButton.setAccessibilityLabel("Connect API credits")
+        consoleButton.toolTip = "Sign in separately to Claude Platform to read API credits."
+        consoleButton.setContentHuggingPriority(.required, for: .horizontal)
+        accountActions.addItem(withTitle: "Account")
+        accountActions.setAccessibilityLabel("Account")
+        accountActions.toolTip = "Actions for the selected account"
+        accountActions.menu?.autoenablesItems = false
+        for (item, label) in [
+            (detailsItem, "Show account connection details"),
+            (reconnectItem, "Reconnect selected account"),
+            (billingItem, "Open selected account billing"),
+            (creditsItem, "Manage selected account API credit connection")
         ] {
-            button.target = self
-            button.action = action
-            button.setAccessibilityLabel(label)
-            button.toolTip = label
+            item.target = self
+            item.setAccessibilityLabel(label)
+            accountActions.menu?.addItem(item)
         }
-        consoleButton.setAccessibilityLabel("Manage selected account API credit connection")
-        for button in [usageButton, detailsButton, reconnectButton, billingButton, consoleButton] {
+        detailsItem.toolTip = "Show account connection details"
+        reconnectItem.toolTip = "Reconnect selected account"
+        billingItem.toolTip = "Open account billing dashboard"
+        creditsItem.toolTip = "Manage automatic API credit readings for this account"
+        accountActions.menu?.addItem(.separator())
+        removeAccountItem.target = self
+        removeAccountItem.setAccessibilityLabel("Remove selected account")
+        accountActions.menu?.addItem(removeAccountItem)
+        for button in [usageButton, consoleButton] {
             button.controlSize = .small
             button.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         }
-        let headerActions = NSStackView(views: [usageButton, detailsButton, reconnectButton, billingButton, consoleButton])
+        accountActions.controlSize = .small
+        accountActions.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        let headerActions = NSStackView(views: [usageButton, accountActions])
         headerActions.orientation = .horizontal
+        headerActions.alignment = .firstBaseline
         headerActions.spacing = 6
-        headerActions.detachesHiddenViews = true
         let header = InterfaceControls.stack([accountTitle, headerActions], spacing: 8)
         accountTitle.lineBreakMode = .byTruncatingMiddle
         accountTitle.maximumNumberOfLines = 1
@@ -221,6 +245,13 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         let manualHeading = NSStackView(views: [manualDisclosure, InterfaceControls.label("Manual balance", size: 13)])
         manualHeading.orientation = .horizontal
         manualHeading.spacing = 6
+        let creditsLabel = InterfaceControls.label("Credits", size: 13, weight: .semibold)
+        creditsLabel.setContentHuggingPriority(.required, for: .horizontal)
+        let creditsHeading = NSStackView(views: [creditsLabel, consoleButton])
+        creditsHeading.orientation = .horizontal
+        creditsHeading.alignment = .firstBaseline
+        creditsHeading.spacing = 12
+        creditsHeading.detachesHiddenViews = true
         accountEditor.orientation = .vertical
         accountEditor.alignment = .leading
         accountEditor.spacing = 12
@@ -229,13 +260,13 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             header, attentionRow,
             InterfaceControls.label("Usage", size: 13, weight: .semibold), usageReadings,
             InterfaceControls.separator(),
-            InterfaceControls.label("Credits", size: 13, weight: .semibold), creditReadings,
+            creditsHeading, creditReadings,
             creditHelp,
             manualHeading, manualEditor
         ]
         for view in sections {
             accountEditor.addArrangedSubview(view)
-            if view !== consoleButton && view !== manualHeading {
+            if view !== manualHeading {
                 view.widthAnchor.constraint(equalTo: accountEditor.widthAnchor).isActive = true
             }
         }
@@ -271,7 +302,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             sidebar.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             sidebar.topAnchor.constraint(equalTo: root.topAnchor),
             sidebar.bottomAnchor.constraint(equalTo: root.bottomAnchor),
-            sidebar.widthAnchor.constraint(equalToConstant: 200),
+            sidebar.widthAnchor.constraint(equalToConstant: Self.sidebarWidth),
             settingsButton.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: -12),
             settingsButton.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 12),
             settingsButton.widthAnchor.constraint(equalToConstant: 28),
@@ -303,6 +334,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         ])
         window?.initialFirstResponder = table
         window?.recalculateKeyViewLoop()
+        fitAccountColumn()
         render()
     }
 
@@ -318,12 +350,19 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             sidebarDisplays = nextDisplays
             table.reloadData()
         } else {
+            var rowsNeedingHeight = IndexSet()
             for (row, profile) in displayedProfiles.enumerated() where sidebarDisplays[profile.id] != nextDisplays[profile.id] {
+                if sidebarDisplays[profile.id]?.identity != nextDisplays[profile.id]?.identity {
+                    rowsNeedingHeight.insert(row)
+                }
                 if let display = nextDisplays[profile.id] {
                     (table.view(atColumn: 0, row: row, makeIfNecessary: false) as? AccountSidebarCellView)?.render(display)
                 }
             }
             sidebarDisplays = nextDisplays
+            if !rowsNeedingHeight.isEmpty {
+                table.noteHeightOfRows(withIndexesChanged: rowsNeedingHeight)
+            }
         }
         if section == .settings {
             if !model.profiles.contains(where: { $0.id == selectedID }) { selectedID = nil }
@@ -391,6 +430,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         isUpdatingSelection = false
         updateWindowTitle()
         window?.recalculateKeyViewLoop()
+        settings.focusInitialControl()
     }
 
     @objc private func selectSettings(_ sender: Any?) { showSettings() }
@@ -450,12 +490,19 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     }
 
     private func updateWindowTitle() {
+        updateSettingsButtonState()
         let title: String
         if section == .settings { title = "App Settings" }
         else if let profile = model.profiles.first(where: { $0.id == selectedID }) {
             title = "\(InterfaceFormatting.provider(profile.provider)) · \(InterfaceFormatting.accountIdentity(profile))"
         } else { title = "AI Usage Stats" }
         if window?.title != title { window?.title = title }
+    }
+
+    private func updateSettingsButtonState() {
+        let selected = section == .settings
+        settingsButton.state = selected ? .on : .off
+        settingsButton.showsBorderOnlyWhileMouseInside = !selected
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -472,7 +519,11 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
 
     private func fitAccountColumn() {
         window?.contentView?.layoutSubtreeIfNeeded()
+        let previous = table.tableColumns.first?.width ?? 0
         table.sizeLastColumnToFit()
+        let width = table.tableColumns.first?.width ?? 0
+        guard abs(width - previous) > 0.5, table.numberOfRows > 0 else { return }
+        table.noteHeightOfRows(withIndexesChanged: IndexSet(integersIn: 0..<table.numberOfRows))
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int { model.profiles.count }
@@ -481,8 +532,15 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         let identifier = NSUserInterfaceItemIdentifier("account")
         let cell = tableView.makeView(withIdentifier: identifier, owner: self) as? AccountSidebarCellView ?? AccountSidebarCellView()
         cell.identifier = identifier
+        cell.noteColumnWidth(tableView.tableColumns.first?.width ?? 0)
         cell.render(display)
         return cell
+    }
+
+    func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+        guard displayedProfiles.indices.contains(row) else { return AccountSidebarCellView.singleLineRowHeight }
+        let identity = sidebarDisplays[displayedProfiles[row].id]?.identity ?? ""
+        return AccountSidebarCellView.rowHeight(for: identity, columnWidth: tableView.tableColumns.first?.width ?? 0)
     }
 
     private func sidebarDisplay(profile: AccountProfile, now: Date) -> AccountSidebarCellView.Display {
@@ -546,15 +604,21 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private func updateEditorAvailability() {
         let editable = !model.isDemo && selectedID != nil
         let canSave = editable && !model.isRefreshing && !model.isChangingAccounts
-        reconnectButton.isEnabled = canSave
         recoveryButton.isEnabled = canSave
         usageButton.isEnabled = canSave
         usageButton.title = model.isRefreshing ? "Refreshing…" : "Refresh"
         let profile = model.profiles.first(where: { $0.id == selectedID })
-        consoleButton.isEnabled = canSave && profile?.provider == .claude
-        detailsButton.isEnabled = profile != nil
-        billingButton.isEnabled = profile != nil
-        billingButton.toolTip = monthlyGrantNeedsLink ? "Open Claude subscription billing" : "Open account billing dashboard"
+        let platformConnected = profile.map { $0.provider == .claude && model.consoleConnections[$0.id] != nil } ?? false
+        detailsItem.isEnabled = profile != nil
+        reconnectItem.isEnabled = canSave
+        billingItem.isEnabled = profile != nil
+        billingItem.toolTip = monthlyGrantNeedsLink ? "Open Claude subscription billing" : "Open account billing dashboard"
+        creditsItem.isHidden = !platformConnected
+        creditsItem.isEnabled = canSave && platformConnected
+        removeAccountItem.isEnabled = canSave && window?.attachedSheet == nil
+        accountActions.isEnabled = profile != nil
+        consoleButton.isHidden = profile?.provider != .claude || platformConnected
+        consoleButton.isEnabled = canSave && profile?.provider == .claude && !platformConnected
         manualDisclosure.isEnabled = selectedID != nil
         let index = manualCategory.indexOfSelectedItem
         let hasCredit = displayedCredits.indices.contains(index)
@@ -631,7 +695,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         guard let id = selectedID, let profile = model.profiles.first(where: { $0.id == id }) else { return }
         accountTitle.stringValue = "\(InterfaceFormatting.provider(profile.provider)) · \(InterfaceFormatting.accountIdentity(profile))"
         accountTitle.toolTip = accountTitle.stringValue
-        reconnectButton.toolTip = profile.provider == .claude ? "Reconnect Claude subscription" : "Sign in to this Codex account again"
+        reconnectItem.toolTip = profile.provider == .claude ? "Reconnect Claude subscription" : "Sign in to this Codex account again"
         let snapshot = model.snapshots[id]
         let now = Date()
         let windows = snapshot?.windows ?? []
@@ -644,7 +708,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             })
         let credits = snapshot?.credits ?? UsageService.unavailableCredits(for: profile.provider)
         creditReadings.render(credits.map { credit in
-            AccountReadingView.Reading(label: InterfaceFormatting.compactCreditTitle(credit), value: credit.amount == nil && !credit.isUnlimited && credit.status == "available" ? "Unknown" : InterfaceFormatting.credit(credit),
+            AccountReadingView.Reading(label: InterfaceFormatting.compactCreditTitle(credit), value: InterfaceFormatting.credit(credit),
                                        timing: InterfaceFormatting.compactCreditTiming(credit, now: now),
                                        detail: InterfaceFormatting.creditDetail(credit, now: now))
         })
@@ -673,10 +737,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         attention.toolTip = [snapshot?.detail, model.consoleMessages[id]].compactMap { $0 }.joined(separator: "\n")
         attention.isHidden = message.isEmpty
         attention.superview?.isHidden = message.isEmpty
-        consoleButton.isHidden = profile.provider != .claude
-        let platformConnected = model.consoleConnections[id] != nil
-        consoleButton.title = platformConnected ? "API Credits…" : "Connect API Credits…"
-        consoleButton.toolTip = platformConnected ? "Manage automatic API credit readings for this account" : "Sign in separately to Claude Platform to read API credits."
+        let platformConnected = profile.provider == .claude && model.consoleConnections[id] != nil
         creditHelp.stringValue = profile.provider == .claude && !platformConnected ? "API credits use a separate Claude Platform sign-in." : ""
         creditHelp.isHidden = creditHelp.stringValue.isEmpty
     }
@@ -758,6 +819,11 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private func removeSelectedAccount() {
         guard section != .settings, displayedProfiles.indices.contains(table.selectedRow) else { return }
         confirmAccountRemoval(id: displayedProfiles[table.selectedRow].id)
+    }
+
+    @objc private func removeSelectedAccountFromActions(_ sender: Any?) {
+        guard let id = selectedID else { return }
+        confirmAccountRemoval(id: id)
     }
 
     @objc private func removeAccountFromMenu(_ sender: NSMenuItem) {

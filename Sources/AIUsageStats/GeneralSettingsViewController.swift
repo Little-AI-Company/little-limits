@@ -56,6 +56,11 @@ final class GeneralSettingsViewController: NSViewController {
         refreshLoginState()
     }
 
+    func focusInitialControl() {
+        _ = view
+        view.window?.makeFirstResponder(loginButton)
+    }
+
     private func refreshLoginState() {
         let state = SMAppService.mainApp.status
         loginButton.state = state == .enabled || state == .requiresApproval ? .on : .off
