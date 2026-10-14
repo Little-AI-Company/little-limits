@@ -1,19 +1,20 @@
 import AppKit
 
-/// Account usage table. Rows stay in saved profile order. Columns scroll and resize.
+/// Account usage table. Rows stay in saved profile order. The table is as tall as its rows, so the
+/// Home document does the vertical scrolling; columns share the width and fit the minimum window.
 @MainActor
 final class UsageOverviewTableView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     var onReconnect: ((UUID) -> Void)?
 
-    private let scroll = NSScrollView()
+    private let scroll = HomeNestedScrollView()
     private let table = NSTableView()
     private var rows: [HomeAccountRow] = []
-    private var headings = HomeColumnHeadings(session: "Session remaining", weekly: "Weekly remaining", other: "Other limits")
+    private var headings = HomeColumnHeadings(session: "Session", weekly: "Weekly", other: "Other limits")
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         table.style = .fullWidth
-        table.columnAutoresizingStyle = .noColumnAutoresizing
+        table.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
         table.allowsColumnReordering = false
         table.allowsColumnSelection = false
         table.allowsMultipleSelection = false
@@ -33,14 +34,15 @@ final class UsageOverviewTableView: NSView, NSTableViewDataSource, NSTableViewDe
             tableColumn.minWidth = column.minimumWidth
             tableColumn.maxWidth = 640
             tableColumn.width = column.initialWidth
-            tableColumn.resizingMask = .userResizingMask
+            tableColumn.resizingMask = [.autoresizingMask, .userResizingMask]
             tableColumn.headerToolTip = column.help
             table.addTableColumn(tableColumn)
         }
         scroll.translatesAutoresizingMaskIntoConstraints = false
-        scroll.hasVerticalScroller = true
+        scroll.hasVerticalScroller = false
         scroll.hasHorizontalScroller = true
         scroll.autohidesScrollers = true
+        scroll.verticalScrollElasticity = .none
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
         scroll.documentView = table
@@ -51,15 +53,28 @@ final class UsageOverviewTableView: NSView, NSTableViewDataSource, NSTableViewDe
             scroll.topAnchor.constraint(equalTo: topAnchor),
             scroll.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
-        setContentHuggingPriority(NSLayoutConstraint.Priority(200), for: .vertical)
-        setContentCompressionResistancePriority(NSLayoutConstraint.Priority(250), for: .vertical)
+        setContentHuggingPriority(.required, for: .vertical)
+        setContentCompressionResistancePriority(.required, for: .vertical)
         setContentCompressionResistancePriority(NSLayoutConstraint.Priority(250), for: .horizontal)
     }
 
     required init?(coder: NSCoder) { nil }
 
+    /// Header plus every row, so no row is clipped and no nested vertical scroller appears.
     override var intrinsicContentSize: NSSize {
-        NSSize(width: NSView.noIntrinsicMetric, height: 180)
+        let header = table.headerView?.frame.height ?? 0
+        let spacing = table.intercellSpacing.height
+        let body = rows.indices.reduce(CGFloat(0)) { $0 + tableView(table, heightOfRow: $1) + spacing }
+        return NSSize(width: NSView.noIntrinsicMetric, height: ceil(header + max(body, 36)))
+    }
+
+    /// AppKit autoresizes columns only once they already fill the clip view, so fit them when they do not.
+    override func layout() {
+        super.layout()
+        let width = scroll.contentView.bounds.width
+        guard width > 1, table.numberOfColumns > 0 else { return }
+        let extent = table.rect(ofColumn: table.numberOfColumns - 1).maxX
+        if abs(extent - width) > 1 { table.sizeToFit() }
     }
 
     func apply(rows: [HomeAccountRow], headings: HomeColumnHeadings) {
@@ -74,6 +89,7 @@ final class UsageOverviewTableView: NSView, NSTableViewDataSource, NSTableViewDe
         self.headings = headings
         if headingsChanged { applyHeadings() }
         if rowsChanged {
+            invalidateIntrinsicContentSize()
             table.reloadData()
             if let selectedAccountID, let row = rows.firstIndex(where: { $0.id == selectedAccountID }) {
                 table.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
@@ -165,7 +181,7 @@ final class UsageOverviewTableView: NSView, NSTableViewDataSource, NSTableViewDe
         title(headings.session, for: .session, help: HomeInterfaceFormatting.sessionColumnHelp)
         title(headings.weekly, for: .weekly, help: HomeInterfaceFormatting.weeklyColumnHelp)
         title(headings.other, for: .other, help: HomeInterfaceFormatting.otherColumnHelp)
-        title("Earned resets", for: .earned, help: HomeInterfaceFormatting.earnedColumnHelp)
+        title(Column.earned.defaultTitle, for: .earned, help: HomeInterfaceFormatting.earnedColumnHelp)
         title("Updated", for: .updated, help: HomeInterfaceFormatting.updatedColumnHelp)
         title("Account", for: .account, help: "Provider, account, and reported plan.")
     }
@@ -199,29 +215,36 @@ private enum Column: String, CaseIterable {
     var defaultTitle: String {
         switch self {
         case .account: "Account"
-        case .session: "Session remaining"
-        case .weekly: "Weekly remaining"
+        case .session: "Session"
+        case .weekly: "Weekly"
         case .other: "Other limits"
         case .earned: "Earned resets"
         case .updated: "Updated"
         }
     }
 
+    /// Minimums sum to 644 pt plus 48 pt spacing, inside the 712 pt content width of the 1020 pt minimum
+    /// window beside a 260 pt sidebar, less 32 pt margins and a 16 pt vertical scroller. Quota columns
+    /// hold `Reset time unknown` and `Resets today 16:04` whole; Updated holds `Not refreshed`. The
+    /// account name stays whole; a long email truncates and its tooltip keeps the full text.
     var minimumWidth: CGFloat {
         switch self {
-        case .account: 180
-        case .session, .weekly, .other, .earned: 140
-        case .updated: 120
+        case .account: 120
+        case .session, .weekly: 110
+        case .other: 112
+        case .earned: 108
+        case .updated: 84
         }
     }
 
+    /// Initial widths sum to 900 pt plus spacing, inside the default window; uniform resizing shares the rest.
     var initialWidth: CGFloat {
         switch self {
-        case .account: 240
-        case .session, .weekly: 160
-        case .other: 180
-        case .earned: 160
-        case .updated: 140
+        case .account: 200
+        case .session, .weekly: 136
+        case .other: 168
+        case .earned: 152
+        case .updated: 108
         }
     }
 
@@ -355,8 +378,24 @@ private final class MeterCell: NSTableCellView {
             group.orientation = .vertical
             group.alignment = .leading
             group.spacing = 1
-            let primary = HomeText.label(record.primary, size: 12, weight: .semibold, digits: true, color: record.tone.textColor)
-            group.addArrangedSubview(primary)
+            for line in record.preface {
+                group.addArrangedSubview(HomeText.label(line, size: 12))
+            }
+            let primary = record.isQuiet
+                ? HomeText.label(record.primary, size: 12, color: .secondaryLabelColor)
+                : HomeText.label(record.primary, size: 12, weight: .semibold, digits: true)
+            if let symbol = HomeText.stateSymbol(record.tone) {
+                let value = NSStackView(views: [symbol, primary])
+                value.orientation = .horizontal
+                value.alignment = .centerY
+                value.spacing = 3
+                group.addArrangedSubview(value)
+            } else {
+                group.addArrangedSubview(primary)
+            }
+            if let word = record.tone.word {
+                group.addArrangedSubview(HomeText.label(word, size: 12))
+            }
             if let secondary = record.secondary {
                 group.addArrangedSubview(HomeText.label(secondary, size: 11, color: .secondaryLabelColor))
             }
@@ -373,7 +412,8 @@ private final class MeterCell: NSTableCellView {
     static func height(for cell: HomeMeterCell) -> CGFloat {
         let records = records(in: cell)
         let body = records.reduce(CGFloat(0)) { total, record in
-            var line: CGFloat = 18
+            var line: CGFloat = 18 + CGFloat(record.preface.count) * 16
+            if record.tone.word != nil { line += 16 }
             if record.secondary != nil { line += 15 }
             if record.tertiary != nil { line += 15 }
             return total + line + 6

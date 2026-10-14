@@ -88,3 +88,40 @@ func quotaSummaryDoesNotPresentRetainedFailedReadings(_ state: SnapshotState, _ 
     #expect(AccountQuotaSummary(snapshot: snapshot, accountID: accountID, now: observationDate)
             == .available(remainingPercent: 90, severity: .normal, windowTitle: "quota"))
 }
+
+@Test func lowestCurrentExcludesStaleAndSignInRequiredReadings() {
+    let current = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+    let stale = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
+    let signedOut = UUID(uuidString: "00000000-0000-0000-0000-000000000004")!
+    let snapshots = [
+        current: quotaSnapshot([quotaWindow("session", used: 37), quotaWindow("weekly", used: 83)], profileID: current),
+        stale: quotaSnapshot([quotaWindow("session", used: 100)], state: .stale, profileID: stale),
+        signedOut: quotaSnapshot([quotaWindow("session", used: 100)], state: .authenticationRequired, profileID: signedOut)
+    ]
+    let lowest = AccountQuotaSummary.lowestCurrent(accountIDs: [stale, signedOut, current], snapshots: snapshots, now: observationDate)
+    #expect(lowest?.accountID == current)
+    #expect(lowest?.remainingPercent == 17)
+    #expect(lowest?.windowTitle == "weekly")
+    #expect(AccountQuotaSummary.lowestCurrent(accountIDs: [stale, signedOut], snapshots: snapshots, now: observationDate) == nil)
+}
+
+/// MENU-12: with no current reading, the status item falls back to the lowest last known value; `?` remains only
+/// for a provider that was never measured or has no trustworthy observation time.
+@Test func lowestLastKnownUsesOutdatedReadingsAndSkipsUnmeasuredOnes() {
+    let stale = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
+    let signedOut = UUID(uuidString: "00000000-0000-0000-0000-000000000004")!
+    let untimed = UUID(uuidString: "00000000-0000-0000-0000-000000000005")!
+    let snapshots = [
+        stale: quotaSnapshot([quotaWindow("session", used: 37)], state: .stale, profileID: stale),
+        signedOut: quotaSnapshot([quotaWindow("weekly", used: 70), quotaWindow("off", used: 99, active: false)],
+                                 state: .authenticationRequired, profileID: signedOut),
+        untimed: quotaSnapshot([quotaWindow("session", used: 100)], fetchedAt: nil, profileID: untimed)
+    ]
+    let lowest = AccountQuotaSummary.lowestLastKnown(accountIDs: [stale, signedOut, untimed], snapshots: snapshots,
+                                                     now: observationDate)
+    #expect(lowest?.accountID == signedOut)
+    #expect(lowest?.remainingPercent == 30)
+    #expect(lowest?.windowTitle == "weekly")
+    #expect(AccountQuotaSummary.lowestLastKnown(accountIDs: [untimed], snapshots: snapshots, now: observationDate) == nil)
+    #expect(AccountQuotaSummary.lowestLastKnown(accountIDs: [UUID()], snapshots: snapshots, now: observationDate) == nil)
+}

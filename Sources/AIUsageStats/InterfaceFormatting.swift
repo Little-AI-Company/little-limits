@@ -15,29 +15,73 @@ enum InterfaceFormatting {
         return fallback.isEmpty ? "\(provider(profile.provider)) Account" : fallback
     }
 
-    static func usageTitle(_ window: UsageWindow) -> String {
-        if window.title == "5 hours" { return "5-hour" }
-        if window.title == "7 days" { return "Weekly" }
-        if window.title.hasPrefix("5 hours (") { return window.title.replacingOccurrences(of: "5 hours", with: "5-hour") }
-        if window.title.hasPrefix("7 days (") { return window.title.replacingOccurrences(of: "7 days", with: "Weekly") }
-        return window.title
+    static func usageTitle(_ window: UsageWindow) -> String { usageTitle(window.title) }
+
+    /// Maps a provider window title such as `7 days (Fable 5)` to its display name, `Weekly · Fable 5`.
+    static func usageTitle(_ title: String) -> String {
+        if title == "5 hours" { return "5-hour" }
+        if title == "7 days" { return "Weekly" }
+        for (raw, name) in [("5 hours", "5-hour"), ("7 days", "Weekly")] where title.hasPrefix(raw + " (") && title.hasSuffix(")") {
+            let scope = title.dropFirst(raw.count + 2).dropLast()
+            return "\(name) · \(scope)"
+        }
+        return title
     }
 
-    static func used(_ window: UsageWindow) -> String {
+    /// Remaining quota, the one percentage meaning shown everywhere in the interface.
+    static func remaining(_ window: UsageWindow) -> String {
         if window.isActive == false { return "Inactive" }
         guard let used = window.utilizationPercent, used.isFinite else { return "Unavailable" }
-        return "\(UsageFormatting.percentage(used)) used"
+        return "\(UsageFormatting.percentage(max(0, 100 - used))) left"
+    }
+
+    /// Remaining quota with the Home status word: `Low` or `Limit reached`.
+    static func remainingWithStatus(_ window: UsageWindow) -> String {
+        let value = remaining(window)
+        guard window.isActive != false, let used = window.utilizationPercent, used.isFinite else { return value }
+        switch HomeInterfaceFormatting.tone(for: max(0, 100 - used)) {
+        case .neutral: return value
+        case .warning: return "\(value), Low"
+        case .critical: return "\(value), Limit reached"
+        }
+    }
+
+    /// An old reading is prefixed so it is not mistaken for a current one.
+    static func lastKnownRemaining(_ window: UsageWindow) -> String {
+        let value = remaining(window)
+        return value == "Unavailable" || value == "Inactive" ? value : "Last known \(value)"
+    }
+
+    /// A reading that must not pass for current: stale, sign-in required, a passed reset, older than five minutes,
+    /// or observed in the future after a clock change.
+    static func isOutdated(_ snapshot: AccountSnapshot, now: Date) -> Bool {
+        switch snapshot.state {
+        case .authenticationRequired, .stale: return true
+        case .unavailable: return false
+        case .available:
+            return snapshot.fetchedAt.map { now.timeIntervalSince($0) >= 300 || $0 > now } == true
+                || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
+        }
+    }
+
+    /// Value and compact timing for one window, shared by the status menu and the account page. An outdated
+    /// value reads `Last known 63% left`; sign-in required omits the timing.
+    static func reading(_ window: UsageWindow, snapshot: AccountSnapshot, now: Date) -> (value: String, timing: String) {
+        let value = isOutdated(snapshot, now: now) ? lastKnownRemaining(window) : remainingWithStatus(window)
+        let timing = snapshot.state == .authenticationRequired ? ""
+            : window.isActive == false ? "Not current" : compactReset(window.resetsAt, now: now)
+        return (value, timing)
     }
 
     static func reset(_ window: UsageWindow, now: Date = Date()) -> String {
         if window.isActive == false {
-            return window.resetsAt.map { "Provider reported reset: \(exactDate($0))" } ?? "Provider reset time unavailable"
+            return window.resetsAt.map { "Provider reported reset: \(exactDate($0))" } ?? "Reset time unknown"
         }
         return reset(window.resetsAt, now: now)
     }
 
     static func reset(_ date: Date?, now: Date = Date()) -> String {
-        guard let date else { return "Reset time unavailable" }
+        guard let date else { return "Reset time unknown" }
         let duration = UsageFormatting.countdown(to: date, now: now)
         let countdown = date <= now ? "Reset due" : "Resets in \(duration)"
         return "\(countdown) · \(exactDate(date))"
@@ -48,7 +92,7 @@ enum InterfaceFormatting {
     }
 
     static func compactReset(_ date: Date?, now: Date = Date()) -> String {
-        guard let date else { return "Reset unknown" }
+        guard let date else { return "Reset time unknown" }
         guard date > now else { return "Reset due" }
         return "Resets in \(UsageFormatting.countdown(to: date, now: now))"
     }
@@ -61,8 +105,8 @@ enum InterfaceFormatting {
     static func compactCreditTitle(_ balance: CreditBalance) -> String {
         switch balance.id {
         case "monthly_grant": return "Monthly grant"
-        case "api_balance": return balance.title == "Purchased API credits" ? "Purchased credits" : "API credits"
-        case "provider_credits": return "Credits"
+        case "api_balance": return balance.title == "Purchased API credits" ? "Purchased credits" : balance.title
+        case "provider_credits": return "Codex credits"
         default:
             if balance.id.hasPrefix("monthly_grant_") { return "Monthly grant" }
             if balance.id.hasPrefix("api_balance_") { return "Purchased credits" }
@@ -100,7 +144,7 @@ enum InterfaceFormatting {
             lines.append("Original grant: \(formatAmount(original, unit: balance.unit, currencyCode: balance.currencyCode)).")
         }
         if let date = balance.asOf { lines.append("Observed \(exactDate(date)).") }
-        else { lines.append("Observation time unavailable.") }
+        else { lines.append("Observation time unknown.") }
         if let date = balance.expiresAt { lines.append("\(compactExpiry(date, now: now)) · \(exactDate(date)).") }
         else { lines.append(balance.doesNotExpire ? "Does not expire." : "Expiration date unavailable.") }
         if let status = balance.status { lines.append("Status: \(status)") }

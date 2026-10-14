@@ -4,6 +4,7 @@ public actor UsageService {
     private let storage: ConfigurationStorage
     private let captureHelperURL: URL
     private let codexExecutableURL: URL?
+    private let codexDefaultHomeURL: URL?
     private var configuration = StoredConfiguration()
     private var loaded = false
     private var refreshes: [UUID: Task<AccountSnapshot, Never>] = [:]
@@ -22,12 +23,14 @@ public actor UsageService {
     private var claudeCaptureCleanupMessages: [UUID: String] = [:]
     private let freshnessInterval: TimeInterval = 300
 
+    /// `codexDefaultHomeURL` replaces the Codex CLI's own home (`$CODEX_HOME`, else `~/.codex`) for tests.
     public init(directory: URL = UsagePaths.applicationSupport, captureHelperURL: URL? = nil,
-                codexExecutableURL: URL? = nil) {
+                codexExecutableURL: URL? = nil, codexDefaultHomeURL: URL? = nil) {
         storage = ConfigurationStorage(directory: directory)
         self.captureHelperURL = captureHelperURL
             ?? Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/UsageCapture")
         self.codexExecutableURL = codexExecutableURL
+        self.codexDefaultHomeURL = codexDefaultHomeURL
         claudeClient = ClaudeOAuthClient()
         claudeCredentials = ClaudeKeychainStore()
     }
@@ -37,6 +40,7 @@ public actor UsageService {
         storage = ConfigurationStorage(directory: directory)
         self.captureHelperURL = captureHelperURL ?? directory.appendingPathComponent("UsageCapture")
         codexExecutableURL = nil
+        codexDefaultHomeURL = nil
         self.claudeClient = claudeClient
         self.claudeCredentials = claudeCredentials
     }
@@ -46,7 +50,7 @@ public actor UsageService {
         try retryClaudeCredentialCleanup(allowInteraction: true)
         if let existingProfileID {
             guard configuration.profiles.contains(where: { $0.id == existingProfileID && $0.provider == .claude }) else {
-                throw UsageError.invalidConfiguration("Select a Claude account to connect again.")
+                throw UsageError.invalidConfiguration("Select a Claude account to reconnect.")
             }
         }
         let profileID = existingProfileID ?? UUID()
@@ -63,7 +67,7 @@ public actor UsageService {
         guard let profile = configuration.profiles.first(where: { $0.id == id && $0.provider == .claude && $0.source == .claudeOAuth }),
               let credentials = try claudeCredentials.read(accountID: id, allowInteraction: true),
               credentials.identity == profile.providerAccountID else {
-            throw UsageError.authenticationRequired("Claude credentials are missing or belong to another account. Connect this account again.")
+            throw UsageError.authenticationRequired("Claude credentials are missing or belong to another account. Reconnect this account.")
         }
     }
 
@@ -76,7 +80,7 @@ public actor UsageService {
 
     public func completeClaudeSignIn(requestID: UUID, callbackURL: URL) async throws -> AccountProfile {
         guard let pending = claudeAuthorizations[requestID] else {
-            throw UsageError.authenticationRequired("Claude sign-in is no longer active. Connect again.")
+            throw UsageError.authenticationRequired("Claude sign-in is no longer active. Try again.")
         }
         guard completingClaudeAuthorizations.insert(requestID).inserted else {
             throw UsageError.authenticationRequired("Claude sign-in is already being completed.")
@@ -103,7 +107,7 @@ public actor UsageService {
             return existingParts.first == identityParts.first
                 && (existingParts.count == 1 || identityParts.count == 1 || existingIdentity == identity)
         }) {
-            throw UsageError.invalidConfiguration("This Claude account is already listed. Select it and connect again.")
+            throw UsageError.invalidConfiguration("This Claude account is already listed. Select it, then choose Reconnect.")
         }
         let reportedEmail = providerProfile.account.email?.trimmingCharacters(in: .whitespacesAndNewlines)
         let verifiedEmail = existing?.providerAccountID == nil ? nil : existing?.providerEmail
@@ -146,7 +150,7 @@ public actor UsageService {
                     ? "The account could not be saved and its sign-in could not be removed. Cleanup will retry when accounts load or you choose Add Claude Account."
                     : "The account could not be saved and its previous sign-in could not be restored. Reconnect this account.")
             }
-            throw UsageError.providerFailure("Claude sign-in completed, but the account could not be saved. Connect again.")
+            throw UsageError.providerFailure("Claude sign-in completed, but the account could not be saved. Try again.")
         }
         configuration = updated
         retireClaudeCapture(accountID: profile.id)
@@ -160,7 +164,7 @@ public actor UsageService {
     private func validateClaudeAuthorization(_ pending: PendingClaudeAuthorization, requestID: UUID) throws {
         guard claudeAuthorizations[requestID] != nil,
               generations[pending.profileID, default: 0] == pending.generation, !Task.isCancelled else {
-            throw UsageError.authenticationRequired("Claude sign-in was cancelled or the account changed. Connect again.")
+            throw UsageError.authenticationRequired("Claude sign-in was cancelled or the account changed. Try again.")
         }
     }
 
@@ -224,7 +228,7 @@ public actor UsageService {
             ?? AccountSnapshot(profileID: accountID, state: .unavailable,
                                detail: profile.provider == .claude
                                ? (profile.source == .claudeOAuth
-                                  ? "Check usage to read this Claude account's current quota."
+                                  ? "Refresh to read this Claude account's current quota."
                                   : "Reconnect this account in your browser to read usage immediately.")
                                : "Sign in to this Codex profile, then refresh.")
         let stale = saved.state == .available && (saved.fetchedAt.map { Date().timeIntervalSince($0) > freshnessInterval } == true
@@ -286,11 +290,90 @@ public actor UsageService {
         return profile
     }
 
+    /// The Codex CLI's default login on this Mac, when it is signed in with ChatGPT and no account reads it yet.
+    /// Uses only `account/read`, which neither reads usage nor renews tokens. Returns nil when the home is absent,
+    /// so detection never creates it.
+    public func currentCodexLogin() async -> CodexCurrentLogin? {
+        guard (try? ensureLoaded()) != nil else { return nil }
+        let home = codexDefaultHome
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: home.path, isDirectory: &isDirectory), isDirectory.boolValue,
+              !configuration.profiles.contains(where: { $0.provider == .codex && $0.sourcePath == home.path }),
+              let executable = try? codexExecutable() else { return nil }
+        let client = CodexClient(executable: executable, home: home, timeout: 10)
+        guard let login = try? await Task.detached(priority: .userInitiated, operation: { try client.readLogin() }).value,
+              login.isSignedIn else { return nil }
+        let email = login.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return CodexCurrentLogin(email: email?.isEmpty == false ? email : nil, home: home)
+    }
+
+    /// Adds an account that reads the Codex CLI's default login in place. Nothing is written to that home; its
+    /// credentials stay where the CLI stored them. Refuses a login whose Codex account is already listed.
+    public func createCodexProfileUsingCurrentLogin(label: String) async throws -> AccountProfile {
+        try ensureLoaded()
+        let name = try validLabel(label)
+        let home = codexDefaultHome
+        guard FileManager.default.fileExists(atPath: home.path) else {
+            throw UsageError.authenticationRequired("The Codex CLI on this Mac is not signed in. Choose Sign In with a Different Account… instead.")
+        }
+        let client = CodexClient(executable: try codexExecutable(), home: home)
+        let identifier = UUID()
+        let result = try await Task.detached(priority: .userInitiated) {
+            try client.fetch(profileID: identifier, expectedIdentity: nil)
+        }.value
+        // Check after the read: another change may have listed this login meanwhile.
+        guard let identity = result.accountIdentity else {
+            throw UsageError.providerFailure("The Codex CLI did not provide an account identifier. Update the CLI and try again.")
+        }
+        if configuration.profiles.contains(where: { $0.provider == .codex && ($0.sourcePath == home.path || $0.providerAccountID == identity) }) {
+            throw UsageError.invalidConfiguration("This Codex account is already listed. Select it in the sidebar.")
+        }
+        let email = result.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let profile = AccountProfile(id: identifier, provider: .codex, label: name, source: .codexDefaultLogin,
+                                     providerAccountID: identity, providerEmail: email?.isEmpty == false ? email : nil,
+                                     sourcePath: home.path)
+        var updated = configuration
+        updated.profiles.append(profile)
+        updated.snapshots.append(result.snapshot)
+        try storage.save(updated)
+        configuration = updated
+        return profile
+    }
+
+    /// Waits for a Terminal `codex login` into this account's own home, then refreshes the account once.
+    /// Polls `account/read` every `interval`. Stops on sign-in, cancellation, removal of the account, or `timeout`.
+    public func awaitCodexSignIn(id: UUID, interval: Duration = .seconds(3),
+                                 timeout: Duration = .seconds(600)) async -> CodexSignInOutcome {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
+        while true {
+            guard !Task.isCancelled else { return .cancelled }
+            guard (try? ensureLoaded()) != nil,
+                  let profile = configuration.profiles.first(where: { $0.id == id && $0.provider == .codex }),
+                  let path = profile.sourcePath else { return .accountRemoved }
+            if let executable = try? codexExecutable() {
+                let client = CodexClient(executable: executable, home: URL(fileURLWithPath: path), timeout: 10)
+                let login = try? await Task.detached(priority: .utility, operation: { try client.readLogin() }).value
+                if login?.isSignedIn == true {
+                    guard !Task.isCancelled else { return .cancelled }
+                    guard configuration.profiles.contains(where: { $0.id == id }) else { return .accountRemoved }
+                    return .signedIn(await refreshAccount(id: id))
+                }
+            }
+            guard clock.now < deadline else { return .timedOut }
+            do { try await Task.sleep(for: min(interval, deadline - clock.now)) } catch { return .cancelled }
+        }
+    }
+
     public func codexLoginCommand(accountID: UUID) throws -> String {
         try ensureLoaded()
         guard let profile = configuration.profiles.first(where: { $0.id == accountID }),
               profile.provider == .codex, let sourcePath = profile.sourcePath else {
             throw UsageError.invalidConfiguration("Select a Codex profile first.")
+        }
+        // Signing in here would replace the CLI's own login, which monitoring must never change.
+        guard profile.source != .codexDefaultLogin else {
+            throw UsageError.invalidConfiguration("This account reads the Codex CLI login on this Mac. To sign in again, run codex login in Terminal, then choose Refresh All.")
         }
         return "cd \(ClaudeCaptureInstallation.shellQuote(sourcePath)) && env -u CODEX_ACCESS_TOKEN -u CODEX_API_KEY -u OPENAI_API_KEY CODEX_HOME=\(ClaudeCaptureInstallation.shellQuote(sourcePath)) \(ClaudeCaptureInstallation.shellQuote(try codexExecutable().path)) login"
     }
@@ -300,6 +383,19 @@ public actor UsageService {
         guard let index = configuration.profiles.firstIndex(where: { $0.id == id }) else { return }
         var updated = configuration
         updated.profiles[index].label = try validLabel(label)
+        try storage.save(updated)
+        configuration = updated
+    }
+
+    /// Moves the account so it sits at `index` in the saved order, counted after the account is taken out of the list.
+    public func moveAccount(id: UUID, toIndex index: Int) throws {
+        try ensureLoaded()
+        guard let source = configuration.profiles.firstIndex(where: { $0.id == id }) else { return }
+        let destination = min(max(index, 0), configuration.profiles.count - 1)
+        guard destination != source else { return }
+        var updated = configuration
+        let profile = updated.profiles.remove(at: source)
+        updated.profiles.insert(profile, at: destination)
         try storage.save(updated)
         configuration = updated
     }
@@ -387,10 +483,10 @@ public actor UsageService {
         try ensureLoaded()
         guard let profile = configuration.profiles.first(where: { $0.id == accountID && $0.provider == .claude }),
               profile.providerAccountID == expectedIdentity else {
-            throw UsageError.authenticationRequired("This Console connection belongs to an earlier account. Connect API Credits for the current account.")
+            throw UsageError.authenticationRequired("This API Credits connection belongs to an earlier account. Connect API Credits for the current account.")
         }
         if let organizationID, UUID(uuidString: organizationID) == nil {
-            throw UsageError.invalidConfiguration("The Claude Console organization identifier must be a UUID.")
+            throw UsageError.invalidConfiguration("The Claude Platform organization identifier must be a UUID. Connect API Credits again.")
         }
         let organizationID = organizationID.flatMap { UUID(uuidString: $0)?.uuidString.lowercased() }
         var updated = configuration
@@ -408,12 +504,12 @@ public actor UsageService {
         try ensureLoaded()
         guard let profile = configuration.profiles.first(where: { $0.id == accountID && $0.provider == .claude }),
               profile.providerAccountID == expectedIdentity else {
-            throw UsageError.authenticationRequired("This Console response belongs to an earlier account. Connect API Credits for the current account.")
+            throw UsageError.authenticationRequired("This Claude Platform response belongs to an earlier account. Connect API Credits for the current account.")
         }
         guard let connectedOrganization = configuration.consoleConnections[accountID.uuidString],
               UUID(uuidString: organizationID)?.uuidString.lowercased() == connectedOrganization,
               configuration.profiles.contains(where: { $0.id == accountID && $0.provider == .claude }) else {
-            throw UsageError.invalidConfiguration("The Console response no longer matches this profile's connected organization.")
+            throw UsageError.invalidConfiguration("The Claude Platform response no longer matches this account's connected organization. Connect API Credits again.")
         }
         var linkState: ClaudeConsoleLinkState?
         var invoices: ClaudeConsoleInvoices?
@@ -520,6 +616,12 @@ public actor UsageService {
                 let result = try await Task.detached(priority: .utility) {
                     try client.fetch(profileID: profile.id, expectedIdentity: profile.providerAccountID)
                 }.value
+                // Refuse to bind a second account to a listed Codex identity. Already bound profiles keep working.
+                if profile.providerAccountID == nil, let identity = result.accountIdentity, configuration.profiles.contains(where: {
+                    $0.id != profile.id && $0.provider == .codex && $0.providerAccountID == identity
+                }) {
+                    throw UsageError.authenticationRequired("This Codex account is already listed. Remove this account, or choose Reconnect… and sign in with a different account.")
+                }
                 observed = result.snapshot
                 if let identity = result.accountIdentity,
                    let index = configuration.profiles.firstIndex(where: { $0.id == profile.id }) {
@@ -542,7 +644,7 @@ public actor UsageService {
         }
         guard generations[profile.id, default: 0] == generation else {
             return snapshot(for: profile.id) ?? AccountSnapshot(profileID: profile.id, state: .unavailable,
-                                                              detail: "The account connection changed. Check usage again.")
+                                                              detail: "The account connection changed. Refresh to read current usage.")
         }
         if configuration.profiles.contains(where: { $0.id == profile.id }) {
             configuration.snapshots.removeAll { $0.profileID == profile.id }
@@ -560,14 +662,14 @@ public actor UsageService {
     private func fetchClaudeOAuth(_ profile: AccountProfile, generation: Int) async throws -> AccountSnapshot {
         guard var credentials = try claudeCredentials.read(accountID: profile.id, allowInteraction: false),
               credentials.identity == profile.providerAccountID else {
-            throw UsageError.authenticationRequired("Claude credentials are missing or belong to another account. Connect this account again.")
+            throw UsageError.authenticationRequired("Claude credentials are missing or belong to another account. Reconnect this account.")
         }
         guard !credentials.refreshPending else {
-            throw UsageError.authenticationRequired("The previous Claude sign-in renewal did not finish safely. Connect this account again.")
+            throw UsageError.authenticationRequired("The previous Claude sign-in renewal did not finish safely. Reconnect this account.")
         }
         if credentials.expiresAt <= Date().addingTimeInterval(60) {
             guard let refreshToken = credentials.refreshToken, !refreshToken.isEmpty else {
-                throw UsageError.authenticationRequired("Claude access expired. Connect this account again.")
+                throw UsageError.authenticationRequired("Claude access expired. Reconnect this account.")
             }
             credentials.refreshPending = true
             // Persist before rotation: a crash or uncertain response must never retry this refresh token.
@@ -582,7 +684,7 @@ public actor UsageService {
                 try validateClaudeCredentials(pendingCredentials, profileID: profile.id, generation: generation)
                 try claudeCredentials.save(credentials, accountID: profile.id, allowInteraction: false)
             } catch {
-                throw UsageError.authenticationRequired("Claude sign-in renewal could not be confirmed. Connect this account again.")
+                throw UsageError.authenticationRequired("Claude sign-in renewal could not be confirmed. Reconnect this account.")
             }
         }
         let providerProfile = try await claudeClient.profile(accessToken: credentials.accessToken)
@@ -596,7 +698,7 @@ public actor UsageService {
         guard !Task.isCancelled, generations[profileID, default: 0] == generation,
               configuration.profiles.contains(where: { $0.id == profileID && $0.source == .claudeOAuth }),
               try claudeCredentials.read(accountID: profileID, allowInteraction: false) == credentials else {
-            throw UsageError.authenticationRequired("The Claude account connection changed during this check. Check usage again.")
+            throw UsageError.authenticationRequired("The Claude account connection changed during this refresh. Refresh to read current usage.")
         }
     }
 
@@ -631,12 +733,12 @@ public actor UsageService {
     public static func unavailableCredits(for provider: Provider) -> [CreditBalance] {
         var credits = [CreditBalance(id: "api_balance", title: provider == .claude ? "Purchased API credits" : "OpenAI API credits", amount: nil,
                        detail: provider == .claude
-                           ? "Connect Claude Platform to read API credit balances."
+                           ? "Connect API Credits to read purchased credit balances."
                            : "OpenAI API balances are entered manually."),
         ]
         if provider == .claude {
             credits.append(CreditBalance(id: "monthly_grant", title: "Monthly included API grant", amount: nil,
-                                        detail: "Connect Claude Platform to read API grants and their expiry."))
+                                        detail: "Connect API Credits to read monthly grants and their expiry."))
         } else {
             credits.append(CreditBalance(id: "provider_credits", title: "Codex credits", amount: nil, unit: .credits,
                                         detail: "Codex has not supplied a credit balance."))
@@ -645,6 +747,13 @@ public actor UsageService {
     }
 
     private func codexExecutable() throws -> URL { try codexExecutableURL ?? CodexExecutable.resolve() }
+
+    private var codexDefaultHome: URL {
+        let configured = ProcessInfo.processInfo.environment["CODEX_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+        return (codexDefaultHomeURL ?? configured
+                ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex", isDirectory: true))
+            .standardizedFileURL.resolvingSymlinksInPath()
+    }
 
     private func validLabel(_ label: String) throws -> String {
         let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)

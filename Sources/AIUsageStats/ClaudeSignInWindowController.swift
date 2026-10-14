@@ -7,6 +7,8 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
     private let model: ApplicationModel
     private let existingProfileID: UUID?
     private let accountLabel: String
+    /// Called with the connected account after a successful sign-in closes the sheet.
+    var onConnected: ((UUID) -> Void)?
     private let status = InterfaceControls.label("Preparing sign-in…", size: 13)
     private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
     private var request: ClaudeAuthorizationRequest?
@@ -20,16 +22,19 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
         self.existingProfileID = existingProfileID
         accountLabel = label
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 440, height: 260),
-                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.title = "Claude Subscription Sign-In"
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        let heading = existingProfileID == nil ? "Add Claude Account" : "Reconnect \(label)"
+        window.title = heading
         window.isReleasedWhenClosed = false
         super.init(window: window)
         window.delegate = self
         cancelButton.target = self
         cancelButton.action = #selector(cancel(_:))
         cancelButton.keyEquivalent = "\u{1b}"
-        let title = InterfaceControls.label(label, size: 17, weight: .semibold)
-        let explanation = InterfaceControls.label("Subscription sign-in opens claude.ai in your browser. Claude Platform (platform.claude.com) requires a separate sign-in for monthly grants and API credits.")
+        let title = InterfaceControls.label(heading, size: 13, weight: .bold)
+        title.lineBreakMode = .byTruncatingMiddle
+        title.maximumNumberOfLines = 1
+        let explanation = InterfaceControls.label("Sign-in opens claude.ai in your browser. API Credits use a separate Claude Platform sign-in at platform.claude.com.")
         let controls = InterfaceControls.stack([title, explanation, status, cancelButton], spacing: 16)
         controls.translatesAutoresizingMaskIntoConstraints = false
         if let root = window.contentView {
@@ -39,6 +44,7 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
                 controls.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -24),
                 controls.topAnchor.constraint(equalTo: root.topAnchor, constant: 24),
                 controls.bottomAnchor.constraint(lessThanOrEqualTo: root.bottomAnchor, constant: -24),
+                title.widthAnchor.constraint(equalTo: controls.widthAnchor),
                 status.widthAnchor.constraint(equalTo: controls.widthAnchor),
                 explanation.widthAnchor.constraint(equalTo: controls.widthAnchor)
             ])
@@ -76,10 +82,10 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
                 expiryTask = Task { [weak self] in
                     try? await Task.sleep(for: .seconds(duration))
                     guard !Task.isCancelled else { return }
-                    self?.fail("Sign-in expired. Close this window and reconnect to try again.")
+                    self?.fail("Sign-in expired. Choose Close, then try again.")
                 }
                 guard NSWorkspace.shared.open(request.authorizationURL) else {
-                    fail("The browser could not be opened. Check your default browser, then reconnect.")
+                    fail("The browser could not be opened. Check your default browser, choose Close, then try again.")
                     return
                 }
                 status.stringValue = "Complete sign-in on Claude’s page in your browser. Waiting for confirmation…"
@@ -97,7 +103,6 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
         expiryTask?.cancel()
         status.stringValue = "Confirming the account and reading usage…"
         cancelButton.isEnabled = false
-        window?.standardWindowButton(.closeButton)?.isEnabled = false
         signInTask = Task { [weak self] in
             guard let self else { return }
             do {
@@ -105,15 +110,13 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
                 guard !finished else { return }
                 finished = true
                 self.request = nil
-                let snapshot = model.snapshots[profile.id]
-                status.stringValue = snapshot?.state == .available
-                    ? "Connected. Subscription usage is available in Accounts and the menu bar."
-                    : "Signed in. \(snapshot?.detail ?? "Usage is unavailable. Check Usage in Accounts to try again.")"
-                cancelButton.title = "Done"
-                cancelButton.isEnabled = true
-                window?.standardWindowButton(.closeButton)?.isEnabled = true
+                // Success needs no confirmation: close the sheet and show the account, whose page states
+                // whether usage was read.
+                let parent = window?.sheetParent
+                if let window, let parent { parent.endSheet(window); window.orderOut(nil) }
                 NSApp.activate(ignoringOtherApps: true)
-                window?.sheetParent?.makeKeyAndOrderFront(nil)
+                parent?.makeKeyAndOrderFront(nil)
+                onConnected?(profile.id)
             } catch {
                 guard !finished else { return }
                 fail(error.localizedDescription)
@@ -132,9 +135,15 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
             Task { [model] in await model.cancelClaudeSignIn(id: request.id) }
         }
         status.stringValue = message
-        cancelButton.title = "Close"
+        finish(title: "Close")
+    }
+
+    /// The single button becomes the Return default once there is nothing left to cancel.
+    private func finish(title: String) {
+        cancelButton.title = title
+        cancelButton.keyEquivalent = "\r"
         cancelButton.isEnabled = true
-        window?.standardWindowButton(.closeButton)?.isEnabled = true
+        window?.makeFirstResponder(cancelButton)
     }
 
     func stop() {
@@ -156,7 +165,6 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
             window.orderOut(sender)
         }
     }
-    func windowShouldClose(_ sender: NSWindow) -> Bool { cancelButton.isEnabled }
     func windowWillClose(_ notification: Notification) { stop() }
 }
 
@@ -180,7 +188,7 @@ private final class ClaudeAuthorizationListener {
         guard request.redirectURL.absoluteString == "http://localhost:54545/callback",
               let state = URLComponents(url: request.authorizationURL, resolvingAgainstBaseURL: false)?
                 .queryItems?.first(where: { $0.name == "state" })?.value, !state.isEmpty else {
-            throw UsageError.invalidConfiguration("Claude sign-in could not be prepared. Reconnect to try again.")
+            throw UsageError.invalidConfiguration("Claude sign-in could not be prepared. Choose Close, then try again.")
         }
         expectedState = state
         redirectURL = request.redirectURL
@@ -206,7 +214,7 @@ private final class ClaudeAuthorizationListener {
             startupTimeout = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(5))
                 guard !Task.isCancelled, let self, self.readyContinuation != nil else { return }
-                self.readyContinuation?.resume(throwing: UsageError.providerFailure("The sign-in connection could not start. Close the other sign-in and reconnect."))
+                self.readyContinuation?.resume(throwing: UsageError.providerFailure("The sign-in connection could not start. Finish or cancel the other sign-in, then try again."))
                 self.readyContinuation = nil
                 self.stop()
             }
@@ -220,7 +228,7 @@ private final class ClaudeAuthorizationListener {
             readyContinuation?.resume()
             readyContinuation = nil
         case .failed:
-            let message = "Claude sign-in could not receive the browser response. Port 54545 may be in use. Close the other sign-in and reconnect."
+            let message = "Claude sign-in could not receive the browser response. Port 54545 may be in use. Finish or cancel the other sign-in, then try again."
             if let continuation = readyContinuation {
                 readyContinuation = nil
                 continuation.resume(throwing: UsageError.providerFailure(message))

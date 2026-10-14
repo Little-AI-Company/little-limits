@@ -17,26 +17,15 @@ final class GeneralSettingsViewController: NSViewController {
         loginButton.setAccessibilityLabel("Launch AI Usage Stats at login")
         let startup = InterfaceControls.stack([loginButton, loginStatus], spacing: 6)
         loginStatus.widthAnchor.constraint(equalTo: startup.widthAnchor).isActive = true
-        let refresh = InterfaceControls.label("Refresh automatically every 5 minutes.", size: 13)
-        let manualBalances = InterfaceControls.label("Manual balances keep their recorded amount and date until you update them.")
-        let usage = InterfaceControls.stack([refresh, manualBalances], spacing: 8)
-        for label in [refresh, manualBalances] {
-            label.widthAnchor.constraint(equalTo: usage.widthAnchor).isActive = true
-        }
         let startupForm = settingsRow("Startup:", content: startup)
-        let usageForm = settingsRow("Usage:", content: usage)
-        let separator = InterfaceControls.separator()
-        let stack = InterfaceControls.stack([startupForm, separator, usageForm], spacing: 20)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        root.addSubview(stack)
+        startupForm.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(startupForm)
+        // The page sits under the window toolbar; start below it.
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 24),
-            stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -24),
-            stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 28)
+            startupForm.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 24),
+            startupForm.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -24),
+            startupForm.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor, constant: 24)
         ])
-        for component in [startupForm, separator, usageForm] {
-            component.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
-        }
         refreshLoginState()
     }
 

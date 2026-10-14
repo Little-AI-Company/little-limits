@@ -118,10 +118,18 @@ final class UsageEventDetailsViewController: NSViewController {
         label.preferredMaxLayoutWidth = 328
         let value = NSTextField(wrappingLabelWithString: row.value)
         value.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-        value.textColor = row.tone.textColor
-        value.preferredMaxLayoutWidth = 328
+        value.textColor = .labelColor
+        value.preferredMaxLayoutWidth = 310
         group.addArrangedSubview(label)
-        group.addArrangedSubview(value)
+        if let symbol = HomeText.stateSymbol(row.tone) {
+            let line = NSStackView(views: [symbol, value])
+            line.orientation = .horizontal
+            line.alignment = .firstBaseline
+            line.spacing = 3
+            group.addArrangedSubview(line)
+        } else {
+            group.addArrangedSubview(value)
+        }
         if let detail = row.detail {
             let detailField = NSTextField(wrappingLabelWithString: detail)
             detailField.font = .systemFont(ofSize: 11)

@@ -1,135 +1,164 @@
 import AppKit
 import UsageCore
 
+/// A two-line source-list row. Line 1 is the provider template image and the account identity; line 2 is the
+/// state symbol and the quota summary, which names the limiting window. The identity never shares its line with
+/// quota text, so it truncates only when it is longer than the sidebar.
 @MainActor
 final class AccountSidebarCellView: NSTableCellView {
+    enum Indicator: Equatable {
+        case none, low, limitReached, signInRequired, stale
+
+        /// Each state has its own shape, matching the Home table and calendar, so meaning never depends on color.
+        @MainActor fileprivate var symbol: (name: String, color: NSColor)? {
+            switch self {
+            case .none: nil
+            case .low: ("exclamationmark.triangle.fill", StateSymbolColor.warning)
+            case .limitReached: ("exclamationmark.octagon.fill", StateSymbolColor.critical)
+            case .signInRequired: ("person.crop.circle.badge.exclamationmark.fill", StateSymbolColor.critical)
+            case .stale: ("clock", .secondaryLabelColor)
+            }
+        }
+    }
+
     struct Display: Equatable {
         let identity: String
-        let provider: String
-        let summary: AccountQuotaSummary
-        let detail: String
+        let provider: Provider
+        /// Line 2: remaining quota with its state word and limiting window, or the state alone.
+        let quotaText: String
+        let indicator: Indicator
+        /// Full description for the tooltip and VoiceOver.
+        let description: String
     }
 
-    static let singleLineRowHeight: CGFloat = 66
-    static let wrappedRowHeight: CGFloat = 82
-    /// Source-list column width exceeds the identity field bounds by the cell margins minus label alignment insets.
-    static let identityTextWidthInset: CGFloat = 20
-    private static let identityFont = NSFont.systemFont(ofSize: 13, weight: .medium)
+    /// Point size of line 2 relative to the identity font the table chooses for the sidebar size setting.
+    private static let quotaFontReduction: CGFloat = 2
+    static let lineSpacing: CGFloat = 1
 
+    private let icon = NSImageView()
     private let identity = NSTextField(labelWithString: "")
-    private let provider = NSTextField(labelWithString: "")
     private let quota = NSTextField(labelWithString: "")
-    private let progress = NSLevelIndicator()
+    private let indicator = NSImageView()
     private var displayed: Display?
-
-    static func rowHeight(for identity: String, columnWidth: CGFloat) -> CGFloat {
-        let textWidth = columnWidth - identityTextWidthInset
-        guard textWidth > 1 else { return singleLineRowHeight }
-        let measured = (identity as NSString).boundingRect(with: NSSize(width: textWidth, height: 64),
-                                                           options: [.usesLineFragmentOrigin, .usesFontLeading],
-                                                           attributes: [.font: identityFont])
-        return measured.height > identityFont.boundingRectForFont.height * 1.5 ? wrappedRowHeight : singleLineRowHeight
-    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        identity.font = Self.identityFont
-        identity.lineBreakMode = .byCharWrapping
-        identity.maximumNumberOfLines = 2
-        identity.cell?.truncatesLastVisibleLine = true
-        identity.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        identity.setContentCompressionResistancePriority(.required, for: .vertical)
-        provider.font = .systemFont(ofSize: 11)
-        quota.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
-        quota.alignment = .right
-        quota.setContentCompressionResistancePriority(.required, for: .horizontal)
-        progress.levelIndicatorStyle = .continuousCapacity
-        progress.minValue = 0
-        progress.maxValue = 100
-        progress.warningValue = 100
-        progress.criticalValue = 100
-        progress.isEditable = false
+        icon.imageScaling = .scaleProportionallyDown
+        identity.lineBreakMode = .byTruncatingTail
+        identity.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+        quota.font = Self.quotaFont(identitySize: NSFont.systemFontSize)
+        quota.textColor = .labelColor
+        quota.lineBreakMode = .byTruncatingTail
+        quota.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        indicator.imageScaling = .scaleProportionallyDown
+        indicator.symbolConfiguration = NSImage.SymbolConfiguration(scale: .small)
+        indicator.setContentHuggingPriority(.required, for: .horizontal)
+        indicator.setContentCompressionResistancePriority(.required, for: .horizontal)
+        for view in [icon, identity, quota, indicator] { view.setAccessibilityElement(false) }
+        imageView = icon
         textField = identity
-        for view in [identity, provider, quota, progress] {
-            view.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(view)
-        }
+        let quotaLine = NSStackView(views: [indicator, quota])
+        quotaLine.orientation = .horizontal
+        quotaLine.alignment = .centerY
+        quotaLine.spacing = 3
+        quotaLine.detachesHiddenViews = true
+        let lines = NSStackView(views: [identity, quotaLine])
+        lines.orientation = .vertical
+        lines.alignment = .leading
+        lines.spacing = Self.lineSpacing
+        lines.translatesAutoresizingMaskIntoConstraints = false
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(icon)
+        addSubview(lines)
         NSLayoutConstraint.activate([
-            identity.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            identity.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-            identity.topAnchor.constraint(equalTo: topAnchor, constant: 7),
-            provider.leadingAnchor.constraint(equalTo: identity.leadingAnchor),
-            provider.topAnchor.constraint(equalTo: identity.bottomAnchor, constant: 3),
-            quota.leadingAnchor.constraint(greaterThanOrEqualTo: provider.trailingAnchor, constant: 6),
-            quota.trailingAnchor.constraint(equalTo: identity.trailingAnchor),
-            quota.firstBaselineAnchor.constraint(equalTo: provider.firstBaselineAnchor),
-            progress.leadingAnchor.constraint(equalTo: identity.leadingAnchor),
-            progress.trailingAnchor.constraint(equalTo: identity.trailingAnchor),
-            progress.topAnchor.constraint(equalTo: provider.bottomAnchor, constant: 5),
-            progress.heightAnchor.constraint(equalToConstant: 5)
+            icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+            icon.centerYAnchor.constraint(equalTo: identity.centerYAnchor),
+            icon.widthAnchor.constraint(equalToConstant: 16),
+            icon.heightAnchor.constraint(equalToConstant: 16),
+            lines.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 6),
+            lines.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            lines.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
     }
 
     required init?(coder: NSCoder) { nil }
 
-    func noteColumnWidth(_ columnWidth: CGFloat) {
-        let textWidth = columnWidth - Self.identityTextWidthInset
-        guard textWidth > 1 else { return }
-        identity.preferredMaxLayoutWidth = textWidth
-    }
-
-    override func layout() {
-        let width = identity.bounds.width
-        if width > 0, abs(identity.preferredMaxLayoutWidth - width) > 0.5 {
-            identity.preferredMaxLayoutWidth = width
-        }
-        super.layout()
-    }
-
     func render(_ display: Display) {
         guard displayed != display else { return }
         displayed = display
+        icon.image = ProviderIcons.images[display.provider]
         identity.stringValue = display.identity
-        provider.stringValue = display.provider
-        quota.textColor = .labelColor
-        progress.isHidden = true
-        var severityDescription = ""
-        switch display.summary {
-        case let .available(remaining, severity, _):
-            quota.stringValue = remainingText(remaining) + " left"
-            progress.doubleValue = remaining
-            progress.isHidden = false
-            let color: NSColor
-            switch severity {
-            case .normal: color = .systemGreen
-            case .warning: color = .systemOrange; severityDescription = "Low remaining quota. "
-            case .critical: color = .systemRed; severityDescription = "Very low remaining quota. "
-            }
-            quota.textColor = color
-            progress.fillColor = color
-            progress.warningFillColor = color
-            progress.criticalFillColor = color
-        case .unknown: quota.stringValue = "Usage unknown"
-        case .inactive: quota.stringValue = "No active quota"
-        case .stale: quota.stringValue = "Usage stale"
-        case .unavailable: quota.stringValue = "Unavailable"
-        case .authenticationRequired: quota.stringValue = "Sign-in required"
+        quota.stringValue = display.quotaText
+        if let symbol = display.indicator.symbol {
+            indicator.image = NSImage(systemSymbolName: symbol.name, accessibilityDescription: nil)
+            indicator.isHidden = false
+        } else {
+            indicator.image = nil
+            indicator.isHidden = true
         }
-        let description = "\(display.provider), \(display.identity). \(quota.stringValue). \(severityDescription)\(display.detail)"
-        toolTip = description
-        setAccessibilityLabel(description)
-        progress.setAccessibilityLabel("Remaining quota")
-        for view in [identity, provider, quota, progress] { view.toolTip = description }
+        updateIndicatorTint()
+        toolTip = display.description
+        setAccessibilityLabel(display.description)
     }
 
-    private func remainingText(_ remaining: Double) -> String {
-        if remaining == remaining.rounded() { return String(format: "%.0f%%", remaining) }
-        // Keep the displayed side of each severity boundary accurate after rounding.
-        if remaining > 20, remaining < 20.1 { return ">20%" }
-        if remaining < 10, remaining > 9.9 { return "<10%" }
-        if remaining > 0, remaining < 0.1 { return "<0.1%" }
-        return String(format: "%.1f%%", remaining)
+    override func layout() {
+        // Follow the identity font the table chose for the sidebar size setting.
+        let font = Self.quotaFont(identitySize: identity.font?.pointSize ?? NSFont.systemFontSize)
+        if quota.font != font { quota.font = font }
+        super.layout()
     }
+
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet {
+            quota.cell?.backgroundStyle = backgroundStyle
+            updateIndicatorTint()
+        }
+    }
+
+    /// On an emphasized (accent) selection the state tints can fall under 3:1, so the symbol takes the selected
+    /// text color like the quota text; its shape still carries the state. The calendar does the same.
+    private func updateIndicatorTint() {
+        guard let color = displayed?.indicator.symbol?.color else { return }
+        let tint: NSColor = backgroundStyle == .emphasized ? .alternateSelectedControlTextColor : color
+        if indicator.contentTintColor != tint { indicator.contentTintColor = tint }
+    }
+
+    static func quotaFont(identitySize: CGFloat) -> NSFont {
+        .monospacedDigitSystemFont(ofSize: max(10, identitySize - quotaFontReduction), weight: .regular)
+    }
+}
+
+@MainActor
+final class HomeSidebarCellView: NSTableCellView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        let image = NSImageView()
+        image.image = NSImage(systemSymbolName: "house", accessibilityDescription: nil)
+        image.imageScaling = .scaleProportionallyDown
+        image.setAccessibilityElement(false)
+        let label = NSTextField(labelWithString: "Home")
+        label.lineBreakMode = .byTruncatingTail
+        label.setAccessibilityElement(false)
+        imageView = image
+        textField = label
+        let row = NSStackView(views: [image, label])
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = 6
+        row.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(row)
+        NSLayoutConstraint.activate([
+            row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+            row.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -4),
+            row.centerYAnchor.constraint(equalTo: centerYAnchor),
+            image.widthAnchor.constraint(equalToConstant: 16),
+            image.heightAnchor.constraint(equalToConstant: 16)
+        ])
+        setAccessibilityLabel("Home")
+        setAccessibilityHelp("Show the reset calendar and account usage.")
+    }
+
+    required init?(coder: NSCoder) { nil }
 }
 
 @MainActor

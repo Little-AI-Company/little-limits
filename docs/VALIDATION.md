@@ -760,3 +760,58 @@ Expanding the Codex manual editor created vertical overflow; the account scroll 
 In the normal app, plus opened the provider-choice sheet with Cancel focused; Escape cancelled it. Selecting the existing account enabled minus and the direct Refresh/Reconnect controls and exposed inline Allow Keychain Access. Minus opened the intended account-removal sheet with Cancel focused; Escape left the account selected and intact. Home and Settings disabled minus. No sign-in, account removal, credit disconnection, Keychain permission action, balance save, billing navigation, or startup preference change was performed through the UI. The native interactions above were observed; live connected-Console button operation, Platform navigation/Back, manual draft preservation, VoiceOver speech, minimum-size layout, accessibility-preference transitions, Intel execution, macOS 14 runtime, and notarization remain unverified for this follow-up.
 
 The new fixture test initially failed compilation because its CreditBalance argument order put `asOf` before `source`; this was corrected without weakening assertions. Earlier failed runs are not passing results. Source/test SHA-256: `eeb517f3c61021f30847e4ebdf97a97f3daebb66f1834d8a957edbdac45eda46`; signed executable SHA-256: `0563658dabcd5531bc666decb6e94f0ee22eb1eeb22fe67d9dde1de91f1c0b3b`. The existing sorted path/NUL/content/NUL digest procedure applies. Documentation and skill context were updated to the final layout; source/package inputs were unchanged after verification.
+
+
+## Design crit fixes and Liquid Glass linking, October 14, 2026
+
+Tested revision `eac10b6` on branch `crit/fixes-2026-10-14`, with the merge commits `db0a5e7` (menu lane), `b914272` (Home lane), `d8e0e46` (window lane), `e03c6ce` and `1cd23f7` (crit skill fixes), on macOS 27.0.1 (26A434), Apple silicon, macOS 27 SDK, and Swift 6.4. The changes follow the [baseline crit](design/crits/2026-10-14-baseline.md) of revision `8e4f837`; the re-run is [2026-10-14-after](design/crits/2026-10-14-after.md). The status menu, Home, window chrome, vocabulary, and packaging changed in `git diff 8e4f837 -- Sources scripts`.
+
+| Command or inspection | Observed result |
+| --- | --- |
+| `swift build` | Passed. |
+| `swift test` | Passed. XCTest ran with 0 failures. Swift Testing passed 55 tests and 13 tests in its two reported runs. |
+| `swift build -c release` | Passed. |
+| `scripts/package_app.sh` | Passed. |
+| `vtool -show-build` on the packaged executable, before the packaging fix | `minos 14.0`, `sdk 14.0`. SwiftPM records its default SDK, so current macOS kept the pre-Liquid Glass appearance. |
+| `vtool -show-build` after the packaging fix | `minos 14.0`, `sdk 27.0`. The script now passes the build SDK to the linker, and the packaged window shows the Liquid Glass sidebar and toolbar. |
+
+The re-run crit captured 17 demo surfaces in light and dark appearance from the packaged app with fictional demo data. Its register has 40 findings: 19 fixed, 7 unverified (changed in source only), and 14 open, with a worst open severity of 3 (calendar events clipped mid-glyph, HOME-12). Contrast values in the report were measured from the captures.
+
+Not verified: keyboard paths (Tab order, Return and Escape on the Home popover, Command-1, Command-2, Command-[, Command-], Command-T, Command-N, arrow and Return on menu reading rows); VoiceOver speech for the sidebar, table, calendar events, and menu rows; surfaces that need pointer input (account page, Settings, add-account sheet, Claude sign-in sheet, Platform pane, empty-state add buttons); sidebar resize and collapse; the minimum 1020 × 640 point window and Month view; the status item glyph; real System Settings Increase Contrast and Reduce Transparency transitions; light system menu appearance. The HIG audit ran on the SDK 14 build before the packaging fix, so its materials and sidebar outcomes predate the Liquid Glass recapture. Earlier limits (live providers, Intel execution, macOS 14 runtime, notarization) remain in effect.
+
+
+## Design crit round 3 fixes, October 14, 2026
+
+Tested revision `d15aded` on branch `crit/round3-2026-10-14`, on macOS 27.0.1 (26A434), Apple silicon, macOS 27 SDK, and Swift 6.4. Three lanes with disjoint file ownership fixed the open findings of the [round 2 crit](design/crits/2026-10-14-after.md) and were merged in `0e00e8e` (calendar and table), `017d720` (sidebar and window), and `01c8705` (menu and strings), on top of `186908b`, which declares the File menu account commands in `WindowContracts.swift`. The re-run is [2026-10-14-round3](design/crits/2026-10-14-round3.md).
+
+| Command or inspection | Observed result |
+| --- | --- |
+| `swift test` | Passed. Swift Testing passed 56 tests and 17 tests in its two reported runs; XCTest ran with 0 failures. |
+| `swift build -c release` | Passed, with only the existing SecKeychain deprecation warnings. |
+| `scripts/package_app.sh` | Passed. |
+| `vtool -show-build` on the packaged executable | `minos 14.0`, `sdk 27.0`. |
+
+New focused tests: `calendarEventTextFitsItsFrameAtTheMinimumColumnWidth` and `quotaCellTextFitsAtTheMinimumWindowWidth` (HomeLayoutTests) measure drawn text with `cell.cellSize`, because a tail-truncating field reports an intrinsic width about 4 points short and an intrinsic-size test passed while the app truncated. `sidebarRowsGiveTheIdentityItsOwnLineAndNameTheLimitingWindow` and `addAccountSheetFitsItsContentForEachProvider` (AccountNavigationTests); the sheet test fails against the round 2 sheet code. `lowestCurrentExcludesStaleAndSignInRequiredReadings` (AccountQuotaSummaryTests).
+
+The crit captured 15 demo surfaces in light and dark appearance (30 PNGs with manifests) from the packaged app with fictional demo data. Its register has 51 findings: 29 fixed, 10 unverified, and 12 open, with a worst open severity of 2. Measured: status menu state lines 12.00:1 (2.25:1 before); sidebar state symbols 4.34:1 to 6.29:1 in light appearance (Low was 2.02:1); Home table and calendar Low triangle still 2.33:1 in light appearance (HOME-18).
+
+Sidebar material (HOME-04): Finder, Music, and a minimal `NSSplitViewController` sidebar app linked against SDK 27 show the same flat, full-height sidebar as this app in inactive-window captures on this machine. Toolbar items render as Liquid Glass capsules.
+
+Not verified: every surface that needs pointer input (account page, Settings, add-account and sign-in sheets, remove confirmation, Platform pane, File menu, popover, Month view, minimum window), because the shell has no Accessibility access; the status item glyph, number, and tooltip (MENU-07 is covered by a unit test only); keyboard paths; VoiceOver speech; key-window appearance; real Increase Contrast and Reduce Transparency (the `--increase-contrast` capture was pixel-identical to the light capture); light system menu appearance. Earlier limits (live providers, Intel execution, macOS 14 runtime, notarization) remain in effect.
+
+## Design crit round 3 open findings fixed, October 14, 2026
+
+Tested revision `c0a5078` on branch `claude/elastic-robinson-7919c3`, rebased onto `main` (`be9fcda`), on macOS 27.0.1 (26A434), Apple silicon, macOS 27 SDK, and Swift 6.4. The rebase dropped six crit skill commits that `main` already holds in squashed form (#15); the rebased tree is identical to the tree before the rebase. Four commits fix the 12 open findings of the [round 3 crit](design/crits/2026-10-14-round3.md) in its proposed batch order, and one more fixes a leftover the recapture found.
+
+| Command or inspection | Observed result |
+| --- | --- |
+| `swift test` | Passed. Swift Testing passed 57 tests and 21 tests in its two reported runs. |
+| `swift build -c release` | Passed, with only the existing SecKeychain deprecation warnings. |
+| `scripts/package_app.sh` | Passed. `codesign --verify --strict` passed (ad hoc). |
+| `vtool -show-build` on the packaged executable | `minos 14.0`, `sdk 27.0`, arm64. |
+
+New or extended focused tests: `stateSymbolColorsReachThreeToOneInLightAppearance` (HOME-18); `quotaCellTextFitsAtTheMinimumWindowWidth` now also lays out the reading-states fixture (HOME-22), and on its first run found the Earned resets line `Stale · last read 14:54` (118 points) truncating in its 108 point column; `outdatedAndMissingReadingsUseOneWording` (ACCOUNT-05, HOME-08); `lowestLastKnownUsesOutdatedReadingsAndSkipsUnmeasuredOnes` (MENU-12); `accountWithoutReadingShowsAStateLineAndOpenAccount` (MENU-13); `sidebarStateSymbolFollowsTheEmphasizedSelection` (HOME-21); the account navigation test now checks the provider prefix for a shared email (HOME-19).
+
+Recaptured with the crit skill's `capture_windows.swift` from the packaged app in demo mode, each fixture as its own instance, filtered by PID (8 surfaces in `.crit/2026-10-14-round3-fixes/captures/`): home (light, dark, `--increase-contrast`), home-states (light, dark), menu, menu-states, and `--demo` Home. Measured in light appearance with the most saturated symbol pixel: the Low triangle is #B66E33 at 3.99 to 4.02:1 on white in both the table and the calendar (2.33:1 before), and Limit reached is #B33B33 at 5.85:1. The sidebar uses the same color. A real AI Usage Stats instance with saved accounts was running from another checkout and was left alone, so the status item strip was not captured.
+
+Not verified: the status item glyph and tooltip for the MENU-12 fallback (unit test only); the account page (ACCOUNT-05 is source and shared-function only); the View > Show Account submenu, which needs pointer or keyboard input (HOME-23, source only); keyboard Tab order from the sidebar Home row (HOME-20 is verified only as the absence of the event focus ring in captures); a key-window capture of a selected Low row (HOME-21, unit test only); the minimum 1020 × 640 point window on screen; VoiceOver speech. Earlier limits (live providers, Intel execution, macOS 14 runtime, notarization) remain in effect.

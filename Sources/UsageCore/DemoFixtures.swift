@@ -5,7 +5,7 @@ public enum DemoFixtures {
         AccountProfile(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, provider: .claude,
                        label: "Example personal", source: .demo, providerEmail: "personal@example.invalid", sourcePath: "/Example/claude-personal"),
         AccountProfile(id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!, provider: .codex,
-                       label: "Example work", source: .demo, providerAccountID: "example-codex-account", providerEmail: "person@example.invalid"),
+                       label: "Example work", source: .demo, providerAccountID: "example-codex-account", providerEmail: "personal@example.invalid"),
         AccountProfile(id: UUID(uuidString: "00000000-0000-0000-0000-000000000003")!, provider: .claude,
                        label: "Example research", source: .demo, providerEmail: "research.department@example.invalid"),
         AccountProfile(id: UUID(uuidString: "00000000-0000-0000-0000-000000000004")!, provider: .claude,
@@ -34,7 +34,7 @@ public enum DemoFixtures {
                                                     detail: "OpenAI API balances are entered manually."),
                                       CreditBalance(id: "provider_credits", title: "Codex credits", amount: 14,
                                                     unit: .credits, asOf: now),
-                                      CreditBalance(id: "quota_reset_credits", title: "Quota resets", amount: 2,
+                                      CreditBalance(id: "quota_reset_credits", title: "Earned resets", amount: 2,
                                                     unit: .resets, asOf: now),
                                       CreditBalance(id: "quota_reset_example", title: "Example reset grant", amount: nil,
                                                     unit: .resets, expiresAt: now.addingTimeInterval(86_400),
@@ -117,9 +117,9 @@ public enum DemoFixtures {
                         resetsAt: resetsAfter.map { now.addingTimeInterval($0) }, windowDurationMinutes: duration)
         }
         func earnedResets(_ amount: Int, expiresAfter: TimeInterval) -> [CreditBalance] {
-            [CreditBalance(id: "quota_reset_credits", title: "Quota resets", amount: Decimal(amount), unit: .resets,
+            [CreditBalance(id: "quota_reset_credits", title: "Earned resets", amount: Decimal(amount), unit: .resets,
                            asOf: now)] + (0..<amount).map { index in
-                CreditBalance(id: "quota_reset_example_\(index + 1)", title: "Quota reset", amount: nil,
+                CreditBalance(id: "quota_reset_example_\(index + 1)", title: "Earned reset", amount: nil,
                               unit: .resets, expiresAt: now.addingTimeInterval(expiresAfter), asOf: now,
                               status: "available")
             }

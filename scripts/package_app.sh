@@ -23,6 +23,10 @@ if [[ "$universal" != 0 && "$universal" != 1 ]]; then
 fi
 
 build_arguments=(-c release)
+# SwiftPM's default build system records SDK 14.0 in the binary, which makes current
+# macOS keep the pre-Liquid Glass appearance. Record the SDK actually used to build.
+sdk_version="$(xcrun --sdk macosx --show-sdk-version)"
+build_arguments+=(-Xlinker -platform_version -Xlinker macos -Xlinker 14.0 -Xlinker "$sdk_version")
 if [[ "$universal" == 1 ]]; then
     build_arguments+=(--arch arm64 --arch x86_64)
 fi

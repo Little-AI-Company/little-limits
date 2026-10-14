@@ -11,6 +11,8 @@ public enum AccountSource: String, Codable, Sendable {
     case claudeCLI
     case claudeOAuth
     case codexCLI
+    /// Reads the Codex CLI's own login on this Mac (`$CODEX_HOME` or `~/.codex`) without changing it.
+    case codexDefaultLogin
     case manual
     case demo
 }
@@ -34,6 +36,20 @@ public struct AccountProfile: Identifiable, Codable, Sendable, Equatable {
         self.providerEmail = providerEmail
         self.sourcePath = sourcePath
     }
+}
+
+/// A signed-in Codex CLI login on this Mac that a new account can read without signing in again.
+public struct CodexCurrentLogin: Sendable, Equatable {
+    public let email: String?
+    public let home: URL
+}
+
+/// How waiting for a Terminal `codex login` ended.
+public enum CodexSignInOutcome: Sendable, Equatable {
+    case signedIn(AccountSnapshot)
+    case timedOut
+    case cancelled
+    case accountRemoved
 }
 
 public enum SnapshotState: String, Codable, Sendable {
@@ -177,7 +193,7 @@ public enum UsageFormatting {
     }
 
     public static func countdown(to date: Date?, now: Date = Date()) -> String {
-        guard let date else { return "Reset unavailable" }
+        guard let date else { return "Reset time unknown" }
         let seconds = max(0, date.timeIntervalSince(now))
         guard seconds > 0 else { return "Reset due" }
         let minutes = Int(ceil(seconds / 60))

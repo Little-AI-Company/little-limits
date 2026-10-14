@@ -7,6 +7,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         || CommandLine.arguments.contains("--demo-home")
         || CommandLine.arguments.contains("--demo-reading-states"))
     private let statusMenu = NSMenu(title: "AI Usage Stats")
+    private let accountFilterMenu = NSMenu(title: "Show Account")
     private var isMenuTracking = false
     private var statusItem: NSStatusItem?
     private var displayedStatusSummary: StatusItemSummary?
@@ -24,8 +25,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         statusMenu.autoenablesItems = false
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
-            button.title = "AI"
-            button.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+            button.image = StatusItemImage.appGlyph
+            button.imagePosition = .imageOnly
             button.setAccessibilityLabel("AI Usage Stats")
             button.setAccessibilityHelp("Open account usage and remaining quota")
         }
@@ -33,7 +34,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         item.menu = statusMenu
         model.onChange = { [weak self] in self?.render() }
         model.onError = { [weak self] message in self?.showError(message) }
-        model.onLoginCommand = { [weak self] command, id in self?.openLogin(command: command, accountID: id) }
+        model.onLoginCommand = { [weak self] command, id in self?.openLogin(command: command, accountID: id) ?? false }
+        model.onCodexLoginChoice = { [weak self] login in await self?.chooseCodexLogin(login) ?? .cancel }
+        model.onShowAccount = { [weak self] id in
+            self?.revealAccountsWindow(nil)
+            self?.accounts?.showAccount(id: id)
+        }
         model.onConsoleRefresh = { [weak self] in self?.refreshConsoleCredits() }
         let notifications = NSWorkspace.shared.notificationCenter
         notifications.addObserver(self, selector: #selector(willSleep(_:)), name: NSWorkspace.willSleepNotification, object: nil)
@@ -59,6 +65,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     func applicationWillTerminate(_ notification: Notification) {
         refreshTimer?.invalidate()
         model.cancelRefresh()
+        model.cancelCodexSignInWaits()
         claudeSignIn?.stop()
         platformControllers.values.forEach { $0.pause() }
         NSWorkspace.shared.notificationCenter.removeObserver(self)
@@ -76,34 +83,80 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             platformControllers.removeValue(forKey: id)?.retire()
         }
         if accounts?.window?.isVisible == true { accounts?.render() }
+        // An open menu is not rebuilt, so keep its Reconnect… and Refresh All commands in step with refresh and
+        // account changes.
+        if isMenuTracking {
+            for item in statusMenu.items where item.action == #selector(reconnectAccountFromMenu(_:)) {
+                item.isEnabled = canReconnectFromMenu
+            }
+            for item in statusMenu.items where item.action == #selector(refreshAllAccounts(_:)) {
+                item.title = model.isRefreshing ? "Refreshing…" : "Refresh All"
+                item.isEnabled = validateMenuItem(item)
+            }
+        }
+        // The number per provider prefers current readings, so an old or signed-out zero never hides a current
+        // value. With no current reading the provider shows its lowest last known value with the stale mark;
+        // `?` means it was never measured. The tooltip names the account and window behind the number.
+        let now = Date()
+        var showsLastKnown = false
         var readings: [StatusItemSummary.Reading] = []
         var descriptions: [String] = []
         for provider in [Provider.claude, .codex] {
             let profiles = model.profiles.filter { $0.provider == provider }
             guard !profiles.isEmpty else { continue }
-            let values = profiles.flatMap { model.snapshots[$0.id]?.currentWindows ?? [] }.compactMap(\.utilizationPercent).filter(\.isFinite)
-            let remaining = values.max().map { Int((100 - min(100, max(0, $0))).rounded()) }
+            let name = InterfaceFormatting.provider(provider)
+            let ids = profiles.map(\.id)
+            let current = AccountQuotaSummary.lowestCurrent(accountIDs: ids, snapshots: model.snapshots, now: now)
+            let lastKnown = current == nil ? AccountQuotaSummary.lowestLastKnown(accountIDs: ids, snapshots: model.snapshots, now: now) : nil
+            if lastKnown != nil { showsLastKnown = true }
+            let lowest = current ?? lastKnown
+            let remaining = lowest.map { Int(min(100, max(0, $0.remainingPercent)).rounded()) }
             readings.append(StatusItemSummary.Reading(provider: provider, remainingPercent: remaining))
-            descriptions.append("\(InterfaceFormatting.provider(provider)): \(remaining.map { "\($0)% lowest remaining quota" } ?? "usage unavailable") across \(profiles.count) account\(profiles.count == 1 ? "" : "s")")
+            let notCurrent = profiles.compactMap { profile -> String? in
+                let summary = AccountQuotaSummary(snapshot: model.snapshots[profile.id], accountID: profile.id, now: now)
+                guard let reason = Self.notCurrentReason(summary) else { return nil }
+                return "\(InterfaceFormatting.accountIdentity(profile)): \(reason)"
+            }
+            if let current, let remaining, let profile = profiles.first(where: { $0.id == current.accountID }) {
+                let others = notCurrent.isEmpty ? "" : " (\(notCurrent.count) other account\(notCurrent.count == 1 ? "" : "s") not current)"
+                descriptions.append("\(name): \(remaining)% left on \(InterfaceFormatting.accountIdentity(profile)), "
+                    + InterfaceFormatting.usageTitle(current.windowTitle) + others)
+            } else if let lastKnown, let remaining, let profile = profiles.first(where: { $0.id == lastKnown.accountID }) {
+                descriptions.append("\(name): no current reading. Last known \(remaining)% left on \(InterfaceFormatting.accountIdentity(profile)), "
+                    + InterfaceFormatting.usageTitle(lastKnown.windowTitle) + ". " + notCurrent.joined(separator: "; "))
+            } else {
+                descriptions.append("\(name): no current reading. " + notCurrent.joined(separator: "; "))
+            }
         }
         let stale = model.profiles.contains {
             guard let snapshot = model.snapshots[$0.id] else { return false }
             return snapshot.state == .stale || snapshot.state == .authenticationRequired
-                || snapshot.fetchedAt.map { Date().timeIntervalSince($0) >= 300 } == true
-                || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= Date() } == true }
+                || snapshot.fetchedAt.map { now.timeIntervalSince($0) >= 300 } == true
+                || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
         }
-        let summary = StatusItemSummary(readings: readings, isStale: stale)
+        let summary = StatusItemSummary(readings: readings, isStale: stale || showsLastKnown)
         if displayedStatusSummary != summary, let button = statusItem?.button {
-            button.title = readings.isEmpty ? "AI" : ""
-            button.image = readings.isEmpty ? nil : StatusItemImage.render(summary)
-            button.imagePosition = readings.isEmpty ? .noImage : .imageOnly
+            button.image = readings.isEmpty ? StatusItemImage.appGlyph : StatusItemImage.render(summary)
+            button.imagePosition = .imageOnly
             button.imageScaling = .scaleProportionallyDown
             displayedStatusSummary = summary
         }
-        let help = "AI Usage Stats\n" + descriptions.joined(separator: "\n") + (stale ? "\nSome usage is stale or needs sign-in. Open for details." : "")
+        let marked = summary.isStale
+        let help = "AI Usage Stats\n" + descriptions.joined(separator: "\n") + (marked ? "\nSome usage is stale or needs sign-in. Open for details." : "")
         if statusItem?.button?.toolTip != help {
             statusItem?.button?.toolTip = help
-            statusItem?.button?.setAccessibilityValue(descriptions.joined(separator: ". ") + (stale ? ". Some usage is stale or needs sign-in." : ""))
+            statusItem?.button?.setAccessibilityValue(descriptions.joined(separator: ". ") + (marked ? ". Some usage is stale or needs sign-in." : ""))
+        }
+    }
+
+    /// Why an account's reading does not count toward the status item number, or nil when it is current.
+    private static func notCurrentReason(_ summary: AccountQuotaSummary) -> String? {
+        switch summary {
+        case .available: nil
+        case .authenticationRequired: "Sign-in required"
+        case .stale: "Stale"
+        case .inactive: "No active usage window"
+        case .unavailable, .unknown: "Unavailable"
         }
     }
 
@@ -113,6 +166,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        if menu === accountFilterMenu {
+            let items = accounts?.accountFilterMenuItems() ?? []
+            menu.items = items.isEmpty ? [NSMenuItem(title: "All Accounts", action: nil, keyEquivalent: "")] : items
+            return
+        }
         guard menu === statusMenu, !isMenuTracking else { return }
         rebuildStatusMenu()
     }
@@ -209,7 +267,18 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     @objc private func showSettings(_ sender: Any?) {
         presentAccountsWindow(sender, presentation: .settings)
     }
-    @objc private func refreshAccounts(_ sender: Any?) { model.refresh() }
+    @objc func refreshAllAccounts(_ sender: Any?) { model.refresh() }
+
+    @objc private func openAccountFromMenu(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? UUID else { return }
+        presentAccountsWindow(sender, presentation: .preserve)
+        accounts?.showAccount(id: id)
+    }
+    @objc private func reconnectAccountFromMenu(_ sender: NSMenuItem) {
+        guard canReconnectFromMenu, let id = sender.representedObject as? UUID else { return }
+        presentAccountsWindow(sender, presentation: .preserve)
+        accounts?.reconnectAccount(id: id)
+    }
 
     @objc private func addClaudeAccount(_ sender: Any?) { addAccount(.claude) }
     @objc private func addCodexAccount(_ sender: Any?) { addAccount(.codex) }
@@ -220,9 +289,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         accounts?.connect(provider)
     }
 
-    @objc private func showAccountLoadError(_ sender: Any?) {
-        if let message = model.message { showError(message) }
-    }
     @objc private func reloadAccounts(_ sender: Any?) {
         guard accountsLoaded else { return }
         accountsLoaded = false
@@ -238,29 +304,38 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
-        case #selector(refreshAccounts(_:)):
+        case #selector(refreshAllAccounts(_:)):
             return accountsLoaded && !model.profiles.isEmpty && !model.isDemo && !model.isRefreshing && !model.isChangingAccounts
         case #selector(addClaudeAccount(_:)), #selector(addCodexAccount(_:)):
             return accountsLoaded && !model.hasAccountLoadFailure && !model.isDemo
                 && !model.isRefreshing && !model.isChangingAccounts
         case #selector(reloadAccounts(_:)):
             return accountsLoaded
+        case #selector(reconnectAccountFromMenu(_:)):
+            return canReconnectFromMenu
         default:
             return true
         }
+    }
+
+    /// The account page's rule for Reconnect…: not demo, not refreshing, not changing accounts, no sheet open.
+    private var canReconnectFromMenu: Bool {
+        !model.isDemo && !model.isRefreshing && !model.isChangingAccounts && accounts?.window?.attachedSheet == nil
     }
 
     private func rebuildStatusMenu() {
         statusMenu.removeAllItems()
         statusItem?.button?.setAccessibilityHelp(model.profiles.isEmpty ? "Add an account or open settings" : "Open account usage and remaining quota")
         guard accountsLoaded else {
-            statusMenu.addItem(UsageMenu.reading("Loading Accounts…"))
+            statusMenu.addItem(UsageMenu.progress("Loading Accounts…"))
             statusMenu.addItem(.separator())
             appendApplicationCommands(includeRefresh: false)
             return
         }
         if model.hasAccountLoadFailure {
-            statusMenu.addItem(command(title: "Accounts Could Not Be Loaded…", action: #selector(showAccountLoadError(_:))))
+            // Opens the window, whose Home page explains the failure and offers Retry.
+            statusMenu.addItem(UsageMenu.stateLine("Accounts could not be loaded", detail: model.message,
+                                                   target: self, action: #selector(showAccounts(_:))))
             statusMenu.addItem(command(title: "Retry Loading Accounts", action: #selector(reloadAccounts(_:))))
             statusMenu.addItem(.separator())
             appendApplicationCommands(includeRefresh: false)
@@ -272,16 +347,22 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
         let now = Date()
         for item in UsageMenu.accountItems(profiles: model.profiles, snapshots: model.snapshots,
-                                           consoleMessages: model.consoleMessages, now: now) {
+                                           consoleMessages: model.consoleMessages, now: now, target: self,
+                                           openAction: #selector(openAccountFromMenu(_:)),
+                                           reconnectAction: #selector(reconnectAccountFromMenu(_:))) {
+            // The status menu does not autoenable items, so validate Reconnect… here.
+            if item.action == #selector(reconnectAccountFromMenu(_:)) { item.isEnabled = validateMenuItem(item) }
             statusMenu.addItem(item)
         }
-        if let message = model.message { statusMenu.addItem(UsageMenu.reading(message)) }
-        if model.isChangingAccounts { statusMenu.addItem(UsageMenu.reading("Saving account…")) }
+        if let message = model.message {
+            statusMenu.addItem(UsageMenu.stateLine(message, detail: message, target: self, action: #selector(showAccounts(_:))))
+        }
+        if model.isChangingAccounts { statusMenu.addItem(UsageMenu.progress("Saving account…")) }
         appendApplicationCommands(includeRefresh: !model.profiles.isEmpty, includeSetup: model.profiles.isEmpty)
     }
 
     private func appendApplicationCommands(includeRefresh: Bool, includeSetup: Bool = false) {
-        let commands = makeApplicationMenu(includeRefresh: includeRefresh, includeSetup: includeSetup, includeSettings: false)
+        let commands = makeApplicationMenu(includeRefresh: includeRefresh, includeSetup: includeSetup, includeSettings: true)
         for item in commands.items {
             commands.removeItem(item)
             statusMenu.addItem(item)
@@ -322,6 +403,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         if let id { platformControllers.removeValue(forKey: id)?.retire() }
         let controller = ClaudeSignInWindowController(model: model, existingProfileID: id, label: label)
         claudeSignIn = controller
+        controller.onConnected = { [weak self] id in self?.accounts?.showAccount(id: id) }
         controller.presentSheet(in: parent)
     }
     private func refreshConsoleCredits() {
@@ -331,15 +413,32 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
     }
 
-    private func openLogin(command: String, accountID: UUID) {
+    /// Shows the account page, which reports the wait, then opens the login in Terminal.
+    private func openLogin(command: String, accountID: UUID) -> Bool {
+        accounts?.showAccount(id: accountID)
         do {
             let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AIUsageStatsLogin", isDirectory: true)
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let script = directory.appendingPathComponent("codex_login_\(accountID.uuidString).command")
             try ("#!/bin/zsh\n\(command)\n").write(to: script, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)
-            NSWorkspace.shared.open(script)
-        } catch { showError("Could not open Codex sign-in: \(error.localizedDescription)") }
+            guard NSWorkspace.shared.open(script) else {
+                showError("Could not open Codex sign-in in Terminal. Choose Reconnect… to try again.")
+                return false
+            }
+            return true
+        } catch {
+            showError("Could not open Codex sign-in: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// Asks whether a new Codex account reads this Mac's signed-in Codex CLI login or signs in separately.
+    private func chooseCodexLogin(_ login: CodexCurrentLogin) async -> CodexLoginChoice {
+        revealAccountsWindow(nil)
+        // Without a window to attach the question to, keep the separate sign-in that the add sheet described.
+        guard let window = accounts?.window, window.attachedSheet == nil else { return .signInSeparately }
+        return await AddAccountSheetController.chooseCodexLogin(login, in: window)
     }
     private func showError(_ message: String) {
         let alert = NSAlert()
@@ -356,6 +455,19 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         menu.addItem(app)
         let file = NSMenuItem()
         let fileMenu = NSMenu(title: "File")
+        fileMenu.addItem(nilTargetItem("Add Account…", #selector(WindowCommandHandling.addAccount(_:)), "n"))
+        fileMenu.addItem(.separator())
+        // Selected-account commands; disabled until the window or account page implements and validates them.
+        fileMenu.addItem(nilTargetItem("Reconnect…", #selector(WindowCommandHandling.reconnectSelectedAccount(_:)), ""))
+        fileMenu.addItem(nilTargetItem("Open Billing", #selector(WindowCommandHandling.openSelectedAccountBilling(_:)), ""))
+        for (title, action, key) in [("Move Up", #selector(WindowCommandHandling.moveSelectedAccountUp(_:)), NSUpArrowFunctionKey),
+                                     ("Move Down", #selector(WindowCommandHandling.moveSelectedAccountDown(_:)), NSDownArrowFunctionKey)] {
+            let item = nilTargetItem(title, action, String(UnicodeScalar(key)!))
+            item.keyEquivalentModifierMask = [.command, .option]
+            fileMenu.addItem(item)
+        }
+        fileMenu.addItem(nilTargetItem("Delete Account…", #selector(WindowCommandHandling.removeSelectedAccount(_:)), ""))
+        fileMenu.addItem(.separator())
         fileMenu.addItem(NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
         file.submenu = fileMenu
         menu.addItem(file)
@@ -369,6 +481,26 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
         edit.submenu = editMenu
         menu.addItem(edit)
+        let view = NSMenuItem()
+        let viewMenu = NSMenu(title: "View")
+        let sidebar = NSMenuItem(title: "Show Sidebar", action: #selector(NSSplitViewController.toggleSidebar(_:)), keyEquivalent: "s")
+        sidebar.keyEquivalentModifierMask = [.command, .control]
+        viewMenu.addItem(sidebar)
+        viewMenu.addItem(.separator())
+        viewMenu.addItem(nilTargetItem("Month", #selector(WindowCommandHandling.showMonthPeriod(_:)), "1"))
+        viewMenu.addItem(nilTargetItem("2 Weeks", #selector(WindowCommandHandling.showTwoWeekPeriod(_:)), "2"))
+        viewMenu.addItem(.separator())
+        viewMenu.addItem(nilTargetItem("Previous", #selector(WindowCommandHandling.showPreviousPeriod(_:)), "["))
+        viewMenu.addItem(nilTargetItem("Next", #selector(WindowCommandHandling.showNextPeriod(_:)), "]"))
+        viewMenu.addItem(nilTargetItem("Today", #selector(WindowCommandHandling.showCurrentPeriod(_:)), "t"))
+        viewMenu.addItem(.separator())
+        // The toolbar Accounts filter as a menu command; Home supplies the items each time the submenu opens.
+        let showAccount = NSMenuItem(title: "Show Account", action: nil, keyEquivalent: "")
+        accountFilterMenu.delegate = self
+        showAccount.submenu = accountFilterMenu
+        viewMenu.addItem(showAccount)
+        view.submenu = viewMenu
+        menu.addItem(view)
         let window = NSMenuItem()
         let windowMenu = NSMenu(title: "Window")
         windowMenu.addItem(NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"))
@@ -377,6 +509,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         NSApp.windowsMenu = windowMenu
         NSApp.mainMenu = menu
     }
+    /// A command dispatched through the responder chain; disabled when no responder implements it.
+    private func nilTargetItem(_ title: String, _ action: Selector, _ key: String) -> NSMenuItem {
+        NSMenuItem(title: title, action: action, keyEquivalent: key)
+    }
+
     private func makeApplicationMenu(includeRefresh: Bool = true, includeSetup: Bool = false, includeSettings: Bool = true) -> NSMenu {
         let menu = NSMenu(title: "AI Usage Stats")
         if includeSetup {
@@ -384,8 +521,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             menu.addItem(command(title: "Add Codex Account…", action: #selector(addCodexAccount(_:))))
             menu.addItem(.separator())
         }
-        if includeRefresh { menu.addItem(command(title: model.isRefreshing ? "Refreshing…" : "Refresh", action: #selector(refreshAccounts(_:)), key: "r")) }
-        menu.addItem(command(title: "Manage Accounts…", action: #selector(showAccounts(_:))))
+        if includeRefresh { menu.addItem(command(title: model.isRefreshing ? "Refreshing…" : "Refresh All", action: #selector(refreshAllAccounts(_:)), key: "r")) }
+        menu.addItem(command(title: "Open AI Usage Stats", action: #selector(showAccounts(_:))))
         if includeSettings { menu.addItem(command(title: "Settings…", action: #selector(showSettings(_:)), key: ",")) }
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit AI Usage Stats", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))

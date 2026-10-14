@@ -42,20 +42,20 @@ struct ClaudeAuthorization: Sendable {
               components.scheme == "http", components.host == "localhost", components.port == 54545,
               components.path == "/callback", components.user == nil, components.password == nil,
               components.fragment == nil else {
-            throw UsageError.authenticationRequired("Claude sign-in expired or returned an unexpected callback. Connect again.")
+            throw UsageError.authenticationRequired("Claude sign-in expired or returned an unexpected callback. Try again.")
         }
         let items = components.queryItems ?? []
         guard items.filter({ $0.name == "code" }).count == 1,
               items.filter({ $0.name == "state" }).count <= 1,
               !items.contains(where: { $0.name == "error" }),
               let returnedCode = items.first(where: { $0.name == "code" })?.value, !returnedCode.isEmpty else {
-            throw UsageError.authenticationRequired("Claude sign-in was not completed. Connect again.")
+            throw UsageError.authenticationRequired("Claude sign-in was not completed. Try again.")
         }
         let parts = returnedCode.split(separator: "#", omittingEmptySubsequences: false)
         let returnedState = items.first(where: { $0.name == "state" })?.value ?? (parts.count == 2 ? String(parts[1]) : nil)
         guard returnedState == state, parts.count <= 2, !parts[0].isEmpty,
               parts.count != 2 || parts[1] == state else {
-            throw UsageError.authenticationRequired("Claude sign-in did not match this connection. Connect again.")
+            throw UsageError.authenticationRequired("Claude sign-in did not match this connection. Try again.")
         }
         return String(parts[0])
     }
@@ -141,10 +141,10 @@ struct ClaudeKeychainStore: ClaudeCredentialStore {
         guard status == errSecSuccess, let data = result as? Data else {
             throw UsageError.authenticationRequired(status == errSecInteractionNotAllowed || status == errSecAuthFailed
                 ? "Claude Keychain access needs permission. Your saved sign-in is preserved; allow Keychain access for this account."
-                : "Claude credentials are unavailable in Keychain. Connect this account again.")
+                : "Claude credentials are unavailable in Keychain. Reconnect this account.")
         }
         do { return try JSONDecoder().decode(ClaudeCredentials.self, from: data) }
-        catch { throw UsageError.authenticationRequired("Saved Claude credentials are incomplete. Connect this account again.") }
+        catch { throw UsageError.authenticationRequired("Saved Claude credentials are incomplete. Reconnect this account.") }
     }
 
     func save(_ credentials: ClaudeCredentials, accountID: UUID, allowInteraction: Bool) throws {
@@ -160,7 +160,7 @@ struct ClaudeKeychainStore: ClaudeCredentialStore {
             return SecItemAdd(entry as CFDictionary, nil)
         }
         guard status == errSecSuccess else {
-            throw UsageError.authenticationRequired("Could not save Claude credentials in Keychain. Connect this account again.")
+            throw UsageError.authenticationRequired("Could not save Claude credentials in Keychain. Reconnect this account.")
         }
     }
 
@@ -273,7 +273,7 @@ struct ClaudeProviderProfile: Decodable, Sendable {
     func resolvedIdentity(expected: String? = nil, tokenAccount: UUID? = nil, tokenOrganization: UUID? = nil) throws -> String {
         guard tokenAccount == nil || tokenAccount == account.uuid,
               organization == nil || tokenOrganization == nil || organization?.uuid == tokenOrganization else {
-            throw UsageError.authenticationRequired("Claude returned conflicting account or organization details. Connect the intended account again.")
+            throw UsageError.authenticationRequired("Claude returned conflicting account or organization details. Sign in with the intended account.")
         }
         let reportedOrganization = organization?.uuid ?? tokenOrganization
         if let expected {
@@ -405,7 +405,7 @@ struct ClaudeUsageResponse: Decodable, Sendable {
         let stale = current.contains { $0.resetsAt.map { $0 <= observedAt } == true }
         return AccountSnapshot(profileID: profileID, fetchedAt: measured ? observedAt : nil, windows: result,
                                state: measured ? (stale ? .stale : .available) : .unavailable,
-                               detail: measured ? (stale ? "A reported quota reset has passed. Check usage again." : "Read from this Claude account.")
+                               detail: measured ? (stale ? "A reported quota reset has passed. Refresh to read current usage." : "Read from this Claude account.")
                                : "Claude returned no measured subscription quota. Your account may not expose these limits.",
                                planName: planName)
     }
@@ -458,13 +458,13 @@ struct ClaudeOAuthClient: Sendable {
         if authorizationExchange, [400, 401, 403].contains(response.status) {
             throw UsageError.authenticationRequired("Claude did not accept this read-only authorization. This experimental connection may be unavailable.")
         }
-        if [401, 403].contains(response.status) { throw UsageError.authenticationRequired("Claude access was refused. Connect this account again.") }
+        if [401, 403].contains(response.status) { throw UsageError.authenticationRequired("Claude access was refused. Reconnect this account.") }
         if response.status == 429 { throw UsageError.providerFailure("Claude is limiting usage checks. Wait before checking again.") }
         guard (200...299).contains(response.status) else {
             throw UsageError.providerFailure("Claude could not complete the account request (HTTP \(response.status)).")
         }
         guard response.contentType?.lowercased().contains("application/json") == true else {
-            throw UsageError.providerFailure("Claude returned an unexpected account response. Try connecting again.")
+            throw UsageError.providerFailure("Claude returned an unexpected account response. Try again.")
         }
         do { return try JSONDecoder().decode(type, from: response.body) }
         catch { throw UsageError.providerFailure("Claude returned incomplete or invalid account data.") }
