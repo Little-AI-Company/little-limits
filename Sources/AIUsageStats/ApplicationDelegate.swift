@@ -398,6 +398,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let fileMenu = NSMenu(title: "File")
         fileMenu.addItem(nilTargetItem("Add Account…", #selector(WindowCommandHandling.addAccount(_:)), "n"))
         fileMenu.addItem(.separator())
+        // Selected-account commands; disabled until the window or account page implements and validates them.
+        fileMenu.addItem(nilTargetItem("Reconnect…", #selector(WindowCommandHandling.reconnectSelectedAccount(_:)), ""))
+        fileMenu.addItem(nilTargetItem("Open Billing", #selector(WindowCommandHandling.openSelectedAccountBilling(_:)), ""))
+        fileMenu.addItem(nilTargetItem("Remove Account…", #selector(WindowCommandHandling.removeSelectedAccount(_:)), ""))
+        fileMenu.addItem(.separator())
         fileMenu.addItem(NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
         file.submenu = fileMenu
         menu.addItem(file)
