@@ -56,6 +56,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         home.onViewAccount = { [weak self] id in self?.showAccount(id: id) }
         home.onReconnectAccount = { [weak self] id in self?.reconnectAccount(id: id) }
         home.onRetryAccountLoad = { [weak self] in self?.onRetryAccountLoad?() }
+        home.onAddAccount = { [weak self] provider in self?.connect(provider) }
         home.isAccountLoadComplete = { [weak self] in self?.isAccountLoadComplete() ?? false }
         detail.onReconnect = { [weak self] id in self?.reconnectAccount(id: id) }
         detail.onConsoleConnection = { [weak self] id in self?.onConsoleConnection?(id) }
