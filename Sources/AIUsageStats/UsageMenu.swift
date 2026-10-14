@@ -28,8 +28,8 @@ enum UsageMenu {
         return item
     }
 
-    /// Account sections for the status menu. Reading rows open the account page; failure rows
-    /// carry `Reconnect…` or `Open Account…`. Both actions read the account id from `representedObject`.
+    /// Account sections for the status menu. State lines and reading rows open the account page; sections
+    /// that need attention end with `Reconnect…` or `Open Account`. Both actions read the account id from `representedObject`.
     static func accountItems(profiles: [AccountProfile], snapshots: [UUID: AccountSnapshot],
                              consoleMessages: [UUID: String], now: Date,
                              target: AnyObject, openAction: Selector, reconnectAction: Selector) -> [NSMenuItem] {
@@ -86,7 +86,7 @@ enum UsageMenu {
             }
             if state != nil || consoleMessages[profile.id] != nil {
                 let needsSignIn = snapshot?.state == .authenticationRequired
-                let item = NSMenuItem(title: needsSignIn ? "Reconnect…" : "Open Account…",
+                let item = NSMenuItem(title: needsSignIn ? "Reconnect…" : "Open Account",
                                       action: needsSignIn ? reconnectAction : openAction, keyEquivalent: "")
                 item.target = target
                 item.representedObject = profile.id
