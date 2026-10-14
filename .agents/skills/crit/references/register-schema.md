@@ -8,8 +8,6 @@ One JSON record per defect in `.crit/<review-id>/register.json`. The register fe
   "review": "2026-10-14-baseline",
   "revision": "bb445d3",
   "environment": "macOS 27.0.1, Apple silicon, packaged Release, 2x display",
-  "header": "UX diagnostic 4/10 · HIG 9 pass, 6 fail, 5 untested, 0 N/A · Changes required · Worst open severity 3",
-  "verdict": "Changes required. Worst open severity 3.",
   "walkthrough": ["One paragraph per step of a first-time user's experience."],
   "fix_batches": [{ "title": "1. Make the status menu readable.", "why": "Scope and files.", "findings": ["MENU-01"] }],
   "findings": [
@@ -49,4 +47,5 @@ Field values: `source` is `ux`, `hig`, or `both`. `evidence` is `measured`, `obs
 - HIG-only findings get the orchestrator's severity with a one-line rationale.
 - Surface order for sorting: status-menu, home, account, settings, add-account, platform, empty, error.
 - Quick Diagnostic: start at 10, subtract 2 per failed row whose worst open finding is severity 3 or 4, otherwise 1. Untested rows are not scored and never render as pass.
+- `build_report.py` derives the verdict and header from open findings, HIG outcomes, and the diagnostic score; the register does not store them.
 - A later round keeps finding IDs. Set `status` to `fixed` only with an after capture or test that shows the defect gone; counts, sections, and the verdict use open findings only.

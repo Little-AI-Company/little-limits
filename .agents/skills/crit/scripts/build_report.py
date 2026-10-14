@@ -56,6 +56,29 @@ def diagnostic_result(row: dict) -> str:
     return result
 
 
+def assessment(findings: list, register: dict) -> tuple:
+    """Derive the verdict and header from open findings, never from stored text."""
+    worst = max((int(finding.get("severity", 0)) for finding in findings), default=0)
+    outcomes = [outcome.get("outcome") for outcome in register.get("hig_outcomes", [])]
+    if worst >= 4:
+        verdict = "Blocked"
+    elif worst == 3:
+        verdict = "Changes required"
+    elif "untested" in outcomes:
+        verdict = "Review incomplete"
+    elif findings:
+        verdict = "Improvements identified"
+    else:
+        verdict = "Ready for decision"
+    score = register.get("diagnostic", {}).get("score")
+    parts = [f"UX diagnostic {score}/10"] if score is not None else []
+    if outcomes:
+        parts.append("HIG " + ", ".join(f"{outcomes.count(name)} {label}" for name, label in
+                                        (("pass", "pass"), ("fail", "fail"), ("untested", "untested"), ("na", "N/A"))))
+    parts += [verdict, f"Worst open severity {worst}"]
+    return f"{verdict}. Worst open severity {worst}.", " · ".join(parts)
+
+
 def surface_rank(finding: dict) -> int:
     surface = finding.get("surface", "")
     return SURFACE_ORDER.index(surface) if surface in SURFACE_ORDER else len(SURFACE_ORDER)
@@ -178,17 +201,18 @@ def main() -> None:
         f'<li><code>{escape(u.get("requirement", ""))}</code> {escape(u.get("needed"))}</li>' for u in register.get("untested", [])
     )
 
+    verdict, header = assessment(findings, register)
     resolved_items = "".join(
-        f'<li><a href="#{escape(f["id"])}">{escape(f["id"])}</a> <span class="outcome">{escape(f.get("status"))}</span> {escape(f.get("claim"))}</li>'
+        f'<li id="{escape(f["id"])}"><a href="#{escape(f["id"])}">{escape(f["id"])}</a> <span class="outcome">{escape(f.get("status"))}</span> {escape(f.get("claim"))}</li>'
         for f in resolved
     )
     template = (Path(__file__).with_name("report_template.html")).read_text()
     page = (
         template.replace("{{title}}", escape(register.get("title", "Design Crit")))
-        .replace("{{header}}", escape(register.get("header", "")))
+        .replace("{{header}}", escape(header))
         .replace("{{environment}}", escape(register.get("environment", "")))
         .replace("{{revision}}", escape(register.get("revision", "")))
-        .replace("{{verdict}}", escape(register.get("verdict", "")))
+        .replace("{{verdict}}", escape(verdict))
         .replace("{{counts}}", count_line)
         .replace("{{top}}", top)
         .replace("{{walkthrough}}", walkthrough)
