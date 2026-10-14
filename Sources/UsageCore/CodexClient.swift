@@ -100,11 +100,11 @@ public struct CodexUsageResponse: Decodable, Sendable {
                                          unit: .credits, asOf: observedAt, detail: detail, isUnlimited: balance.unlimited == true))
         }
         if let resetCredits = rateLimitResetCredits {
-            credits.append(CreditBalance(id: "quota_reset_credits", title: "Quota resets",
+            credits.append(CreditBalance(id: "quota_reset_credits", title: "Earned resets",
                                          amount: Decimal(resetCredits.availableCount), unit: .resets,
                                          asOf: observedAt))
             for credit in resetCredits.credits ?? [] {
-                credits.append(CreditBalance(id: "quota_reset_" + credit.id, title: credit.title ?? "Quota reset",
+                credits.append(CreditBalance(id: "quota_reset_" + credit.id, title: credit.title ?? "Earned reset",
                                              amount: nil, unit: .resets,
                                              expiresAt: credit.expiresAt.map(Date.init(timeIntervalSince1970:)),
                                              asOf: observedAt, status: credit.status, doesNotExpire: credit.doesNotExpire))

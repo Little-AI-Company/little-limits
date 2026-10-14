@@ -81,10 +81,21 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         for provider in [Provider.claude, .codex] {
             let profiles = model.profiles.filter { $0.provider == provider }
             guard !profiles.isEmpty else { continue }
-            let values = profiles.flatMap { model.snapshots[$0.id]?.currentWindows ?? [] }.compactMap(\.utilizationPercent).filter(\.isFinite)
-            let remaining = values.max().map { Int((100 - min(100, max(0, $0))).rounded()) }
+            var limiting: (used: Double, profile: AccountProfile)?
+            for profile in profiles {
+                let used = (model.snapshots[profile.id]?.currentWindows ?? []).compactMap(\.utilizationPercent).filter(\.isFinite).max()
+                if let used, used > (limiting?.used ?? -.infinity) { limiting = (used, profile) }
+            }
+            let remaining = limiting.map { Int((100 - min(100, max(0, $0.used))).rounded()) }
             readings.append(StatusItemSummary.Reading(provider: provider, remainingPercent: remaining))
-            descriptions.append("\(InterfaceFormatting.provider(provider)): \(remaining.map { "\($0)% lowest remaining quota" } ?? "usage unavailable") across \(profiles.count) account\(profiles.count == 1 ? "" : "s")")
+            let name = InterfaceFormatting.provider(provider)
+            let count = "\(profiles.count) account\(profiles.count == 1 ? "" : "s")"
+            if let remaining, let limiting {
+                let account = profiles.count > 1 ? " on \(InterfaceFormatting.accountIdentity(limiting.profile))" : ""
+                descriptions.append("\(name): \(remaining)% left\(account), lowest of \(count)")
+            } else {
+                descriptions.append("\(name): usage unavailable across \(count)")
+            }
         }
         let stale = model.profiles.contains {
             guard let snapshot = model.snapshots[$0.id] else { return false }
@@ -209,7 +220,18 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     @objc private func showSettings(_ sender: Any?) {
         presentAccountsWindow(sender, presentation: .settings)
     }
-    @objc private func refreshAccounts(_ sender: Any?) { model.refresh() }
+    @objc func refreshAllAccounts(_ sender: Any?) { model.refresh() }
+
+    @objc private func openAccountFromMenu(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? UUID else { return }
+        presentAccountsWindow(sender, presentation: .preserve)
+        accounts?.showAccount(id: id)
+    }
+    @objc private func reconnectAccountFromMenu(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? UUID else { return }
+        presentAccountsWindow(sender, presentation: .preserve)
+        accounts?.reconnectAccount(id: id)
+    }
 
     @objc private func addClaudeAccount(_ sender: Any?) { addAccount(.claude) }
     @objc private func addCodexAccount(_ sender: Any?) { addAccount(.codex) }
@@ -220,9 +242,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         accounts?.connect(provider)
     }
 
-    @objc private func showAccountLoadError(_ sender: Any?) {
-        if let message = model.message { showError(message) }
-    }
     @objc private func reloadAccounts(_ sender: Any?) {
         guard accountsLoaded else { return }
         accountsLoaded = false
@@ -238,7 +257,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
-        case #selector(refreshAccounts(_:)):
+        case #selector(refreshAllAccounts(_:)):
             return accountsLoaded && !model.profiles.isEmpty && !model.isDemo && !model.isRefreshing && !model.isChangingAccounts
         case #selector(addClaudeAccount(_:)), #selector(addCodexAccount(_:)):
             return accountsLoaded && !model.hasAccountLoadFailure && !model.isDemo
@@ -260,7 +279,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             return
         }
         if model.hasAccountLoadFailure {
-            statusMenu.addItem(command(title: "Accounts Could Not Be Loaded…", action: #selector(showAccountLoadError(_:))))
+            statusMenu.addItem(UsageMenu.reading("Accounts could not be loaded", detail: model.message))
             statusMenu.addItem(command(title: "Retry Loading Accounts", action: #selector(reloadAccounts(_:))))
             statusMenu.addItem(.separator())
             appendApplicationCommands(includeRefresh: false)
@@ -272,7 +291,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
         let now = Date()
         for item in UsageMenu.accountItems(profiles: model.profiles, snapshots: model.snapshots,
-                                           consoleMessages: model.consoleMessages, now: now) {
+                                           consoleMessages: model.consoleMessages, now: now, target: self,
+                                           openAction: #selector(openAccountFromMenu(_:)),
+                                           reconnectAction: #selector(reconnectAccountFromMenu(_:))) {
             statusMenu.addItem(item)
         }
         if let message = model.message { statusMenu.addItem(UsageMenu.reading(message)) }
@@ -281,7 +302,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
 
     private func appendApplicationCommands(includeRefresh: Bool, includeSetup: Bool = false) {
-        let commands = makeApplicationMenu(includeRefresh: includeRefresh, includeSetup: includeSetup, includeSettings: false)
+        let commands = makeApplicationMenu(includeRefresh: includeRefresh, includeSetup: includeSetup, includeSettings: true)
         for item in commands.items {
             commands.removeItem(item)
             statusMenu.addItem(item)
@@ -356,6 +377,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         menu.addItem(app)
         let file = NSMenuItem()
         let fileMenu = NSMenu(title: "File")
+        fileMenu.addItem(nilTargetItem("Add Account…", #selector(WindowCommandHandling.addAccount(_:)), "n"))
+        fileMenu.addItem(.separator())
         fileMenu.addItem(NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
         file.submenu = fileMenu
         menu.addItem(file)
@@ -369,6 +392,20 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
         edit.submenu = editMenu
         menu.addItem(edit)
+        let view = NSMenuItem()
+        let viewMenu = NSMenu(title: "View")
+        let sidebar = NSMenuItem(title: "Show Sidebar", action: #selector(NSSplitViewController.toggleSidebar(_:)), keyEquivalent: "s")
+        sidebar.keyEquivalentModifierMask = [.command, .control]
+        viewMenu.addItem(sidebar)
+        viewMenu.addItem(.separator())
+        viewMenu.addItem(nilTargetItem("Month", #selector(WindowCommandHandling.showMonthPeriod(_:)), "1"))
+        viewMenu.addItem(nilTargetItem("2 Weeks", #selector(WindowCommandHandling.showTwoWeekPeriod(_:)), "2"))
+        viewMenu.addItem(.separator())
+        viewMenu.addItem(nilTargetItem("Previous", #selector(WindowCommandHandling.showPreviousPeriod(_:)), "["))
+        viewMenu.addItem(nilTargetItem("Next", #selector(WindowCommandHandling.showNextPeriod(_:)), "]"))
+        viewMenu.addItem(nilTargetItem("Today", #selector(WindowCommandHandling.showCurrentPeriod(_:)), "t"))
+        view.submenu = viewMenu
+        menu.addItem(view)
         let window = NSMenuItem()
         let windowMenu = NSMenu(title: "Window")
         windowMenu.addItem(NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"))
@@ -377,6 +414,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         NSApp.windowsMenu = windowMenu
         NSApp.mainMenu = menu
     }
+    /// A command dispatched through the responder chain; disabled when no responder implements it.
+    private func nilTargetItem(_ title: String, _ action: Selector, _ key: String) -> NSMenuItem {
+        NSMenuItem(title: title, action: action, keyEquivalent: key)
+    }
+
     private func makeApplicationMenu(includeRefresh: Bool = true, includeSetup: Bool = false, includeSettings: Bool = true) -> NSMenu {
         let menu = NSMenu(title: "AI Usage Stats")
         if includeSetup {
@@ -384,8 +426,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             menu.addItem(command(title: "Add Codex Account…", action: #selector(addCodexAccount(_:))))
             menu.addItem(.separator())
         }
-        if includeRefresh { menu.addItem(command(title: model.isRefreshing ? "Refreshing…" : "Refresh", action: #selector(refreshAccounts(_:)), key: "r")) }
-        menu.addItem(command(title: "Manage Accounts…", action: #selector(showAccounts(_:))))
+        if includeRefresh { menu.addItem(command(title: model.isRefreshing ? "Refreshing…" : "Refresh All", action: #selector(refreshAllAccounts(_:)), key: "r")) }
+        menu.addItem(command(title: "Open AI Usage Stats", action: #selector(showAccounts(_:))))
         if includeSettings { menu.addItem(command(title: "Settings…", action: #selector(showSettings(_:)), key: ",")) }
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit AI Usage Stats", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))

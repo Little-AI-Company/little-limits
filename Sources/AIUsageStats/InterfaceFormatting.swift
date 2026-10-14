@@ -18,8 +18,10 @@ enum InterfaceFormatting {
     static func usageTitle(_ window: UsageWindow) -> String {
         if window.title == "5 hours" { return "5-hour" }
         if window.title == "7 days" { return "Weekly" }
-        if window.title.hasPrefix("5 hours (") { return window.title.replacingOccurrences(of: "5 hours", with: "5-hour") }
-        if window.title.hasPrefix("7 days (") { return window.title.replacingOccurrences(of: "7 days", with: "Weekly") }
+        for (raw, name) in [("5 hours", "5-hour"), ("7 days", "Weekly")] where window.title.hasPrefix(raw + " (") && window.title.hasSuffix(")") {
+            let scope = window.title.dropFirst(raw.count + 2).dropLast()
+            return "\(name) · \(scope)"
+        }
         return window.title
     }
 
@@ -28,6 +30,23 @@ enum InterfaceFormatting {
         if window.isActive == false { return "Inactive" }
         guard let used = window.utilizationPercent, used.isFinite else { return "Unavailable" }
         return "\(UsageFormatting.percentage(max(0, 100 - used))) left"
+    }
+
+    /// Remaining quota with the Home status word: `Low` or `Limit reached`.
+    static func remainingWithStatus(_ window: UsageWindow) -> String {
+        let value = remaining(window)
+        guard window.isActive != false, let used = window.utilizationPercent, used.isFinite else { return value }
+        switch HomeInterfaceFormatting.tone(for: max(0, 100 - used)) {
+        case .neutral: return value
+        case .warning: return "\(value) Low"
+        case .critical: return "\(value) Limit reached"
+        }
+    }
+
+    /// An old reading is prefixed so it is not mistaken for a current one.
+    static func lastKnownRemaining(_ window: UsageWindow) -> String {
+        let value = remaining(window)
+        return value == "Unavailable" || value == "Inactive" ? value : "Last known \(value)"
     }
 
     static func used(_ window: UsageWindow) -> String {
@@ -68,8 +87,8 @@ enum InterfaceFormatting {
     static func compactCreditTitle(_ balance: CreditBalance) -> String {
         switch balance.id {
         case "monthly_grant": return "Monthly grant"
-        case "api_balance": return balance.title == "Purchased API credits" ? "Purchased credits" : "API credits"
-        case "provider_credits": return "Credits"
+        case "api_balance": return balance.title == "Purchased API credits" ? "Purchased credits" : balance.title
+        case "provider_credits": return "Codex credits"
         default:
             if balance.id.hasPrefix("monthly_grant_") { return "Monthly grant" }
             if balance.id.hasPrefix("api_balance_") { return "Purchased credits" }
