@@ -273,13 +273,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         statusMenu.removeAllItems()
         statusItem?.button?.setAccessibilityHelp(model.profiles.isEmpty ? "Add an account or open settings" : "Open account usage and remaining quota")
         guard accountsLoaded else {
-            statusMenu.addItem(UsageMenu.reading("Loading Accounts…"))
+            statusMenu.addItem(UsageMenu.progress("Loading Accounts…"))
             statusMenu.addItem(.separator())
             appendApplicationCommands(includeRefresh: false)
             return
         }
         if model.hasAccountLoadFailure {
-            statusMenu.addItem(UsageMenu.reading("Accounts could not be loaded", detail: model.message))
+            // Opens the window, whose Home page explains the failure and offers Retry.
+            statusMenu.addItem(UsageMenu.stateLine("Accounts could not be loaded", detail: model.message,
+                                                   target: self, action: #selector(showAccounts(_:))))
             statusMenu.addItem(command(title: "Retry Loading Accounts", action: #selector(reloadAccounts(_:))))
             statusMenu.addItem(.separator())
             appendApplicationCommands(includeRefresh: false)
@@ -296,8 +298,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
                                            reconnectAction: #selector(reconnectAccountFromMenu(_:))) {
             statusMenu.addItem(item)
         }
-        if let message = model.message { statusMenu.addItem(UsageMenu.reading(message)) }
-        if model.isChangingAccounts { statusMenu.addItem(UsageMenu.reading("Saving account…")) }
+        if let message = model.message {
+            statusMenu.addItem(UsageMenu.stateLine(message, detail: message, target: self, action: #selector(showAccounts(_:))))
+        }
+        if model.isChangingAccounts { statusMenu.addItem(UsageMenu.progress("Saving account…")) }
         appendApplicationCommands(includeRefresh: !model.profiles.isEmpty, includeSetup: model.profiles.isEmpty)
     }
 

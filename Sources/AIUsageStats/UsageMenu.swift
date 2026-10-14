@@ -10,11 +10,20 @@ enum UsageMenu {
         let detail: String
     }
 
-    static func reading(_ title: String, detail: String? = nil) -> NSMenuItem {
+    /// A transient progress line with nothing to open, such as `Loading Accounts…`. AppKit draws it disabled.
+    static func progress(_ title: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = false
-        // Informational readings retain ordinary semantic text without becoming commands.
-        item.attributedTitle = NSAttributedString(string: title, attributes: [.foregroundColor: NSColor.labelColor])
+        return item
+    }
+
+    /// A state or error line. It is an enabled item with a real action so AppKit draws it at label
+    /// contrast, not disabled contrast; the full explanation is in the tooltip.
+    static func stateLine(_ title: String, detail: String?, target: AnyObject, action: Selector,
+                          accountID: UUID? = nil) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = target
+        item.representedObject = accountID
         item.toolTip = detail
         return item
     }
@@ -48,12 +57,13 @@ enum UsageMenu {
             items.append(heading)
             let state = snapshot.flatMap { accountState($0, now: now) }
             if let state {
-                let item = reading(state, detail: [observation, snapshot?.detail].compactMap { $0 }.joined(separator: "\n"))
+                let item = stateLine(state, detail: [observation, snapshot?.detail].compactMap { $0 }.joined(separator: "\n"),
+                                     target: target, action: openAction, accountID: profile.id)
                 item.indentationLevel = 1
                 items.append(item)
             }
             if let message = consoleMessages[profile.id] {
-                let item = reading("API Credits need attention", detail: message)
+                let item = stateLine("API Credits need attention", detail: message, target: target, action: openAction, accountID: profile.id)
                 item.indentationLevel = 1
                 items.append(item)
             }
