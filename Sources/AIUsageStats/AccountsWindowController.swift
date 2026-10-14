@@ -113,6 +113,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         table.allowsEmptySelection = true
         table.setAccessibilityLabel("Sidebar")
         table.setAccessibilityHelp("Select Home or an account. Use Add Account below the list. Remove selected account and Delete ask for confirmation.")
+        table.target = self
+        table.action = #selector(selectClickedSidebarRow(_:))
         table.accountMenu = { [weak self] row in self?.accountContextMenu(row: row) }
         table.removeSelectedAccount = { [weak self] in self?.removeSelectedAccount(nil) }
         let accountScroll = NSScrollView()
@@ -472,6 +474,15 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         }
         let quotaFont = AccountSidebarCellView.quotaFont(identitySize: identitySize)
         return tableView.rowHeight + ceil(NSLayoutManager().defaultLineHeight(for: quotaFont)) + AccountSidebarCellView.lineSpacing
+    }
+
+    /// Choosing the selected account row again returns from the Platform pane to the account page. Selection does not
+    /// change in that case, so `tableViewSelectionDidChange(_:)` is not called.
+    @objc private func selectClickedSidebarRow(_ sender: Any?) {
+        let row = table.clickedRow
+        guard section == .platform, row == table.selectedRow, let id = accountID(forSidebarRow: row), id == selectedID else { return }
+        showAccountDetail()
+        render()
     }
 
     func tableViewSelectionDidChange(_ notification: Notification) {
