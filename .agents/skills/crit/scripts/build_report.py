@@ -64,7 +64,8 @@ def assessment(findings: list, register: dict) -> tuple:
         verdict = "Blocked"
     elif worst == 3:
         verdict = "Changes required"
-    elif "untested" in outcomes:
+    elif ("untested" in outcomes or register.get("untested")
+          or any(row.get("result") == "untested" for row in register.get("diagnostic", {}).get("rows", []))):
         verdict = "Review incomplete"
     elif findings:
         verdict = "Improvements identified"
@@ -156,8 +157,13 @@ def main() -> None:
                 continue
             screenshots: "OrderedDict[str, list]" = OrderedDict()
             for finding in surface_findings:
-                if finding.get("screenshot") and (captures / finding["screenshot"]).exists():
-                    screenshots.setdefault(finding["screenshot"], []).append(finding)
+                name = finding.get("screenshot")
+                if name and not (captures / name).exists():
+                    sys.exit(f"{finding['id']}: screenshot {name} is missing from {captures}")
+                if not name and finding.get("evidence") in ("observed", "measured"):
+                    sys.exit(f"{finding['id']}: {finding['evidence']} evidence needs a screenshot")
+                if name:
+                    screenshots.setdefault(name, []).append(finding)
             figures = "".join(
                 render_capture(name, embed_image(captures / name, workdir), grouped)
                 for name, grouped in screenshots.items()
@@ -178,11 +184,13 @@ def main() -> None:
         if int(f.get("severity", 0)) >= 3
     )
     walkthrough = "".join(f"<p>{escape(paragraph)}</p>" for paragraph in register.get("walkthrough", []))
+    open_ids = {finding["id"] for finding in findings}
     batches = "".join(
         f'<li><strong>{escape(batch["title"])}</strong> {escape(batch.get("why", ""))} '
-        + " ".join(f'<a href="#{escape(i)}">{escape(i)}</a>' for i in batch.get("findings", []))
+        + " ".join(f'<a href="#{escape(i)}">{escape(i)}</a>' for i in batch_ids)
         + "</li>"
         for batch in register.get("fix_batches", [])
+        if (batch_ids := [i for i in batch.get("findings", []) if i in open_ids])
     )
     hig_rows = "".join(
         f'<tr><td><code>{escape(o["id"])}</code></td><td class="outcome {escape(o["outcome"])}">{escape(o["outcome"])}</td>'
