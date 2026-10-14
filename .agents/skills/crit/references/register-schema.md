@@ -37,7 +37,7 @@ One JSON record per defect in `.crit/<review-id>/register.json`. The register fe
 }
 ```
 
-Field values: `source` is `ux`, `hig`, or `both`. `evidence` is `measured`, `observed`, `source`, `needs device test`, or `assumption`. `status` is `open`, `fixed`, or `wontfix`. Diagnostic `result` and HIG `outcome` are `pass`, `fail`, `untested`, or `na` (diagnostic rows have no `na`). `marker` is a percentage of the screenshot's width and height.
+Field values: `source` is `ux`, `hig`, or `both`. `evidence` is `measured`, `observed`, `source`, `needs device test`, or `assumption`. `status` is `open`, `fixed`, `unverified` (fixed in source, no runtime evidence yet), or `wontfix`. Diagnostic `result` and HIG `outcome` are `pass`, `fail`, `untested`, or `na` (diagnostic rows have no `na`). `marker` is a percentage of the screenshot's width and height.
 
 ## Rules
 
@@ -48,4 +48,4 @@ Field values: `source` is `ux`, `hig`, or `both`. `evidence` is `measured`, `obs
 - Surface order for sorting: status-menu, home, account, settings, add-account, platform, empty, error.
 - Quick Diagnostic: start at 10, subtract 2 per failed row whose worst open finding is severity 3 or 4, otherwise 1. Untested rows are not scored and never render as pass.
 - `build_report.py` derives the verdict and header from open findings, HIG outcomes, and the diagnostic score; the register does not store them.
-- A later round keeps finding IDs. Set `status` to `fixed` only with an after capture or test that shows the defect gone; counts, sections, and the verdict use open findings only.
+- A later round keeps finding IDs. Set `status` to `fixed` only with an after capture or test that shows the defect gone, and to `unverified` when only source shows it; counts, sections, and the verdict use open findings only.
