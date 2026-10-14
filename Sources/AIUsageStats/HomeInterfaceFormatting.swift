@@ -541,6 +541,12 @@ enum HomeInterfaceFormatting {
 
     private static func earnedFacts(_ account: UsageOverviewAccount, now: Date, calendar: Calendar) -> EarnedFacts {
         let basis = readingBasis(account, now: now)
+        let credits = account.snapshot?.credits.filter { $0.unit == .resets } ?? []
+        // A provider gap is permanent, so it reads the same in every reading state.
+        if credits.isEmpty, account.profile.provider == .claude {
+            return EarnedFacts(unavailableReason: "Not supported", isSupported: false,
+                               help: "Claude accounts do not report earned resets.")
+        }
         switch basis {
         case .authentication:
             return EarnedFacts(unavailableReason: "Unavailable", help: "Sign-in required. Choose Reconnect… to read earned resets.")
@@ -549,12 +555,7 @@ enum HomeInterfaceFormatting {
         case .absent, .historical, .current:
             break
         }
-        let credits = account.snapshot?.credits.filter { $0.unit == .resets } ?? []
         if credits.isEmpty {
-            if account.profile.provider == .claude {
-                return EarnedFacts(unavailableReason: "Not supported", isSupported: false,
-                                   help: "Claude accounts do not report earned resets.")
-            }
             if basis == .absent, (account.snapshot?.windows ?? []).isEmpty {
                 return EarnedFacts(unavailableReason: "Unavailable", help: noReadingHelp)
             }

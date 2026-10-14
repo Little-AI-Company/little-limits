@@ -97,6 +97,13 @@ func outdatedAndMissingReadingsUseOneWording() {
     #expect(line.primary == "80% left")
     #expect(line.secondary == nil)
     #expect(signIn.status == "Sign-in required")
+    // A Claude account never reports earned resets, in any reading state.
+    let claude = AccountProfile(provider: .claude, label: "Studio", source: .demo, providerEmail: "studio@example.invalid")
+    let claudeSignIn = AccountSnapshot(profileID: claude.id, fetchedAt: homeReadingNow, windows: [homeWindow(used: 20)],
+                                       credits: [], state: .authenticationRequired)
+    let overview = UsageOverview(profiles: [claude], snapshots: [claude.id: claudeSignIn], now: homeReadingNow)
+    let claudeRow = HomeInterfaceFormatting.rows(for: overview.accounts, now: homeReadingNow, calendar: .current)[0]
+    #expect(homeLines(claudeRow.earned).map(\.primary) == ["Not supported"])
 
     let empty = homeRow(windows: [], observed: nil)
     #expect([empty.session, empty.weekly, empty.other].allSatisfy { homeLines($0).map(\.primary) == ["Unavailable"] })
