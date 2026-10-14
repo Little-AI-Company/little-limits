@@ -202,10 +202,36 @@ struct CodexClient: Sendable {
     var timeout: TimeInterval = 25
 
     struct Result: Sendable { let snapshot: AccountSnapshot; let accountIdentity: String?; let accountEmail: String? }
+    /// The `account/read` answer. Only a ChatGPT login reports subscription usage.
+    struct Login: Sendable { let isSignedIn: Bool; let email: String?; let planType: String? }
+
+    /// Reads the login state of this Codex home without reading usage or renewing tokens.
+    func readLogin() throws -> Login {
+        let connection = try CodexConnection(executable: executable, home: home, timeout: timeout)
+        defer { connection.close() }
+        return try Self.readLogin(connection)
+    }
 
     func fetch(profileID: UUID, expectedIdentity: String?) throws -> Result {
         let connection = try CodexConnection(executable: executable, home: home, timeout: timeout)
         defer { connection.close() }
+        let login = try Self.readLogin(connection)
+        guard login.isSignedIn else {
+            throw UsageError.authenticationRequired("Sign in to this Codex profile in Terminal, then refresh.")
+        }
+        struct Empty: Codable {}
+        let response: CodexUsageResponse = try connection.request(method: "account/rateLimits/read", parameters: Empty())
+        guard let identity = response.accountId, !identity.isEmpty else {
+            throw UsageError.providerFailure("The Codex CLI did not provide an account identifier. Update the CLI and refresh.")
+        }
+        if let expectedIdentity, expectedIdentity != identity {
+            throw UsageError.authenticationRequired("This Codex profile now belongs to a different login. Create a separate profile for that account.")
+        }
+        return Result(snapshot: response.snapshot(profileID: profileID, planType: login.planType),
+                      accountIdentity: identity, accountEmail: login.email)
+    }
+
+    private static func readLogin(_ connection: CodexConnection) throws -> Login {
         struct ClientInfo: Encodable { let name = "ai_usage_stats"; let title = "AI Usage Stats"; let version = "0.1.0" }
         struct Initialize: Encodable { let clientInfo = ClientInfo() }
         struct Empty: Codable {}
@@ -214,19 +240,9 @@ struct CodexClient: Sendable {
         struct AccountResponse: Decodable { let account: Account?; let requiresOpenaiAuth: Bool? }
         let _: Empty = try connection.request(method: "initialize", parameters: Initialize())
         try connection.notify(method: "initialized", parameters: Empty())
-        let account: AccountResponse = try connection.request(method: "account/read", parameters: AccountParameters())
-        guard account.account?.type == "chatgpt" else {
-            throw UsageError.authenticationRequired("Sign in to this Codex profile in Terminal, then refresh.")
-        }
-        let response: CodexUsageResponse = try connection.request(method: "account/rateLimits/read", parameters: Empty())
-        guard let identity = response.accountId, !identity.isEmpty else {
-            throw UsageError.providerFailure("The Codex CLI did not provide an account identifier. Update the CLI and refresh.")
-        }
-        if let expectedIdentity, expectedIdentity != identity {
-            throw UsageError.authenticationRequired("This Codex profile now belongs to a different login. Create a separate profile for that account.")
-        }
-        return Result(snapshot: response.snapshot(profileID: profileID, planType: account.account?.planType),
-                      accountIdentity: identity, accountEmail: account.account?.email)
+        let response: AccountResponse = try connection.request(method: "account/read", parameters: AccountParameters())
+        return Login(isSignedIn: response.account?.type == "chatgpt", email: response.account?.email,
+                     planType: response.account?.planType)
     }
 }
 

@@ -34,7 +34,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         item.menu = statusMenu
         model.onChange = { [weak self] in self?.render() }
         model.onError = { [weak self] message in self?.showError(message) }
-        model.onLoginCommand = { [weak self] command, id in self?.openLogin(command: command, accountID: id) }
+        model.onLoginCommand = { [weak self] command, id in self?.openLogin(command: command, accountID: id) ?? false }
+        model.onCodexLoginChoice = { [weak self] login in await self?.chooseCodexLogin(login) ?? .cancel }
+        model.onShowAccount = { [weak self] id in
+            self?.revealAccountsWindow(nil)
+            self?.accounts?.showAccount(id: id)
+        }
         model.onConsoleRefresh = { [weak self] in self?.refreshConsoleCredits() }
         let notifications = NSWorkspace.shared.notificationCenter
         notifications.addObserver(self, selector: #selector(willSleep(_:)), name: NSWorkspace.willSleepNotification, object: nil)
@@ -60,6 +65,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     func applicationWillTerminate(_ notification: Notification) {
         refreshTimer?.invalidate()
         model.cancelRefresh()
+        model.cancelCodexSignInWaits()
         claudeSignIn?.stop()
         platformControllers.values.forEach { $0.pause() }
         NSWorkspace.shared.notificationCenter.removeObserver(self)
@@ -403,15 +409,32 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
     }
 
-    private func openLogin(command: String, accountID: UUID) {
+    /// Shows the account page, which reports the wait, then opens the login in Terminal.
+    private func openLogin(command: String, accountID: UUID) -> Bool {
+        accounts?.showAccount(id: accountID)
         do {
             let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AIUsageStatsLogin", isDirectory: true)
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let script = directory.appendingPathComponent("codex_login_\(accountID.uuidString).command")
             try ("#!/bin/zsh\n\(command)\n").write(to: script, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)
-            NSWorkspace.shared.open(script)
-        } catch { showError("Could not open Codex sign-in: \(error.localizedDescription)") }
+            guard NSWorkspace.shared.open(script) else {
+                showError("Could not open Codex sign-in in Terminal. Choose Reconnect… to try again.")
+                return false
+            }
+            return true
+        } catch {
+            showError("Could not open Codex sign-in: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// Asks whether a new Codex account reads this Mac's signed-in Codex CLI login or signs in separately.
+    private func chooseCodexLogin(_ login: CodexCurrentLogin) async -> CodexLoginChoice {
+        revealAccountsWindow(nil)
+        // Without a window to attach the question to, keep the separate sign-in that the add sheet described.
+        guard let window = accounts?.window, window.attachedSheet == nil else { return .signInSeparately }
+        return await AddAccountSheetController.chooseCodexLogin(login, in: window)
     }
     private func showError(_ message: String) {
         let alert = NSAlert()

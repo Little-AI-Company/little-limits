@@ -1,6 +1,13 @@
 import Foundation
 import UsageCore
 
+/// The answer to the Add Codex Account question shown when this Mac's Codex CLI is already signed in.
+enum CodexLoginChoice {
+    case useCurrentLogin
+    case signInSeparately
+    case cancel
+}
+
 @MainActor
 final class ApplicationModel {
     let isDemo: Bool
@@ -16,11 +23,17 @@ final class ApplicationModel {
     private(set) var consoleMessages: [UUID: String] = [:]
     private(set) var manualCredits: [UUID: [CreditBalance]] = [:]
     private(set) var pendingManualCredits: [UUID: [CreditBalance]] = [:]
+    /// Codex accounts whose Terminal sign-in is open. The account page and sidebar show the wait instead of an error.
+    private(set) var awaitingCodexSignIns: Set<UUID> = []
     var onChange: (() -> Void)?
     var onError: ((String) -> Void)?
-    var onLoginCommand: ((String, UUID) -> Void)?
+    /// Opens the Terminal login command. Returns false when Terminal could not be opened.
+    var onLoginCommand: ((String, UUID) -> Bool)?
+    var onCodexLoginChoice: (@MainActor (CodexCurrentLogin) async -> CodexLoginChoice)?
+    var onShowAccount: ((UUID) -> Void)?
     var onConsoleRefresh: (() -> Void)?
     private var refreshTask: Task<Void, Never>?
+    private var codexSignInWaits: [UUID: Task<Void, Never>] = [:]
     private var refreshRequested = false
     private var claudeAuthorizationID: UUID?
     private var hasPresentedDemoLoadError = false
@@ -112,14 +125,32 @@ final class ApplicationModel {
             isChangingAccounts = true
             onChange?()
             Task { [weak self, service] in
+                guard let self else { return }
                 do {
+                    if let login = await service.currentCodexLogin(), let onCodexLoginChoice {
+                        switch await onCodexLoginChoice(login) {
+                        case .cancel:
+                            isChangingAccounts = false
+                            onChange?()
+                            return
+                        case .useCurrentLogin:
+                            let profile = try await service.createCodexProfileUsingCurrentLogin(label: label)
+                            await load()
+                            completedAccountChanges += 1
+                            isChangingAccounts = false
+                            onChange?()
+                            onShowAccount?(profile.id)
+                            return
+                        case .signInSeparately: break
+                        }
+                    }
                     let profile = try await service.createCodexProfile(label: label)
                     let command = try await service.codexLoginCommand(accountID: profile.id)
-                    await self?.load()
-                    self?.onLoginCommand?(command, profile.id)
-                } catch { self?.onError?(error.localizedDescription) }
-                self?.isChangingAccounts = false
-                self?.onChange?()
+                    await load()
+                    openCodexLogin(command: command, accountID: profile.id)
+                } catch { onError?(error.localizedDescription) }
+                isChangingAccounts = false
+                onChange?()
             }
             return
         }
@@ -154,11 +185,52 @@ final class ApplicationModel {
         Task { [weak self, service] in
             do {
                 let command = try await service.codexLoginCommand(accountID: id)
-                self?.onLoginCommand?(command, id)
+                self?.openCodexLogin(command: command, accountID: id)
             } catch { self?.onError?(error.localizedDescription) }
             self?.isChangingAccounts = false
             self?.onChange?()
         }
+    }
+
+    func isAwaitingCodexSignIn(_ id: UUID) -> Bool { awaitingCodexSignIns.contains(id) }
+
+    /// Opens the Terminal login, then refreshes the account and shows its page once the login finishes.
+    private func openCodexLogin(command: String, accountID id: UUID) {
+        guard onLoginCommand?(command, id) == true else { return }
+        cancelCodexSignInWait(id)
+        awaitingCodexSignIns.insert(id)
+        onChange?()
+        codexSignInWaits[id] = Task { [weak self, service] in
+            let outcome = await service.awaitCodexSignIn(id: id)
+            // A cancelled wait was replaced or stopped, and its owner already cleared the waiting state.
+            guard let self, !Task.isCancelled else { return }
+            codexSignInWaits[id] = nil
+            awaitingCodexSignIns.remove(id)
+            switch outcome {
+            case .signedIn(let snapshot):
+                snapshots[id] = snapshot
+                if let loaded = try? await service.load() { profiles = loaded }
+                onChange?()
+                onShowAccount?(id)
+            case .timedOut:
+                // One ordinary read replaces the wait with the account's real state, such as Sign-in required.
+                let snapshot = await service.refreshAccount(id: id)
+                if profiles.contains(where: { $0.id == id }) { snapshots[id] = snapshot }
+                onChange?()
+            case .cancelled, .accountRemoved:
+                onChange?()
+            }
+        }
+    }
+
+    private func cancelCodexSignInWait(_ id: UUID) {
+        codexSignInWaits.removeValue(forKey: id)?.cancel()
+        awaitingCodexSignIns.remove(id)
+    }
+
+    /// Stops every Terminal sign-in wait, for example when the app quits.
+    func cancelCodexSignInWaits() {
+        for id in Array(codexSignInWaits.keys) { cancelCodexSignInWait(id) }
     }
 
     func prepareClaudeSignIn(existingProfileID: UUID?, label: String) async throws -> ClaudeAuthorizationRequest {
@@ -225,6 +297,7 @@ final class ApplicationModel {
     }
 
     func removeAccount(_ id: UUID) {
+        // A sign-in wait for this account ends on its own once the service no longer lists the account.
         changeAccounts { service in try await service.removeAccount(id: id) }
     }
 

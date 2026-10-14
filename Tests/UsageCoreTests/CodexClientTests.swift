@@ -178,6 +178,80 @@ final class CodexClientTests: XCTestCase {
     #expect(enterprise.planName == "Enterprise")
 }
 
+@Test func codexSignInWaitRefreshesOnceTheTerminalLoginFinishes() async throws {
+    let fixture = try CodexProcessFixture(script: CodexProcessFixture.signedInAfterThirdRead)
+    defer { fixture.remove() }
+    let service = UsageService(directory: fixture.directory.appendingPathComponent("Store"), codexExecutableURL: fixture.executable)
+    let profile = try await service.createCodexProfile(label: "Work")
+
+    let outcome = await service.awaitCodexSignIn(id: profile.id, interval: .milliseconds(20), timeout: .seconds(20))
+
+    guard case .signedIn(let snapshot) = outcome else { return #expect(Bool(false), "Expected sign-in, received \(outcome)") }
+    #expect(snapshot.state == .available && snapshot.profileID == profile.id)
+    #expect(try await service.load().first?.providerAccountID == "account-a")
+}
+
+@Test func codexSignInWaitStopsOnTimeoutCancellationAndRemoval() async throws {
+    let fixture = try CodexProcessFixture(script: CodexProcessFixture.signedOut)
+    defer { fixture.remove() }
+    let service = UsageService(directory: fixture.directory.appendingPathComponent("Store"), codexExecutableURL: fixture.executable)
+    let profile = try await service.createCodexProfile(label: "Work")
+
+    #expect(await service.awaitCodexSignIn(id: profile.id, interval: .milliseconds(20), timeout: .milliseconds(300)) == .timedOut)
+
+    let cancelled = Task { await service.awaitCodexSignIn(id: profile.id, interval: .milliseconds(20), timeout: .seconds(60)) }
+    cancelled.cancel()
+    #expect(await cancelled.value == .cancelled)
+
+    let removed = Task { await service.awaitCodexSignIn(id: profile.id, interval: .milliseconds(20), timeout: .seconds(60)) }
+    try await Task.sleep(for: .milliseconds(100))
+    try await service.removeAccount(id: profile.id)
+    #expect(await removed.value == .accountRemoved)
+}
+
+@Test func currentCodexLoginIsReadOnlyAndListedOnce() async throws {
+    let fixture = try CodexProcessFixture(script: CodexProcessFixture.responses)
+    defer { fixture.remove() }
+    let home = fixture.home.standardizedFileURL.resolvingSymlinksInPath()
+    let service = UsageService(directory: fixture.directory.appendingPathComponent("Store"), codexExecutableURL: fixture.executable,
+                               codexDefaultHomeURL: fixture.home)
+
+    let login = try #require(await service.currentCodexLogin())
+    #expect(login.email == "fixture@example.com" && login.home == home)
+    let trace = try String(contentsOf: fixture.home.appendingPathComponent("requests.jsonl"), encoding: .utf8)
+    let methods = try trace.split(separator: "\n").map { try JSONDecoder().decode(RequestRecord.self, from: Data($0.utf8)).method }
+    #expect(methods == ["initialize", "initialized", "account/read"])
+
+    let profile = try await service.createCodexProfileUsingCurrentLogin(label: "Codex Account")
+    #expect(profile.source == .codexDefaultLogin && profile.sourcePath == home.path)
+    #expect(profile.providerAccountID == "account-a" && profile.providerEmail == "fixture@example.com")
+    #expect(await service.snapshot(for: profile.id)?.windows.isEmpty == false)
+    #expect(!FileManager.default.fileExists(atPath: fixture.home.appendingPathComponent("config.toml").path))
+
+    // The same login, or another profile signed in to the same Codex account, is refused.
+    #expect(await service.currentCodexLogin() == nil)
+    await #expect(throws: UsageError.self) { try await service.createCodexProfileUsingCurrentLogin(label: "Again") }
+    await #expect(throws: UsageError.self) { try await service.codexLoginCommand(accountID: profile.id) }
+    let separate = try await service.createCodexProfile(label: "Separate")
+    #expect(await service.refreshAccount(id: separate.id).state == .authenticationRequired)
+    #expect(try await service.load().first { $0.id == separate.id }?.providerAccountID == nil)
+
+    try await service.removeAccount(id: profile.id)
+    #expect(FileManager.default.fileExists(atPath: fixture.home.path))
+}
+
+@Test func currentCodexLoginIsAbsentWhenSignedOutOrMissing() async throws {
+    let fixture = try CodexProcessFixture(script: CodexProcessFixture.signedOut)
+    defer { fixture.remove() }
+    let store = fixture.directory.appendingPathComponent("Store")
+    #expect(await UsageService(directory: store, codexExecutableURL: fixture.executable, codexDefaultHomeURL: fixture.home)
+        .currentCodexLogin() == nil)
+    let missing = fixture.directory.appendingPathComponent("missing-home")
+    #expect(await UsageService(directory: store, codexExecutableURL: fixture.executable, codexDefaultHomeURL: missing)
+        .currentCodexLogin() == nil)
+    #expect(!FileManager.default.fileExists(atPath: missing.path))
+}
+
 private struct RequestRecord: Decodable {
     struct Parameters: Decodable { let refreshToken: Bool? }
     let method: String
@@ -242,4 +316,17 @@ private struct CodexProcessFixture {
     done
 
     """#
+
+    /// `account/read` reports no login.
+    static let signedOut = responses.replacingOccurrences(of: #"{"type":"chatgpt","email":"fixture@example.com","planType":"plus"}"#,
+                                                          with: "null")
+
+    /// `account/read` reports no login for the first two launches, as while `codex login` is still open.
+    static let signedInAfterThirdRead = responses.replacingOccurrences(of: signedInReply, with:
+        #"reads=$(($(cat "$CODEX_HOME/reads" 2>/dev/null || echo 0) + 1)); echo "$reads" > "$CODEX_HOME/reads"; "#
+        + #"if [ "$reads" -lt 3 ]; then printf '%s\n' '{"id":2,"result":{"account":null,"requiresOpenaiAuth":true}}'; "#
+        + "else \(signedInReply); fi")
+
+    private static let signedInReply =
+        #"printf '%s\n' '{"id":2,"result":{"account":{"type":"chatgpt","email":"fixture@example.com","planType":"plus"},"requiresOpenaiAuth":true}}'"#
 }
