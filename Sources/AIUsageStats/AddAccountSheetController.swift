@@ -76,7 +76,7 @@ final class AddAccountSheetController: NSWindowController {
     private func updateExplanation() {
         explanation.stringValue = selectedProvider == .claude
             ? "Opens claude.ai in your browser to sign in to this Claude subscription and read its usage. API Credits use a separate Claude Platform sign-in that you can connect later on the account page."
-            : "Creates a separate Codex CLI login for this account and opens Terminal to sign in through the official browser flow. Your existing CLI login is preserved."
+            : "If the Codex CLI on this Mac is signed in, you can use that login. Otherwise Terminal opens to sign in to a separate Codex login for this account through the official browser flow. Your existing CLI login is never changed."
         fitWindowToContent()
     }
 
@@ -87,6 +87,26 @@ final class AddAccountSheetController: NSWindowController {
         let size = root.fittingSize
         guard window.contentRect(forFrameRect: window.frame).size != size else { return }
         window.setContentSize(size)
+    }
+
+    /// The second Add Codex Account step, shown only when this Mac's Codex CLI is already signed in with ChatGPT.
+    static func chooseCodexLogin(_ login: CodexCurrentLogin, in window: NSWindow) async -> CodexLoginChoice {
+        let alert = NSAlert()
+        alert.messageText = "Add Codex Account"
+        let identity = login.email.map { " as \($0)" } ?? ""
+        alert.informativeText = "The Codex CLI on this Mac is signed in\(identity). AI Usage Stats can read that login without changing it.\n\nA ChatGPT web or desktop-app login is only reusable when the Codex CLI on this Mac is signed in."
+        alert.addButton(withTitle: login.email.map { "Use Current Codex Login (\($0))" } ?? "Use Current Codex Login")
+        alert.addButton(withTitle: "Sign In with a Different Account…")
+        // NSAlert assigns Escape to the button titled Cancel.
+        alert.addButton(withTitle: "Cancel")
+        let response = await withCheckedContinuation { continuation in
+            alert.beginSheetModal(for: window) { continuation.resume(returning: $0) }
+        }
+        switch response {
+        case .alertFirstButtonReturn: return .useCurrentLogin
+        case .alertSecondButtonReturn: return .signInSeparately
+        default: return .cancel
+        }
     }
 
     @objc private func selectProvider(_ sender: Any?) { updateExplanation() }

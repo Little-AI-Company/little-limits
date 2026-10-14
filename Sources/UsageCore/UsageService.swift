@@ -4,6 +4,7 @@ public actor UsageService {
     private let storage: ConfigurationStorage
     private let captureHelperURL: URL
     private let codexExecutableURL: URL?
+    private let codexDefaultHomeURL: URL?
     private var configuration = StoredConfiguration()
     private var loaded = false
     private var refreshes: [UUID: Task<AccountSnapshot, Never>] = [:]
@@ -22,12 +23,14 @@ public actor UsageService {
     private var claudeCaptureCleanupMessages: [UUID: String] = [:]
     private let freshnessInterval: TimeInterval = 300
 
+    /// `codexDefaultHomeURL` replaces the Codex CLI's own home (`$CODEX_HOME`, else `~/.codex`) for tests.
     public init(directory: URL = UsagePaths.applicationSupport, captureHelperURL: URL? = nil,
-                codexExecutableURL: URL? = nil) {
+                codexExecutableURL: URL? = nil, codexDefaultHomeURL: URL? = nil) {
         storage = ConfigurationStorage(directory: directory)
         self.captureHelperURL = captureHelperURL
             ?? Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/UsageCapture")
         self.codexExecutableURL = codexExecutableURL
+        self.codexDefaultHomeURL = codexDefaultHomeURL
         claudeClient = ClaudeOAuthClient()
         claudeCredentials = ClaudeKeychainStore()
     }
@@ -37,6 +40,7 @@ public actor UsageService {
         storage = ConfigurationStorage(directory: directory)
         self.captureHelperURL = captureHelperURL ?? directory.appendingPathComponent("UsageCapture")
         codexExecutableURL = nil
+        codexDefaultHomeURL = nil
         self.claudeClient = claudeClient
         self.claudeCredentials = claudeCredentials
     }
@@ -286,11 +290,90 @@ public actor UsageService {
         return profile
     }
 
+    /// The Codex CLI's default login on this Mac, when it is signed in with ChatGPT and no account reads it yet.
+    /// Uses only `account/read`, which neither reads usage nor renews tokens. Returns nil when the home is absent,
+    /// so detection never creates it.
+    public func currentCodexLogin() async -> CodexCurrentLogin? {
+        guard (try? ensureLoaded()) != nil else { return nil }
+        let home = codexDefaultHome
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: home.path, isDirectory: &isDirectory), isDirectory.boolValue,
+              !configuration.profiles.contains(where: { $0.provider == .codex && $0.sourcePath == home.path }),
+              let executable = try? codexExecutable() else { return nil }
+        let client = CodexClient(executable: executable, home: home, timeout: 10)
+        guard let login = try? await Task.detached(priority: .userInitiated, operation: { try client.readLogin() }).value,
+              login.isSignedIn else { return nil }
+        let email = login.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return CodexCurrentLogin(email: email?.isEmpty == false ? email : nil, home: home)
+    }
+
+    /// Adds an account that reads the Codex CLI's default login in place. Nothing is written to that home; its
+    /// credentials stay where the CLI stored them. Refuses a login whose Codex account is already listed.
+    public func createCodexProfileUsingCurrentLogin(label: String) async throws -> AccountProfile {
+        try ensureLoaded()
+        let name = try validLabel(label)
+        let home = codexDefaultHome
+        guard FileManager.default.fileExists(atPath: home.path) else {
+            throw UsageError.authenticationRequired("The Codex CLI on this Mac is not signed in. Choose Sign In with a Different Account… instead.")
+        }
+        let client = CodexClient(executable: try codexExecutable(), home: home)
+        let identifier = UUID()
+        let result = try await Task.detached(priority: .userInitiated) {
+            try client.fetch(profileID: identifier, expectedIdentity: nil)
+        }.value
+        // Check after the read: another change may have listed this login meanwhile.
+        guard let identity = result.accountIdentity else {
+            throw UsageError.providerFailure("The Codex CLI did not provide an account identifier. Update the CLI and try again.")
+        }
+        if configuration.profiles.contains(where: { $0.provider == .codex && ($0.sourcePath == home.path || $0.providerAccountID == identity) }) {
+            throw UsageError.invalidConfiguration("This Codex account is already listed. Select it in the sidebar.")
+        }
+        let email = result.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let profile = AccountProfile(id: identifier, provider: .codex, label: name, source: .codexDefaultLogin,
+                                     providerAccountID: identity, providerEmail: email?.isEmpty == false ? email : nil,
+                                     sourcePath: home.path)
+        var updated = configuration
+        updated.profiles.append(profile)
+        updated.snapshots.append(result.snapshot)
+        try storage.save(updated)
+        configuration = updated
+        return profile
+    }
+
+    /// Waits for a Terminal `codex login` into this account's own home, then refreshes the account once.
+    /// Polls `account/read` every `interval`. Stops on sign-in, cancellation, removal of the account, or `timeout`.
+    public func awaitCodexSignIn(id: UUID, interval: Duration = .seconds(3),
+                                 timeout: Duration = .seconds(600)) async -> CodexSignInOutcome {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
+        while true {
+            guard !Task.isCancelled else { return .cancelled }
+            guard (try? ensureLoaded()) != nil,
+                  let profile = configuration.profiles.first(where: { $0.id == id && $0.provider == .codex }),
+                  let path = profile.sourcePath else { return .accountRemoved }
+            if let executable = try? codexExecutable() {
+                let client = CodexClient(executable: executable, home: URL(fileURLWithPath: path), timeout: 10)
+                let login = try? await Task.detached(priority: .utility, operation: { try client.readLogin() }).value
+                if login?.isSignedIn == true {
+                    guard !Task.isCancelled else { return .cancelled }
+                    guard configuration.profiles.contains(where: { $0.id == id }) else { return .accountRemoved }
+                    return .signedIn(await refreshAccount(id: id))
+                }
+            }
+            guard clock.now < deadline else { return .timedOut }
+            do { try await Task.sleep(for: min(interval, deadline - clock.now)) } catch { return .cancelled }
+        }
+    }
+
     public func codexLoginCommand(accountID: UUID) throws -> String {
         try ensureLoaded()
         guard let profile = configuration.profiles.first(where: { $0.id == accountID }),
               profile.provider == .codex, let sourcePath = profile.sourcePath else {
             throw UsageError.invalidConfiguration("Select a Codex profile first.")
+        }
+        // Signing in here would replace the CLI's own login, which monitoring must never change.
+        guard profile.source != .codexDefaultLogin else {
+            throw UsageError.invalidConfiguration("This account reads the Codex CLI login on this Mac. To sign in again, run codex login in Terminal, then choose Refresh All.")
         }
         return "cd \(ClaudeCaptureInstallation.shellQuote(sourcePath)) && env -u CODEX_ACCESS_TOKEN -u CODEX_API_KEY -u OPENAI_API_KEY CODEX_HOME=\(ClaudeCaptureInstallation.shellQuote(sourcePath)) \(ClaudeCaptureInstallation.shellQuote(try codexExecutable().path)) login"
     }
@@ -520,6 +603,12 @@ public actor UsageService {
                 let result = try await Task.detached(priority: .utility) {
                     try client.fetch(profileID: profile.id, expectedIdentity: profile.providerAccountID)
                 }.value
+                // Refuse to bind a second account to a listed Codex identity. Already bound profiles keep working.
+                if profile.providerAccountID == nil, let identity = result.accountIdentity, configuration.profiles.contains(where: {
+                    $0.id != profile.id && $0.provider == .codex && $0.providerAccountID == identity
+                }) {
+                    throw UsageError.authenticationRequired("This Codex account is already listed. Remove this account, or choose Reconnect… and sign in with a different account.")
+                }
                 observed = result.snapshot
                 if let identity = result.accountIdentity,
                    let index = configuration.profiles.firstIndex(where: { $0.id == profile.id }) {
@@ -645,6 +734,13 @@ public actor UsageService {
     }
 
     private func codexExecutable() throws -> URL { try codexExecutableURL ?? CodexExecutable.resolve() }
+
+    private var codexDefaultHome: URL {
+        let configured = ProcessInfo.processInfo.environment["CODEX_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+        return (codexDefaultHomeURL ?? configured
+                ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex", isDirectory: true))
+            .standardizedFileURL.resolvingSymlinksInPath()
+    }
 
     private func validLabel(_ label: String) throws -> String {
         let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)

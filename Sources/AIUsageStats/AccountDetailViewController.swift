@@ -10,6 +10,7 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
     private static let billingItem = NSToolbarItem.Identifier("AccountBilling")
     /// Matches `ClaudeKeychainStore.read`: the saved sign-in exists but macOS has not granted this app access to it.
     private static let keychainPermissionFailure = "Keychain access needs permission"
+    private static let codexSignInWait = "Waiting for Codex sign-in in Terminal…"
 
     private let model: ApplicationModel
     private let scroll = NSScrollView()
@@ -88,7 +89,9 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         refreshAllToolbarItem?.isEnabled = !model.isDemo && !model.isRefreshing && !model.isChangingAccounts && !model.profiles.isEmpty
         refreshAllToolbarItem?.toolTip = model.isRefreshing ? "Refreshing…" : "Refresh All"
         reconnectToolbarItem?.isEnabled = canSave
-        reconnectToolbarItem?.toolTip = profile?.provider == .codex
+        reconnectToolbarItem?.toolTip = profile?.source == .codexDefaultLogin
+            ? "This account reads the Codex CLI login on this Mac"
+            : profile?.provider == .codex
             ? "Sign in to this Codex account again in Terminal" : "Sign in to this Claude subscription again in your browser"
         billingToolbarItem?.isEnabled = profile != nil
         billingToolbarItem?.toolTip = monthlyGrantNeedsLink ? "Open Claude subscription billing in your browser"
@@ -403,9 +406,11 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         setSubtitle([InterfaceFormatting.provider(profile.provider), snapshot?.planName].compactMap { $0 }.joined(separator: " · "))
         let now = Date()
         let windows = snapshot?.windows ?? []
+        let awaitingSignIn = model.isAwaitingCodexSignIn(id)
         usageReadings.render(windows.isEmpty
             ? [AccountReadingView.Reading(label: "Usage", value: "Unavailable", timing: "",
-                                          detail: snapshot?.detail ?? "No usage reading yet. Choose Refresh All to read usage.")]
+                                          detail: awaitingSignIn ? Self.codexSignInWait
+                                              : snapshot?.detail ?? "No usage reading yet. Choose Refresh All to read usage.")]
             : windows.map { usage in
                 // The same value and timing as the status menu, so an outdated reading never passes for current.
                 let title = InterfaceFormatting.usageTitle(usage)
@@ -433,7 +438,9 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
     private func renderAttention(profile: AccountProfile, snapshot: AccountSnapshot?, now: Date) {
         var message = ""
         var recovery: NSButton?
-        if let snapshot {
+        if model.isAwaitingCodexSignIn(profile.id) {
+            message = Self.codexSignInWait
+        } else if let snapshot {
             switch snapshot.state {
             case .authenticationRequired:
                 if profile.source == .claudeOAuth, snapshot.detail?.contains(Self.keychainPermissionFailure) == true {
@@ -456,7 +463,9 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         if message.isEmpty && model.consoleMessages[profile.id] != nil { message = "API Credits need attention. See Connection Details." }
         if message.isEmpty && !(model.pendingManualCredits[profile.id] ?? []).isEmpty { message = "Manual balances need confirmation." }
         attention.stringValue = message
-        attention.toolTip = [snapshot?.detail, model.consoleMessages[profile.id]].compactMap { $0 }.joined(separator: "\n")
+        attention.toolTip = model.isAwaitingCodexSignIn(profile.id)
+            ? "Finish the sign-in in Terminal. This page updates when it completes."
+            : [snapshot?.detail, model.consoleMessages[profile.id]].compactMap { $0 }.joined(separator: "\n")
         recoveryButton.isHidden = recovery !== recoveryButton
         keychainAccessButton.isHidden = recovery !== keychainAccessButton
         attention.superview?.isHidden = message.isEmpty
@@ -497,6 +506,8 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
             details.append("Source: captured Claude Code quota. Choose Reconnect… to read subscription usage directly.")
         case .codexCLI:
             details.append("Source: this account’s own Codex CLI login. Your existing CLI login is preserved.")
+        case .codexDefaultLogin:
+            details.append("Source: the Codex CLI login on this Mac, read without changing it.")
         case .manual:
             details.append("Source: dated manual readings.")
         case .demo:
@@ -522,7 +533,8 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
                     details.append("\(InterfaceFormatting.compactCreditTitle(credit)) confirmed: \(InterfaceFormatting.exactDate(asOf))")
                 }
             }
-            if let detail = snapshot.detail { details.append("Error: \(detail)") }
+            if model.isAwaitingCodexSignIn(id) { details.append("Status: \(Self.codexSignInWait)") }
+            else if let detail = snapshot.detail { details.append("Error: \(detail)") }
         }
         if let message = model.consoleMessages[id] { details.append("API Credits error: \(message)") }
         let text = details.joined(separator: "\n")
