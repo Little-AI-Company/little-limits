@@ -193,6 +193,7 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         }
         contextLabel.stringValue = HomeInterfaceFormatting.readingContext(now: now, calendar: calendar)
         applyAttention(HomeInterfaceFormatting.attentionItems(accounts, now: now))
+        syncAttentionReconnect()
         demoLabel.isHidden = !model.isDemo
         let placed = HomeInterfaceFormatting.calendarEvents(visibleEvents, days: period.days, now: now, calendar: calendar)
         emptyPeriodLabel.isHidden = !placed.isEmpty
@@ -542,6 +543,14 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
                 line.addArrangedSubview(reconnect)
             }
             attentionStack.addArrangedSubview(line)
+        }
+    }
+
+    /// Reconnect… follows the account page rule even when the attention rows themselves are unchanged.
+    private func syncAttentionReconnect() {
+        let canReconnect = !model.isRefreshing && !model.isChangingAccounts
+        for case let line as NSStackView in attentionStack.arrangedSubviews {
+            for case let button as NSButton in line.arrangedSubviews { button.isEnabled = canReconnect }
         }
     }
 

@@ -85,7 +85,7 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
     private func updateToolbarItems() {
         let profile = profile
         let canSave = !model.isDemo && profile != nil && !model.isRefreshing && !model.isChangingAccounts
-        refreshAllToolbarItem?.isEnabled = !model.isDemo && !model.isRefreshing
+        refreshAllToolbarItem?.isEnabled = !model.isDemo && !model.isRefreshing && !model.isChangingAccounts && !model.profiles.isEmpty
         refreshAllToolbarItem?.toolTip = model.isRefreshing ? "Refreshing…" : "Refresh All"
         reconnectToolbarItem?.isEnabled = canSave
         reconnectToolbarItem?.toolTip = profile?.provider == .codex

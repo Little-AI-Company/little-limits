@@ -77,6 +77,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             platformControllers.removeValue(forKey: id)?.retire()
         }
         if accounts?.window?.isVisible == true { accounts?.render() }
+        // An open menu is not rebuilt, so keep its Reconnect… commands in step with refresh and account changes.
+        if isMenuTracking {
+            for item in statusMenu.items where item.action == #selector(reconnectAccountFromMenu(_:)) {
+                item.isEnabled = canReconnectFromMenu
+            }
+        }
         // The number per provider prefers current readings, so an old or signed-out zero never hides a current
         // value. With no current reading the provider shows its lowest last known value with the stale mark;
         // `?` means it was never measured. The tooltip names the account and window behind the number.
