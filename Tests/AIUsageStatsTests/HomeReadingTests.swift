@@ -149,7 +149,7 @@ func calendarEventsLeadWithTheResetTimeAndVocabularyScope() throws {
     let event = try #require(HomeInterfaceFormatting.calendarEvents(overview.resetEvents, days: days, now: homeReadingNow,
                                                                    calendar: .current).first)
     #expect(event.timeText == resetsAt.formatted(.dateTime.hour().minute()))
-    #expect(event.scopeText == "Weekly · Fable 5 resets")
+    #expect(event.scopeText == "Weekly · Fable 5")
     #expect(event.remainingText == "17% left")
     #expect(event.tone == .warning)
     #expect(event.accessibilityLabel.hasPrefix("Weekly · Fable 5 resets"))

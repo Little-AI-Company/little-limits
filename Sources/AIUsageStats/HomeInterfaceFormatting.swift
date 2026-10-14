@@ -76,7 +76,8 @@ struct HomeAccountRow: Equatable, Identifiable {
     var toolTip: String
 }
 
-/// One reset on the calendar, phrased as the reset: time and scope first, then what is left now.
+/// One reset on the calendar: time and scope first (`13:11 · 5-hour`), then what is left now. The section
+/// title says these are resets, so the visible scope omits the word; the label and tooltip keep it.
 struct HomeCalendarEventModel: Equatable, Identifiable {
     var id: String
     var provider: Provider
@@ -260,7 +261,7 @@ enum HomeInterfaceFormatting {
             let value = remainingText(event.remainingPercent)
             let label = "\(scope) resets \(exact). \(event.provider.title) \(event.identity), \(value) now"
             return HomeCalendarEventModel(id: event.id, provider: event.provider, timeText: timeText(event.resetsAt),
-                                          scopeText: "\(scope) resets", remainingText: "\(percentText(event.remainingPercent)) left",
+                                          scopeText: scope, remainingText: "\(percentText(event.remainingPercent)) left",
                                           tone: tone(for: event.remainingPercent), shortIdentity: event.shortIdentity,
                                           accessibilityLabel: label,
                                           toolTip: "\(label). Latest reading, not a forecast.", dayIndex: dayIndex)
