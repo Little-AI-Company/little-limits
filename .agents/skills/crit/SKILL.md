@@ -58,7 +58,7 @@ Never call the result HIG compliant or release ready. Header format: `UX diagnos
 ## 4. Report
 
 1. Write `docs/design/crits/<review-id>.md`: header, scope and environment, verdict, a short "what a first-time user experiences" walkthrough, the ranked findings, HIG outcomes table, non-findings, untested list, and a proposed fix order grouped into small PR-sized batches.
-2. Publish an annotated HTML report as an Artifact when the user wants to see or share it. Screenshots must be demo data only. Each marker links to its finding.
+2. Render the annotated HTML with `python3 .agents/skills/crit/scripts/build_report.py .crit/<review-id>/register.json .crit/<review-id>/captures .crit/<review-id>/report.html` and publish it as an Artifact when the user wants to see or share it. Screenshots must be demo data only. Each marker links to its finding.
 3. Report exact commands, the tested revision, skipped checks, and limits.
 
 ## Fix pass

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Render a crit register as a self-contained annotated HTML report.
 
-Usage: python3 build_report.py <register.yaml> <captures-directory> <output.html>
+Usage: python3 build_report.py <register.json> <captures-directory> <output.html>
+
+Standard library only. Counts, sections, and the major list cover open findings;
+fixed and wontfix findings render in a separate resolved list.
 
 Screenshots referenced by findings are downscaled to JPEG with sips and
 embedded as data URIs, so the page has no external image dependencies.
@@ -9,13 +12,13 @@ embedded as data URIs, so the page has no external image dependencies.
 
 import base64
 import html
+import json
 import subprocess
 import sys
 import tempfile
 from collections import OrderedDict
 from pathlib import Path
 
-import yaml
 
 SURFACE_ORDER = ["status-menu", "home", "account", "settings", "add-account", "platform", "empty", "error"]
 SURFACE_NAMES = {
@@ -43,6 +46,14 @@ def embed_image(path: Path, workdir: Path) -> str:
         capture_output=True,
     )
     return "data:image/jpeg;base64," + base64.b64encode(target.read_bytes()).decode("ascii")
+
+
+def diagnostic_result(row: dict) -> str:
+    """Quick Diagnostic rows are pass, fail, or untested; an evidence gap never renders as pass."""
+    result = row.get("result")
+    if result not in ("pass", "fail", "untested"):
+        sys.exit(f"diagnostic row {row.get('row')} needs result pass, fail, or untested")
+    return result
 
 
 def surface_rank(finding: dict) -> int:
@@ -99,14 +110,16 @@ def render_capture(name: str, data_uri: str, findings: list) -> str:
 
 def main() -> None:
     if len(sys.argv) != 4:
-        sys.exit("usage: build_report.py <register.yaml> <captures-directory> <output.html>")
-    register = yaml.safe_load(Path(sys.argv[1]).read_text())
+        sys.exit("usage: build_report.py <register.json> <captures-directory> <output.html>")
+    register = json.loads(Path(sys.argv[1]).read_text())
     captures = Path(sys.argv[2])
     output = Path(sys.argv[3])
-    findings = sorted(
+    ordered = sorted(
         register.get("findings", []),
         key=lambda finding: (-int(finding.get("severity", 0)), surface_rank(finding), finding["id"]),
     )
+    findings = [finding for finding in ordered if finding.get("status", "open") == "open"]
+    resolved = [finding for finding in ordered if finding.get("status", "open") != "open"]
 
     by_surface: "OrderedDict[str, list]" = OrderedDict((surface, []) for surface in SURFACE_ORDER)
     for finding in findings:
@@ -154,7 +167,7 @@ def main() -> None:
         for o in register.get("hig_outcomes", [])
     )
     diagnostic_rows = "".join(
-        f'<tr><td>{escape(r["text"])}</td><td class="outcome {"pass" if r["pass"] else "fail"}">{"pass" if r["pass"] else "fail"}</td>'
+        f'<tr><td>{escape(r["text"])}</td><td class="outcome {diagnostic_result(r)}">{diagnostic_result(r)}</td>'
         f'<td>{" ".join(f"<a href=#{escape(i)}>{escape(i)}</a>" for i in r.get("findings", []) or [])}</td></tr>'
         for r in register.get("diagnostic", {}).get("rows", [])
     )
@@ -165,6 +178,10 @@ def main() -> None:
         f'<li><code>{escape(u.get("requirement", ""))}</code> {escape(u.get("needed"))}</li>' for u in register.get("untested", [])
     )
 
+    resolved_items = "".join(
+        f'<li><a href="#{escape(f["id"])}">{escape(f["id"])}</a> <span class="outcome">{escape(f.get("status"))}</span> {escape(f.get("claim"))}</li>'
+        for f in resolved
+    )
     template = (Path(__file__).with_name("report_template.html")).read_text()
     page = (
         template.replace("{{title}}", escape(register.get("title", "Design Crit")))
@@ -181,9 +198,10 @@ def main() -> None:
         .replace("{{hig}}", hig_rows)
         .replace("{{non_findings}}", non_findings)
         .replace("{{untested}}", untested)
+        .replace("{{resolved}}", resolved_items or "<li>None</li>")
     )
     output.write_text(page)
-    print(f"wrote {output} ({output.stat().st_size // 1024} KB, {len(findings)} findings)")
+    print(f"wrote {output} ({output.stat().st_size // 1024} KB, {len(findings)} open, {len(resolved)} resolved)")
 
 
 if __name__ == "__main__":
