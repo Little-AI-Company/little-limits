@@ -141,10 +141,11 @@ enum UsageMenu {
         }
         // A fully used current 5-hour or weekly window: when the account takes requests again, the latest reset among them.
         if case .exhausted(let usableAt) = AccountUsability(snapshot: snapshot, now: now) {
-            let value = usableAt.map { UsageFormatting.countdown(to: $0, now: now) } ?? "Unknown"
+            // An unknown time is one phrase, `Usable time unknown`, never `Usable in Unknown`.
+            let value = usableAt.map { UsageFormatting.countdown(to: $0, now: now) } ?? ""
             let detail = usableAt.map { "Usable again \(InterfaceFormatting.exactDate($0)), when its last fully used 5-hour or weekly window resets." }
                 ?? "A fully used 5-hour or weekly window has no reported reset time, so when this account is usable again is unknown."
-            metrics.append(Metric(label: "Usable in", value: value,
+            metrics.append(Metric(label: usableAt == nil ? "Usable time unknown" : "Usable in", value: value,
                                   timing: usableAt.map { HomeInterfaceFormatting.scheduleText($0, now: now, calendar: .current) } ?? "",
                                   detail: detail))
         }

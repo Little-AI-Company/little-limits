@@ -59,6 +59,12 @@ private func overview(_ entries: [(AccountProfile, AccountSnapshot?)]) -> UsageO
     #expect(provider.weekly.remainingPercent == 60)
     #expect(provider.scopedWeekly[0].remainingPercent == nil)
     #expect(provider.scopedWeekly[0].unknownAccountIDs == [passedSession.0.id])
+    // A reader marks the whole reading stale when a reset had already passed; the weekly value still counts.
+    let markedStale = account(.codex, [window("codex_primary", title: "5 hours", used: 100, resetsIn: -30, minutes: 300),
+                                       window("codex_secondary", title: "7 days", used: 30, minutes: 10_080)], state: .stale)
+    #expect(overview([markedStale]).providers[0].weekly.remainingPercent == 70)
+    let old = account(.codex, [window("codex_secondary", title: "7 days", used: 30, minutes: 10_080)], state: .stale, readAgo: 600)
+    #expect(overview([old]).providers[0].weekly.remainingPercent == nil)
 }
 
 @Test func currentReadingWithoutWeeklyWindowIsOutsideTheTotal() {

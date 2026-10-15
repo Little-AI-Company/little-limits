@@ -90,12 +90,14 @@ extension AccountSnapshot {
     /// A reading that may stand for now: available, observed under five minutes ago and not in the future, with no
     /// current window past its reset. Stale, failed, sign-in-required, and unread accounts are never current.
     public func isCurrent(at now: Date) -> Bool {
-        isFresh(at: now) && !currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
+        state == .available && isFresh(at: now) && !currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
     }
 
-    /// Available and observed under five minutes ago, not in the future. Window resets are not checked.
+    /// Observed under five minutes ago, not in the future, and not failed. Window resets are not checked, so a
+    /// caller judges each window by its own reset. `.stale` is accepted because every reader sets it only for an
+    /// old observation or a passed reset; age is checked here and resets by the caller.
     func isFresh(at now: Date) -> Bool {
-        guard state == .available, let fetchedAt, fetchedAt <= now else { return false }
+        guard state == .available || state == .stale, let fetchedAt, fetchedAt <= now else { return false }
         return now.timeIntervalSince(fetchedAt) < 300
     }
 }
