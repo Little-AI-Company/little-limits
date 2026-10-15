@@ -16,12 +16,12 @@ Source material: three screenshots of Theo's quota dashboard and "How each model
 
 ## Current state
 
-- Each account keeps only its latest reading. A refresh replaces the previous snapshot in `accounts.json` (`UsageService.swift:548`). No history exists.
+- Each account keeps only its latest reading. A refresh replaces the previous snapshot in `accounts.json` (`UsageService.swift:650`). No history exists.
 - Home already has a reset calendar, an account table with earned reset counts, and account filtering.
 - Claude per-model weekly windows (`seven_day_*`) are already parsed (`ClaudeOAuthClient.swift:345`).
 - Codex earned quota-reset counts are already parsed (credit unit `resets`).
 - Nothing reads `~/.claude/projects` or `~/.codex/sessions`.
-- Refresh runs on a 300 second timer (`ApplicationDelegate.swift:150`).
+- Refresh runs on a 300 second timer (`ApplicationDelegate.swift:204`).
 
 ## Local log findings
 
