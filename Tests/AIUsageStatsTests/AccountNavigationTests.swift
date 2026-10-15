@@ -34,7 +34,18 @@ func accountNavigationPreservesTheUserWindowSize() async throws {
     let root = try #require(window.contentView)
     let sidebar = descendants(of: root, as: NSTableView.self).first { $0.accessibilityLabel() == "Sidebar" }
     let accountList = try #require(sidebar)
-    accountList.selectRowIndexes(IndexSet(integer: 1), byExtendingSelection: false)
+    // Row 0 is Home and row 1 is Models; accounts follow. Down Arrow from Home reaches Models.
+    #expect(accountList.selectedRow == 0)
+    let downArrow = String(UnicodeScalar(UInt16(NSDownArrowFunctionKey))!)
+    let keyDown = try #require(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                                                windowNumber: window.windowNumber, context: nil, characters: downArrow,
+                                                charactersIgnoringModifiers: downArrow, isARepeat: false, keyCode: 125))
+    accountList.keyDown(with: keyDown)
+    #expect(accountList.selectedRow == 1)
+    #expect(window.title == "Models")
+    #expect(accountList.view(atColumn: 0, row: 1, makeIfNecessary: true)?.accessibilityLabel() == "Models")
+    #expect(!controller.validateMenuItem(menuItem(#selector(WindowCommandHandling.removeSelectedAccount(_:)))))
+    accountList.selectRowIndexes(IndexSet(integer: 2), byExtendingSelection: false)
     let toolbarItems = { window.toolbar?.items.map(\.itemIdentifier) ?? [] }
     // The demo Claude and Codex accounts share one email, so the title and sidebar name the provider (HOME-19).
     #expect(window.title == "Claude · personal@example.invalid")
