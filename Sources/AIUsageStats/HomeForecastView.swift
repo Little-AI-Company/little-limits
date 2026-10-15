@@ -166,6 +166,8 @@ struct HomeForecastChart: View {
                                  series: .value("Line", "History \(index)"))
                             .foregroundStyle(Color.accentColor)
                             .lineStyle(StrokeStyle(lineWidth: 1.5))
+                            .accessibilityLabel("History, \(dateText(point.date, model: model))")
+                            .accessibilityValue(valueText(point.remainingPercent, model: model))
                     }
                 }
                 ForEach(model.projection, id: \.date) { point in
@@ -173,6 +175,8 @@ struct HomeForecastChart: View {
                              series: .value("Line", "Projection"))
                         .foregroundStyle(Color.accentColor)
                         .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+                        .accessibilityLabel("Projection, \(dateText(point.date, model: model))")
+                        .accessibilityValue(valueText(point.remainingPercent, model: model))
                 }
                 RuleMark(x: .value("Now", model.now))
                     .foregroundStyle(Color.secondary)
@@ -199,12 +203,21 @@ struct HomeForecastChart: View {
                                    ? .dateTime.weekday(.abbreviated) : .dateTime.hour())
                 }
             }
-            .accessibilityElement(children: .ignore)
+            // Each mark keeps its own date and value, so VoiceOver and the audio graph can read the series.
+            .accessibilityElement(children: .contain)
             .accessibilityLabel(model.accessibilityLabel)
             .transaction { $0.animation = nil }
             .padding(.top, 4)
         } else {
             Color.clear
         }
+    }
+
+    private func dateText(_ date: Date, model: HomeForecastChartModel) -> String {
+        HomeInterfaceFormatting.scheduleText(date, now: model.now, calendar: .current)
+    }
+
+    private func valueText(_ remaining: Double, model: HomeForecastChartModel) -> String {
+        "\(HomeInterfaceFormatting.percentText(remaining)) of \(Int(model.capacityPercent))% left"
     }
 }
