@@ -53,10 +53,12 @@ public actor LogIngestor {
             .compactMapValues { $0.count == 1 ? $0[0].accountID : nil }
         let positions: [String: SourceFilePosition]
         let newLinks: [CodexAccountLink]
+        let storedClassifierVersion: Int?
         do {
             newLinks = try readCodexLinksToApply(codexAccounts.filter { accountsByProviderID[$0.providerAccountID] != nil })
-            positions = try database.pool.read { db in
-                Dictionary(uniqueKeysWithValues: try SourceFilePosition.fetchAll(db).map { ($0.path, $0) })
+            (positions, storedClassifierVersion) = try database.pool.read { db in
+                (Dictionary(uniqueKeysWithValues: try SourceFilePosition.fetchAll(db).map { ($0.path, $0) }),
+                 try Int.fetchOne(db, sql: "SELECT MAX(classifierVersion) FROM shellCommand"))
             }
         } catch {
             summary.filesFailed += 1
@@ -69,17 +71,24 @@ public actor LogIngestor {
         // Rollout names start with their time, so name order is close to the order quota readings were observed.
         let codexFiles = Self.logFiles(in: codexDirectories, suffixes: [".jsonl", ".jsonl.zst"], salt: salt)
             .sorted { $0.url.lastPathComponent < $1.url.lastPathComponent }
+        // Only classification facts are stored, so newer classifier rules apply by reading every log again. Rereading
+        // replaces each command row; rows from logs that no longer exist keep the version that produced them.
+        let reclassifies = storedClassifierVersion.map { $0 < CommandClassifier.version } ?? false
         for file in claudeFiles {
-            ingest(file, as: ClaudeLogParser.self, position: positions[file.positionKey], accounts: [:],
-                   summary: &summary)
+            let succeeded = ingest(file, as: ClaudeLogParser.self,
+                                   position: reclassifies ? nil : positions[file.positionKey], accounts: [:],
+                                   summary: &summary)
+            if reclassifies, !succeeded {
+                _ = try? database.pool.write { db in try SourceFilePosition.deleteOne(db, key: file.positionKey) }
+            }
         }
         for file in codexFiles {
             // A newly linked account needs every Codex log read again; unique keys make that add only its readings.
-            let position = newLinks.isEmpty ? positions[file.positionKey] : nil
-            let succeeded = ingest(file, as: CodexLogParser.self, position: position, accounts: accountsByProviderID,
-                                   summary: &summary)
-            // The links below are saved as applied, so a file that failed this reread must start over next time.
-            if !newLinks.isEmpty, !succeeded {
+            let rereads = reclassifies || !newLinks.isEmpty
+            let succeeded = ingest(file, as: CodexLogParser.self, position: rereads ? nil : positions[file.positionKey],
+                                   accounts: accountsByProviderID, summary: &summary)
+            // A reread that failed must start over next time, because newer runs will not reread it again.
+            if rereads, !succeeded {
                 _ = try? database.pool.write { db in try SourceFilePosition.deleteOne(db, key: file.positionKey) }
             }
         }

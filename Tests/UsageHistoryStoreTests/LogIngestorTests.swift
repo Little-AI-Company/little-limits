@@ -135,6 +135,26 @@ private func rowCounts(_ database: HistoryDatabase) throws -> [Int] {
     #expect(try rowCounts(database) == counts)
 }
 
+@Test func newerClassifierRulesReclassifyCommandsFromExistingLogs() async throws {
+    let home = try temporaryHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    try write(claudeSession, to: home.appendingPathComponent(".claude/projects/-work-app/s1.jsonl"))
+    let database = try HistoryDatabase(url: home.appendingPathComponent("history.sqlite"))
+    let ingestor = LogIngestor(database: database, homeDirectory: home)
+    _ = await ingestor.ingest(codexAccounts: [])
+    // Stand in for rows an older classifier wrote with different rules.
+    try await database.pool.write { db in
+        try db.execute(sql: "UPDATE shellCommand SET classifierVersion = 0, searchProgram = 'none'")
+    }
+
+    let summary = await ingestor.ingest(codexAccounts: [])
+    #expect(summary.filesRead == 1 && summary.filesUnchanged == 0)
+    let commands = try await database.pool.read(ShellCommandRecord.fetchAll)
+    #expect(commands.count == 1)
+    #expect(commands.allSatisfy { $0.classifierVersion == CommandClassifier.version && $0.searchProgram == .grep })
+    #expect(await ingestor.ingest(codexAccounts: []).filesUnchanged == 1)
+}
+
 @Test func recorderSkipsAReadingThatIsNotNewer() throws {
     let home = try temporaryHome()
     defer { try? FileManager.default.removeItem(at: home) }
