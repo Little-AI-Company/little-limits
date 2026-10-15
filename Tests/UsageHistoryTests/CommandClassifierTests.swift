@@ -45,6 +45,15 @@ let classifierCases: [ClassifierCase] = [
     ClassifierCase("pipe after a loop", "for f in *.swift; do\n  grep -c x \"$f\"\ndone | head",
                    search: .grep, pipesIntoHeadOrTail: true, sequence: "grep | head"),
 
+    // Only a file search counts. A search that reads a pipe, here-string, or here-document is a filter.
+    ClassifierCase("grep filtering git output", "git log | grep x", sequence: "git log | grep"),
+    ClassifierCase("grep filtering cat output", "cat f | grep x", sequence: "cat | grep"),
+    ClassifierCase("grep reading a here-string", #"grep x <<< "$v""#, sequence: "grep <<<string"),
+    ClassifierCase("recursive grep searches files", "grep -r x .", search: .grep, sequence: "grep"),
+    ClassifierCase("ripgrep piped into head searches files", "rg x src | head", search: .ripgrep,
+                   pipesIntoHeadOrTail: true, sequence: "rg | head"),
+    ClassifierCase("ripgrep then grep filter", "rg x | grep y", search: .ripgrep, sequence: "rg | grep"),
+
     // Git.
     ClassifierCase("git status with a directory option", "git -C repo status --short", gitStatus: true,
                    sequence: "git status"),
@@ -153,6 +162,6 @@ func classifiesCommand(_ testCase: ClassifierCase) {
     }
 }
 
-@Test func classifierVersionIsOne() {
-    #expect(CommandClassifier.version == 1)
+@Test func classifierVersionIsTwo() {
+    #expect(CommandClassifier.version == 2)
 }

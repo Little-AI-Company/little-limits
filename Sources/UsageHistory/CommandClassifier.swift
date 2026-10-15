@@ -4,7 +4,7 @@ import Foundation
 /// names and allow-listed subcommands.
 public enum CommandClassifier {
     /// Raise when a rule changes. Stored records keep the version that produced them.
-    public static let version = 1
+    public static let version = 2
 
     public static func classify(_ command: String) -> CommandClassification {
         let elements = ShellParser(command).parse()
@@ -32,10 +32,12 @@ public enum CommandClassifier {
                 }
             case .command(let command):
                 guard let invocation = Invocation(command) else { continue }
+                var readsPipe = false
                 if programSequence.isEmpty {
                     pipelineCommands = []
                 } else {
                     let separator = pendingSeparator ?? .sequence
+                    readsPipe = separator == .pipe
                     if separator != .pipe { pipelineCommands = [] }
                     programSequence += separator.rendered
                     if separator == .pipe, invocation.program == "head" || invocation.program == "tail" {
@@ -45,7 +47,9 @@ public enum CommandClassifier {
                 programSequence += invocation.display
                 pendingSeparator = nil
 
-                if searchProgram == .none { searchProgram = invocation.searchProgram }
+                // A search that reads a pipe, here-string, or here-document filters text instead of searching files.
+                let isFilter = readsPipe || invocation.command.standardInputBody != nil
+                if searchProgram == .none, !isFilter { searchProgram = invocation.searchProgram }
                 if invocation.program == "git" {
                     let subcommand = gitSubcommand(invocation.arguments)
                     if subcommand == "status" { runsGitStatus = true }
