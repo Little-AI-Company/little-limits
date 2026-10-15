@@ -225,7 +225,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             window?.contentView?.layoutSubtreeIfNeeded()
             home.render()
         }
-        if section == .models { models.reload() }
     }
 
     // MARK: Pages

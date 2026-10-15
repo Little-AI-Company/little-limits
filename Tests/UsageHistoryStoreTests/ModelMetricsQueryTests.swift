@@ -74,6 +74,18 @@ private func command(_ id: String, model: String = "claude-opus-5-5", project: S
     }
 }
 
+/// A visible Models page must catch rows that ingestion commits after the page first read the history.
+@Test func updatesDeliverRowsCommittedAfterTheFirstReport() async throws {
+    try await withDatabase { database in
+        var updates = database.modelMetricsUpdates().makeAsyncIterator()
+        #expect(try await updates.next()?.isEmpty == true)
+        try await database.pool.write { db in
+            try response("a", outputTokens: 100, thinkingTokens: 10).insert(db)
+        }
+        #expect(try await updates.next()?.models.first?.responseCount == 1)
+    }
+}
+
 @Test func shellMetricsUseTheirOwnDenominators() async throws {
     try await withDatabase { database in
         try await database.pool.write { db in

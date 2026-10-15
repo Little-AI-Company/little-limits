@@ -245,4 +245,11 @@ extension HistoryDatabase {
     public func modelMetrics() async throws -> ModelMetricsReport {
         try await pool.read(ModelMetricsQuery.fetch)
     }
+
+    /// The current report, then a fresh one after each committed change to responses or shell commands, such as a
+    /// log ingestion batch. Unchanged reports are skipped, and a slow reader receives only the newest report.
+    public func modelMetricsUpdates() -> AsyncValueObservation<ModelMetricsReport> {
+        ValueObservation.tracking(ModelMetricsQuery.fetch).removeDuplicates()
+            .values(in: pool, bufferingPolicy: .bufferingNewest(1))
+    }
 }

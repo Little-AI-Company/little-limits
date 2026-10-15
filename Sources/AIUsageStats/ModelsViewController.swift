@@ -22,8 +22,7 @@ final class ModelsViewController: NSViewController, WindowToolbarContributor {
     private let model: ApplicationModel
     private let state = ModelsPageState()
     private var demoDatabase: HistoryDatabase?
-    private var isLoading = false
-    private var reloadsAgain = false
+    private var observation: Task<Void, Never>?
     var onToolbarStateChange: (() -> Void)?
 
     init(model: ApplicationModel) {
@@ -46,33 +45,36 @@ final class ModelsViewController: NSViewController, WindowToolbarContributor {
         return model.isDemo ? "Demo data · \(range)" : range
     }
 
-    /// Reads the report off the main thread. A reload requested while one runs starts once that one finishes.
-    func reload() {
-        guard !isLoading else { reloadsAgain = true; return }
-        isLoading = true
-        Task {
-            let content = await readContent()
-            if state.content != content {
-                state.content = content
-                onToolbarStateChange?()
-            }
-            isLoading = false
-            if reloadsAgain {
-                reloadsAgain = false
-                reload()
+    /// Observes the history while the page shows. Each committed write, such as a log ingestion batch, delivers a
+    /// fresh report off the main thread; the page redraws only when the report changes.
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        guard observation == nil else { return }
+        observation = Task { [weak self] in
+            guard let self else { return }
+            do {
+                guard let database = try await database() else {
+                    show(.unavailable(model.historyDatabaseError ?? "Model history is not available."))
+                    return
+                }
+                for try await report in database.modelMetricsUpdates() { show(.loaded(report)) }
+            } catch is CancellationError {
+            } catch {
+                show(.unavailable("Could not read model history: \(error.localizedDescription)"))
             }
         }
     }
 
-    private func readContent() async -> ModelsPageState.Content {
-        do {
-            guard let database = try await database() else {
-                return .unavailable(model.historyDatabaseError ?? "Model history is not available.")
-            }
-            return .loaded(try await database.modelMetrics())
-        } catch {
-            return .unavailable("Could not read model history: \(error.localizedDescription)")
-        }
+    override func viewDidDisappear() {
+        super.viewDidDisappear()
+        observation?.cancel()
+        observation = nil
+    }
+
+    private func show(_ content: ModelsPageState.Content) {
+        guard state.content != content else { return }
+        state.content = content
+        onToolbarStateChange?()
     }
 
     /// Demo mode reads fictional rows from a temporary database, never the user's history.
