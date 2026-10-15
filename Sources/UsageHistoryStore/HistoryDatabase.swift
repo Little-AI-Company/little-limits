@@ -76,20 +76,22 @@ public final class HistoryDatabase: Sendable {
     }
 }
 
-// Rereading a log must not duplicate records, so inserts of an existing key are ignored.
+// A quota reading never changes after it is observed, so a repeated insert is ignored.
 extension QuotaReading: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "quotaReading"
     public static let persistenceConflictPolicy = PersistenceConflictPolicy(insert: .ignore, update: .abort)
 }
 
+// A later read of the same log can complete a response or command, such as its final usage line or its exit
+// status, so a repeated insert replaces the earlier row. See `LogParseOutput.resumeByteOffset`.
 extension ModelResponse: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "modelResponse"
-    public static let persistenceConflictPolicy = PersistenceConflictPolicy(insert: .ignore, update: .abort)
+    public static let persistenceConflictPolicy = PersistenceConflictPolicy(insert: .replace, update: .replace)
 }
 
 extension ShellCommandRecord: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "shellCommand"
-    public static let persistenceConflictPolicy = PersistenceConflictPolicy(insert: .ignore, update: .abort)
+    public static let persistenceConflictPolicy = PersistenceConflictPolicy(insert: .replace, update: .replace)
 }
 
 // A newer read position for the same path replaces the old one.

@@ -57,11 +57,16 @@ public struct LogParseOutput: Sendable, Equatable {
     public var responses: [ModelResponse]
     public var commands: [ShellCommandEvent]
     public var quotaReadings: [LogQuotaReading]
+    /// Absolute offset, in the uncompressed file, of the first line of the file's last response, which may still be
+    /// growing. The next read starts here and emits that response and its commands again, complete, replacing the
+    /// earlier rows.
+    public var resumeByteOffset: Int64
 
     public init(responses: [ModelResponse] = [], commands: [ShellCommandEvent] = [],
-                quotaReadings: [LogQuotaReading] = []) {
+                quotaReadings: [LogQuotaReading] = [], resumeByteOffset: Int64) {
         self.responses = responses
         self.commands = commands
         self.quotaReadings = quotaReadings
+        self.resumeByteOffset = resumeByteOffset
     }
 }
