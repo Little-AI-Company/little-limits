@@ -233,6 +233,32 @@ private let rateLimitsWithID = #"""
     ])
 }
 
+@Test func readWithoutAResponseResumesAtItsTurnOrAfterItsLastLine() {
+    let quotaOnly = [sessionMeta(account: "account-1"), tokenCount(1, rateLimits: rateLimitsWithID)]
+    let openTurn = quotaOnly + [taskStarted(2, "turn-1"), turnContext(2), userPrompt(3)]
+
+    #expect(parse(quotaOnly).resumeByteOffset == Int64(quotaOnly.map { $0.utf8.count + 1 }.reduce(0, +)))
+    #expect(parse(openTurn).resumeByteOffset == offsets(openTurn)[2])
+}
+
+/// In multi-agent sessions a message from another agent is input; hosted image generation is a tool call.
+@Test func agentMessagesAreInputAndImageGenerationIsAToolCall() {
+    let lines = [
+        sessionMeta(account: "account-1"), taskStarted(1, "turn-1"), turnContext(1),
+        entry(2, "response_item", #"{"type":"agent_message","author":"parent","recipient":"child","content":[]}"#),
+        entry(3, "response_item", #"{"type":"image_generation_call","id":"image","status":"completed"}"#),
+        usageRecord(4, output: 7, reasoning: 0),
+        // A message that arrives while a response streams does not split it.
+        reasoning(5), entry(6, "response_item", #"{"type":"agent_message","author":"parent","content":[]}"#),
+        assistantReply(7), usageRecord(8, output: 9, reasoning: 0)
+    ]
+    let output = parse(lines)
+
+    #expect(output.responses.map(\.requestedAt) == [at(2), nil])
+    #expect(output.responses.map(\.toolCallCount) == [1, 0])
+    #expect(output.responses.map(\.outputTokens) == [7, 9])
+}
+
 @Test func quotaReadingsWithoutAnAccountAreSkipped() {
     let lines = [
         sessionMeta(account: nil), taskStarted(1, "turn-1"), turnContext(1), userPrompt(2),

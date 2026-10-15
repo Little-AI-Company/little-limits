@@ -13,9 +13,13 @@ import Foundation
 ///
 /// Resuming: the model and turn id are written once per turn, so `resumeByteOffset` is the first line of the last
 /// response's turn, or the turn's prompt when that comes first, at or before the response's first line. The next read
-/// emits every response of that turn again, complete, with the same identifiers. The account and working directory
-/// are written once per file, in its first line (`session_meta`). A read that starts after offset 0 must first pass the file's first line, then the lines
-/// from `resumeByteOffset`; otherwise its quota readings have no account and are skipped.
+/// emits every response of that turn again, complete, with the same identifiers. A read without a response resumes
+/// at its started turn or pending prompt, or after its last line.
+///
+/// The account and working directory are written once per file, in its first line (`session_meta`). A read that
+/// starts after offset 0 must first pass the file's first line, then the lines from `resumeByteOffset`; otherwise its
+/// quota readings have no account and are skipped. When no complete line follows `resumeByteOffset`, keep the
+/// previous offset instead of parsing the first line alone.
 public struct CodexLogParser: Sendable {
     private enum UsageSource: Sendable {
         case tokenCount
@@ -68,7 +72,8 @@ public struct CodexLogParser: Sendable {
     private var acceptsUsage = false
     /// The prompt or tool result that the next response answers.
     private var lastInput: (offset: Int64, timestamp: Date)?
-    private var firstLineOffset: Int64?
+    /// The offset after the last line read.
+    private var endOffset: Int64 = 0
 
     public init(filePath: String, projectKeySalt: [UInt8]) {
         sessionID = Self.sessionID(filePath: filePath)
@@ -76,7 +81,7 @@ public struct CodexLogParser: Sendable {
     }
 
     public mutating func consume(line: Data, at byteOffset: Int64) {
-        if firstLineOffset == nil { firstLineOffset = byteOffset }
+        endOffset = max(endOffset, byteOffset + Int64(line.count) + 1)
         guard let object = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any],
               let type = object["type"] as? String,
               let timestamp = (object["timestamp"] as? String).flatMap(Self.date) else { return }
@@ -105,8 +110,9 @@ public struct CodexLogParser: Sendable {
     }
 
     public func finish() -> LogParseOutput {
-        var output = LogParseOutput(quotaReadings: quotaReadings,
-                                    resumeByteOffset: responses.last?.resumeOffset ?? firstLineOffset ?? 0)
+        let pendingTurnOffset = [turnResumeOffset, lastInput?.offset].compactMap { $0 }.min()
+        let resumeOffset = responses.last?.resumeOffset ?? pendingTurnOffset ?? endOffset
+        var output = LogParseOutput(quotaReadings: quotaReadings, resumeByteOffset: resumeOffset)
         for draft in responses {
             guard let model = draft.model else { continue }
             output.responses.append(ModelResponse(
@@ -135,10 +141,15 @@ public struct CodexLogParser: Sendable {
             }
         case "reasoning":
             addOutput(at: byteOffset, timestamp: timestamp, isToolCall: false)
-        case "function_call", "custom_tool_call", "local_shell_call", "web_search_call", "tool_search_call":
+        case "function_call", "custom_tool_call", "local_shell_call", "web_search_call", "tool_search_call",
+             "image_generation_call":
             addOutput(at: byteOffset, timestamp: timestamp, isToolCall: true)
         case "function_call_output", "custom_tool_call_output", "tool_search_output":
             receiveInput(at: byteOffset, timestamp: timestamp)
+        case "agent_message":
+            // A message from another agent in a multi-agent session. It can arrive while a response streams, so it
+            // is input for the next response without ending the current one.
+            lastInput = (byteOffset, timestamp)
         default:
             break
         }
