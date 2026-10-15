@@ -160,7 +160,7 @@ public enum ModelMetricsQuery {
             SELECT provider, model, COUNT(*) AS commands,
                    SUM(searchProgram = 'grep') AS grep, SUM(searchProgram = 'ripgrep') AS ripgrep,
                    SUM(pipesIntoHeadOrTail) AS headOrTail, SUM(runsGitStatus) AS gitStatus,
-                   SUM(runsGitCommit AND succeeded = 1) AS gitCommit,
+                   SUM(runsGitCommit AND succeeded IS 1) AS gitCommit,
                    SUM(inlineInterpreter = 'python') AS python, SUM(inlineInterpreter = 'javascript') AS javascript,
                    SUM(runsSavedScript) AS savedScript,
                    SUM(projectKey IS NOT NULL AND projectKey IS NOT busiestKey) AS otherProject,

@@ -108,10 +108,13 @@ private func command(_ id: String, model: String = "claude-opus-5-5", project: S
             try command("15", model: "claude-fable-5-1", project: "quiet").insert(db)
             try command("16", model: "claude-fable-5-1", project: "quiet", interpreter: .python).insert(db)
             try command("17", model: "claude-fable-5-1", project: "busy", interpreter: .python).insert(db)
+            // Only a commit whose result is not logged yet: no successful commits, and no NULL sum.
+            try command("18", model: "claude-sonnet-5", succeeded: nil, gitCommit: true).insert(db)
         }
         let models = try await database.modelMetrics().models
         let fable = try #require(models.first { $0.model == "claude-fable-5-1" })
         #expect(fable.inlineOutsideBusiestProject == MetricRatio(count: 1, total: 1))
+        #expect(models.first { $0.model == "claude-sonnet-5" }?.gitStatusPerCommit == MetricRatio(count: 0, total: 0))
         let opus = try #require(models.first { $0.model == "claude-opus-5-5" })
         #expect(opus.shellCommandCount == 14)
         // Only searches count: commands without grep or rg stay out of the denominator.
