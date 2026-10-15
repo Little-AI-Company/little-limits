@@ -47,8 +47,10 @@ public enum CommandClassifier {
                 programSequence += invocation.display
                 pendingSeparator = nil
 
-                // A search that reads a pipe, here-string, or here-document filters text instead of searching files.
-                let isFilter = readsPipe || invocation.command.standardInputBody != nil
+                // A search that reads a pipe, here-string, or here-document filters text instead of searching files,
+                // unless it names a path, which grep and rg read in place of standard input.
+                let readsStandardInput = readsPipe || invocation.command.standardInputBody != nil
+                let isFilter = readsStandardInput && !invocation.namesSearchPath
                 if searchProgram == .none, !isFilter { searchProgram = invocation.searchProgram }
                 if invocation.program == "git" {
                     let subcommand = gitSubcommand(invocation.arguments)
@@ -163,6 +165,36 @@ private struct Invocation {
         }
     }
 
+    /// True when grep or rg names a file or directory operand other than `-`. The pattern is the first operand
+    /// unless `-e` or `-f` supplies it.
+    var namesSearchPath: Bool {
+        let optionsTakingArguments: Set<String>
+        switch searchProgram {
+        case .grep: optionsTakingArguments = grepOptionsTakingArguments
+        case .ripgrep: optionsTakingArguments = ripgrepOptionsTakingArguments
+        case .none: return false
+        }
+        var remaining = arguments
+        var patternIsOption = false
+        var operands: [String] = []
+        while let argument = remaining.popFirst() {
+            let text = argument.text
+            if text == "--" {
+                operands += remaining.map(\.text)
+                break
+            }
+            guard text.hasPrefix("-"), text != "-" else {
+                operands.append(text)
+                continue
+            }
+            if patternOptions.contains(text) || patternOptions.contains(where: { text.hasPrefix($0 + "=") }) {
+                patternIsOption = true
+            }
+            if optionsTakingArguments.contains(text) { _ = remaining.popFirst() }
+        }
+        return operands.dropFirst(patternIsOption ? 0 : 1).contains { $0 != "-" }
+    }
+
     var interpreter: InlineInterpreter? {
         guard let program else { return nil }
         if isPythonName(program) { return .python }
@@ -211,6 +243,26 @@ private let shellKeywords: Set<String> = [
 
 /// Reserved words whose remaining words are names, values, or patterns rather than a program.
 private let compoundHeaderKeywords: Set<String> = ["for", "select", "function"]
+
+/// grep and rg options that supply the pattern, so every operand is a path.
+private let patternOptions: Set<String> = ["-e", "-f", "--regexp", "--file"]
+
+/// grep options whose value is the next word.
+private let grepOptionsTakingArguments: Set<String> = [
+    "-e", "-f", "-A", "-B", "-C", "-m", "-d", "-D", "--regexp", "--file", "--after-context", "--before-context",
+    "--context", "--max-count", "--directories", "--devices", "--label", "--include", "--exclude", "--exclude-dir",
+    "--binary-files"
+]
+
+/// rg options whose value is the next word.
+private let ripgrepOptionsTakingArguments: Set<String> = [
+    "-e", "-f", "-g", "-t", "-T", "-A", "-B", "-C", "-m", "-M", "-j", "-r", "-E", "-d", "--regexp", "--file",
+    "--glob", "--iglob", "--type", "--type-not", "--type-add", "--after-context", "--before-context", "--context",
+    "--max-count", "--max-columns", "--threads", "--replace", "--encoding", "--max-depth", "--max-filesize",
+    "--sort", "--sortr", "--color", "--colors", "--path-separator", "--pre", "--pre-glob", "--context-separator",
+    "--field-match-separator", "--field-context-separator", "--ignore-file", "--engine", "--dfa-size-limit",
+    "--regex-size-limit"
+]
 
 private func skipOptions(_ words: inout ArraySlice<ShellWord>, takingArguments: Set<String>) {
     while let option = words.first, option.text.hasPrefix("-") {

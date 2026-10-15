@@ -53,6 +53,12 @@ let classifierCases: [ClassifierCase] = [
     ClassifierCase("ripgrep piped into head searches files", "rg x src | head", search: .ripgrep,
                    pipesIntoHeadOrTail: true, sequence: "rg | head"),
     ClassifierCase("ripgrep then grep filter", "rg x | grep y", search: .ripgrep, sequence: "rg | grep"),
+    ClassifierCase("piped grep with a path searches the path", "git diff | grep x file.swift", search: .grep,
+                   sequence: "git diff | grep"),
+    ClassifierCase("ripgrep with a path ignores a here-string", #"rg x Sources <<< "$t""#, search: .ripgrep,
+                   sequence: "rg <<<string"),
+    ClassifierCase("option value is not a path", "ps | grep -A 2 x", sequence: "ps | grep"),
+    ClassifierCase("pattern option and stdin operand", "git log | grep -e x -", sequence: "git log | grep"),
 
     // Git.
     ClassifierCase("git status with a directory option", "git -C repo status --short", gitStatus: true,
