@@ -59,6 +59,9 @@ let classifierCases: [ClassifierCase] = [
                    sequence: "rg <<<string"),
     ClassifierCase("option value is not a path", "ps | grep -A 2 x", sequence: "ps | grep"),
     ClassifierCase("pattern option and stdin operand", "git log | grep -e x -", sequence: "git log | grep"),
+    ClassifierCase("attached pattern option with a path", "git log | rg -eneedle Sources", search: .ripgrep,
+                   sequence: "git log | rg"),
+    ClassifierCase("attached option value is not a path", "ps | grep -A2 x", sequence: "ps | grep"),
 
     // Git.
     ClassifierCase("git status with a directory option", "git -C repo status --short", gitStatus: true,

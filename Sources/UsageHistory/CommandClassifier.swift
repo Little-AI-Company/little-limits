@@ -187,10 +187,22 @@ private struct Invocation {
                 operands.append(text)
                 continue
             }
-            if patternOptions.contains(text) || patternOptions.contains(where: { text.hasPrefix($0 + "=") }) {
-                patternIsOption = true
+            if text.hasPrefix("--") {
+                let name = text.split(separator: "=", maxSplits: 1).first.map(String.init) ?? text
+                if patternOptions.contains(name) { patternIsOption = true }
+                if optionsTakingArguments.contains(text) { _ = remaining.popFirst() }
+                continue
             }
-            if optionsTakingArguments.contains(text) { _ = remaining.popFirst() }
+            // A short option group, such as `-rn`, `-A2`, or `-eneedle`. The first option that takes a value
+            // takes the rest of the word, or the next word when nothing follows it.
+            var group = text.dropFirst()
+            while let letter = group.popFirst() {
+                let option = "-" + String(letter)
+                guard optionsTakingArguments.contains(option) else { continue }
+                if patternOptions.contains(option) { patternIsOption = true }
+                if group.isEmpty { _ = remaining.popFirst() }
+                break
+            }
         }
         return operands.dropFirst(patternIsOption ? 0 : 1).contains { $0 != "-" }
     }
