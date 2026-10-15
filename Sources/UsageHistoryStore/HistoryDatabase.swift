@@ -82,6 +82,15 @@ public final class HistoryDatabase: Sendable {
                 table.column("modifiedAt", .datetime).notNull()
             }
         }
+        // Codex quota backfill matches log readings to app accounts at read time. An account linked after its logs
+        // were read needs those logs read again, so ingestion records which links it has already applied.
+        migrator.registerMigration("v2") { db in
+            try db.create(table: "codexBackfillAccount") { table in
+                table.column("accountID", .blob).notNull()
+                table.column("providerAccountID", .text).notNull()
+                table.primaryKey(["accountID", "providerAccountID"])
+            }
+        }
         return migrator
     }
 }
