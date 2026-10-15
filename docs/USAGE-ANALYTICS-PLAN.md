@@ -108,7 +108,7 @@ All Phase 4.
 |---|---|---|---|
 | P1 | Share of commands running inline code, Python and JavaScript | "Programs instead of commands" | Detect `python3 - <<`, `python -c`, `node -e`, heredocs into node |
 | P2 | Saved script runs, counted separately | "Running a saved script file does not count" | Detect `python3 path.py` |
-| P3 | Split by project | "outside the busiest project" | Working directory folder name |
+| P3 | Split by project | "outside the busiest project" | Opaque project key per working directory (Decision 2). Folder names are not stored |
 | P4 | Purpose of inline Python | "Edits a file in place", "Reads JSON", "Writes a new file", "Other" | Ordered keyword rules |
 | P5 | Script length | "median Opus 5.5 script is 16 lines" | Line count of the heredoc body, median and 90th percentile |
 
@@ -149,7 +149,8 @@ Mark each decision with the chosen option and date. A decision is settled only w
 - Considerations: prompts, replies, tool output, and file contents are never stored under any option. Derived facts keep the database free of secrets that appear in commands. A metric added later cannot be computed for logs that the source tools have already deleted. Raw text would make the database as sensitive as the logs, and it would outlive them.
 - Recommendation: derived facts plus the program sequence.
 - Decision: derived facts plus program sequence, 2026-10-14.
-  - Per command: model, provider, time, project folder name, character length, line count, search program (grep, rg, none), pipe into head or tail, git status, git commit with success, inline interpreter (Python, JavaScript, none), saved script run, inline script purpose, inline script line count.
+  - Per command: model, provider, time, project key, character length, line count, search program (grep, rg, none), pipe into head or tail, git status, git commit with success, inline interpreter (Python, JavaScript, none), saved script run, inline script purpose, inline script line count.
+  - Project key: a salted hash of the full working directory path, with a random salt created once per database. Folder names are never stored. The full path keeps `~/clients/acme/web` and `~/personal/web` apart, and no planned feature displays a project name, so a name would only add exposure in screenshots and backups.
   - Program sequence: pipeline and command-list program names with all arguments removed, for example `grep | head`, `git status`, `python3 <<heredoc`. The only kept words after a program name are subcommands from a fixed allow list (such as `git status`, `git commit`); everything else is dropped.
   - Every record carries a classifier version. When rules change, recompute records whose source logs still exist; older records keep their earlier classification.
 
@@ -190,9 +191,10 @@ Mark each decision with the chosen option and date. A decision is settled only w
 - Decision: as recommended, 2026-10-14.
   - Claude and Codex totals are always separate. Their percentages measure different quotas.
   - Only the 7-day window feeds the total and forecast. The 5-hour window affects only per-account availability (Q3).
-  - Drain rate is computed per account, then summed: each account's increase in used percentage between its own consecutive current readings, over the last 24 hours, divided by the hours covered, including idle time. Intervals that contain that account's reset, or that start or end on a missing, failed, or stale reading, are skipped. Accounts joining or leaving the pooled total therefore never register as drain. With less than 24 hours of history, use all available history and say so.
+  - Drain rate is computed per account, then summed: each account's increase in used percentage between consecutive recorded readings of its 7-day window, over the last 24 hours, divided by the hours covered, including idle time. A pair counts however far apart its readings are, because a failed refresh, sleep, or the app being closed does not invalidate the change between two good readings. A pair is skipped only when its reset time changed or the earlier reset time is at or before the later reading. Accounts joining or leaving the pooled total therefore never register as drain, and overnight idle time is measured rather than dropped. With less than 24 hours of history, use all available history and say so.
   - Reset rule: at an account's reset, the projected total gains that account's used percentage as of now. This slightly underestimates the gain because future use cannot be assigned to a specific account. The total never falls below 0 or rises above the account count times 100%.
   - Per-model weekly windows show a pooled total as text (Q2) but get no forecast line at first.
+  - Per-model pools: a model pool covers every account that has reported that window, active, in its current or previous weekly period, from any source. Covered accounts with a current measured value count; other covered accounts are unknown, including accounts whose current source cannot report model windows (status-line capture reports only `five_hour` and `seven_day`). An account is outside the pool only if it never reported the window or reported it inactive. This needs history; until Phase 2, Phase 1 decides membership from the latest saved reading only.
   - Unknown readings: the total and its denominator include only accounts with a current, available 7-day reading. Accounts with a missing, unsupported, failed, or stale reading are left out and counted beside the total, for example "90% / 500% remaining, 1 account unknown". A stale last-known value never counts as current. With no current readings, the total is unknown, not 0%.
 
 ### 6. Quota history recording
@@ -204,8 +206,9 @@ Mark each decision with the chosen option and date. A decision is settled only w
 - Recommendation: record whatever the existing refresh produces, from any source.
 - Decision: record every successful reading, keep the 300 second refresh, 2026-10-14.
   - One history row per successful reading from any source: Claude OAuth, Claude status-line capture, Codex app-server, and the Codex log backfill. Each row carries its source.
-  - A missing row is a gap. Charts show gaps as gaps, never as zero or a joined line.
-  - Exception: Claude status-line capture is change-only. It saves only when quota changes, because Claude can repaint the status line without new quota data (`ClaudeCapture.swift:37`), so an unchanged repaint is not a new observation. For capture accounts the value is held between consecutive captures rather than shown as a gap, Last seen is the last capture, and the chart labels the account "changes only".
+  - Record a row only for an available reading whose `fetchedAt` is newer than the last row for that account and source. A failed refresh keeps the previous `fetchedAt` and windows, and capture rereads the same file, so this prevents duplicate rows.
+  - Polled sources (Claude OAuth, Codex app-server): charts break the line when two readings are more than 450 seconds apart (1.5 times the refresh interval). Never draw a gap as zero or a joined line.
+  - Change-only sources (Claude status-line capture, Codex log backfill) record only when quota changes; capture skips unchanged repaints because Claude can repaint without new quota data (`ClaudeCapture.swift:37`). Each value is held until the next reading or that reading's reset time, whichever comes first, then the line breaks. Last seen for these sources is the latest reading, and the chart labels the account "changes only".
   - Expected volume: about 288 rows per account per day, about 630,000 rows per year for 6 accounts.
   - The Claude OAuth poll stays at 300 seconds to limit load on a private endpoint.
 
