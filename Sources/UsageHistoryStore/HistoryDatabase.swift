@@ -103,6 +103,13 @@ public final class HistoryDatabase: Sendable {
         migrator.registerMigration("v3-reread-logs-for-command-attribution") { db in
             try SourceFilePosition.deleteAll(db)
         }
+        // Commands keep classification facts only, so newer classifier rules mean reading every log again. This
+        // holds the classifier version that the last complete, failure-free scan applied.
+        migrator.registerMigration("v4-completed-classifier-version") { db in
+            try db.create(table: "completedClassifierVersion") { table in
+                table.column("version", .integer).notNull()
+            }
+        }
         return migrator
     }
 }

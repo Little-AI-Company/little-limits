@@ -53,10 +53,14 @@ public actor LogIngestor {
             .compactMapValues { $0.count == 1 ? $0[0].accountID : nil }
         let positions: [String: SourceFilePosition]
         let newLinks: [CodexAccountLink]
+        let completedClassifierVersion: Int?
+        let hasCommands: Bool
         do {
             newLinks = try readCodexLinksToApply(codexAccounts.filter { accountsByProviderID[$0.providerAccountID] != nil })
-            positions = try database.pool.read { db in
-                Dictionary(uniqueKeysWithValues: try SourceFilePosition.fetchAll(db).map { ($0.path, $0) })
+            (positions, completedClassifierVersion, hasCommands) = try database.pool.read { db in
+                (Dictionary(uniqueKeysWithValues: try SourceFilePosition.fetchAll(db).map { ($0.path, $0) }),
+                 try Int.fetchOne(db, sql: "SELECT version FROM completedClassifierVersion"),
+                 try Bool.fetchOne(db, sql: "SELECT EXISTS (SELECT 1 FROM shellCommand)") ?? false)
             }
         } catch {
             summary.filesFailed += 1
@@ -65,22 +69,51 @@ public actor LogIngestor {
         }
 
         let salt = database.projectKeySalt
-        let claudeFiles = Self.logFiles(in: [claudeProjects], suffixes: [".jsonl"], salt: salt)
+        let (claudeFiles, unreadableClaude) = Self.logFiles(in: [claudeProjects], suffixes: [".jsonl"], salt: salt)
         // Rollout names start with their time, so name order is close to the order quota readings were observed.
-        let codexFiles = Self.logFiles(in: codexDirectories, suffixes: [".jsonl", ".jsonl.zst"], salt: salt)
-            .sorted { $0.url.lastPathComponent < $1.url.lastPathComponent }
+        let (unsortedCodexFiles, unreadableCodex) = Self.logFiles(in: codexDirectories,
+                                                                   suffixes: [".jsonl", ".jsonl.zst"], salt: salt)
+        let codexFiles = unsortedCodexFiles.sorted { $0.url.lastPathComponent < $1.url.lastPathComponent }
+        // A log that could not be listed was not read, so the scan is incomplete.
+        summary.filesFailed += unreadableClaude + unreadableCodex
+        // Only classification facts are stored, so newer classifier rules apply by reading every log again. Rereading
+        // replaces each command row; rows from logs that no longer exist keep the version that produced them. Commands
+        // stored before the completed version was recorded may come from any older version.
+        let appliedVersion = completedClassifierVersion ?? (hasCommands ? 0 : CommandClassifier.version)
+        let reclassifies = appliedVersion < CommandClassifier.version
         for file in claudeFiles {
-            ingest(file, as: ClaudeLogParser.self, position: positions[file.positionKey], accounts: [:],
-                   summary: &summary)
+            let succeeded = ingest(file, as: ClaudeLogParser.self,
+                                   position: reclassifies ? nil : positions[file.positionKey], accounts: [:],
+                                   summary: &summary)
+            if reclassifies, !succeeded {
+                _ = try? database.pool.write { db in try SourceFilePosition.deleteOne(db, key: file.positionKey) }
+            }
         }
         for file in codexFiles {
             // A newly linked account needs every Codex log read again; unique keys make that add only its readings.
-            let position = newLinks.isEmpty ? positions[file.positionKey] : nil
-            let succeeded = ingest(file, as: CodexLogParser.self, position: position, accounts: accountsByProviderID,
-                                   summary: &summary)
-            // The links below are saved as applied, so a file that failed this reread must start over next time.
-            if !newLinks.isEmpty, !succeeded {
+            let rereads = reclassifies || !newLinks.isEmpty
+            let succeeded = ingest(file, as: CodexLogParser.self, position: rereads ? nil : positions[file.positionKey],
+                                   accounts: accountsByProviderID, summary: &summary)
+            // A reread that failed must start over next time, because newer runs will not reread it again.
+            if rereads, !succeeded {
                 _ = try? database.pool.write { db in try SourceFilePosition.deleteOne(db, key: file.positionKey) }
+            }
+        }
+        // Recorded only after a scan with no failures, so an interrupted or failed reclassification runs again.
+        if summary.filesFailed == 0, completedClassifierVersion != CommandClassifier.version {
+            do {
+                // A log missing from this scan keeps its older facts. Dropping its saved position means it is read,
+                // and reclassified, if it comes back.
+                let discovered = Set((claudeFiles + codexFiles).map(\.positionKey))
+                let missing = positions.keys.filter { !discovered.contains($0) }
+                try database.pool.write { db in
+                    _ = try SourceFilePosition.deleteAll(db, keys: missing)
+                    try db.execute(sql: "DELETE FROM completedClassifierVersion")
+                    try db.execute(sql: "INSERT INTO completedClassifierVersion (version) VALUES (?)",
+                                   arguments: [CommandClassifier.version])
+                }
+            } catch {
+                summary.lastFailure = error.localizedDescription
             }
         }
         if !newLinks.isEmpty {
@@ -209,20 +242,26 @@ public actor LogIngestor {
         }
     }
 
-    private static func logFiles(in directories: [URL], suffixes: [String], salt: [UInt8]) -> [LogFile] {
+    /// `unreadable` counts folders and files that exist but could not be listed or inspected. A missing log folder
+    /// is not a failure: the provider may not be installed.
+    private static func logFiles(in directories: [URL], suffixes: [String],
+                                 salt: [UInt8]) -> (files: [LogFile], unreadable: Int) {
         let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
         var files: [LogFile] = []
-        for directory in directories {
-            guard let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: keys)
-            else { continue }
+        var unreadable = 0
+        for directory in directories where FileManager.default.fileExists(atPath: directory.path) {
+            guard let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: keys,
+                                                                  errorHandler: { _, _ in unreadable += 1; return true })
+            else { unreadable += 1; continue }
             for case let url as URL in enumerator where suffixes.contains(where: url.lastPathComponent.hasSuffix) {
-                guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
-                      let size = values.fileSize, let modifiedAt = values.contentModificationDate else { continue }
+                guard let values = try? url.resourceValues(forKeys: Set(keys)) else { unreadable += 1; continue }
+                guard values.isRegularFile == true, let size = values.fileSize,
+                      let modifiedAt = values.contentModificationDate else { continue }
                 files.append(LogFile(url: url, positionKey: ProjectKey.make(workingDirectory: url.path, salt: salt),
                                      size: Int64(size), modifiedAt: modifiedAt))
             }
         }
-        return files
+        return (files, unreadable)
     }
 }
 
