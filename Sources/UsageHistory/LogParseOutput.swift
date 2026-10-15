@@ -58,9 +58,11 @@ public struct LogParseOutput: Sendable, Equatable {
     public var responses: [ModelResponse]
     public var commands: [ShellCommandEvent]
     public var quotaReadings: [LogQuotaReading]
-    /// Absolute offset, in the uncompressed file, of the first line of the file's last response, which may still be
-    /// growing. The next read starts here and emits that response and its commands again, complete, replacing the
-    /// earlier rows.
+    /// Absolute offset, in the uncompressed file, of the first line of the turn that contains the file's last
+    /// response, which may still be growing. This is the line that opened the turn, not the response's own first
+    /// line, because a response takes `turnID` from the turn's prompt and `requestedAt` from earlier lines of the
+    /// turn. The next read starts here and emits the turn's responses and commands again, complete, replacing the
+    /// earlier rows. When a read sees no turn, this is the end of the bytes read.
     public var resumeByteOffset: Int64
 
     public init(responses: [ModelResponse] = [], commands: [ShellCommandEvent] = [],
