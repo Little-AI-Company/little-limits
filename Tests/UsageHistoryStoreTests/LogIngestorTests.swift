@@ -99,6 +99,10 @@ private func rowCounts(_ database: HistoryDatabase) throws -> [Int] {
     let counts = try rowCounts(database)
     #expect(counts == [2, 3, 3])
 
+    // Folder and user names never reach the database.
+    let savedPositions = try await database.pool.read(SourceFilePosition.fetchAll)
+    #expect(savedPositions.count == 2 && savedPositions.allSatisfy { !$0.path.contains("/") })
+
     let unchanged = await ingestor.ingest(codexAccounts: accounts)
     #expect(unchanged.filesUnchanged == 2 && unchanged.filesRead == 0)
 

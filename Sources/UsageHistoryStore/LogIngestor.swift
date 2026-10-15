@@ -64,18 +64,24 @@ public actor LogIngestor {
             return summary
         }
 
-        let claudeFiles = Self.logFiles(in: [claudeProjects], suffixes: [".jsonl"])
+        let salt = database.projectKeySalt
+        let claudeFiles = Self.logFiles(in: [claudeProjects], suffixes: [".jsonl"], salt: salt)
         // Rollout names start with their time, so name order is close to the order quota readings were observed.
-        let codexFiles = Self.logFiles(in: codexDirectories, suffixes: [".jsonl", ".jsonl.zst"])
+        let codexFiles = Self.logFiles(in: codexDirectories, suffixes: [".jsonl", ".jsonl.zst"], salt: salt)
             .sorted { $0.url.lastPathComponent < $1.url.lastPathComponent }
         for file in claudeFiles {
-            ingest(file, as: ClaudeLogParser.self, position: positions[file.url.path], accounts: [:], summary: &summary)
+            ingest(file, as: ClaudeLogParser.self, position: positions[file.positionKey], accounts: [:],
+                   summary: &summary)
         }
         for file in codexFiles {
             // A newly linked account needs every Codex log read again; unique keys make that add only its readings.
-            let position = newLinks.isEmpty ? positions[file.url.path] : nil
-            ingest(file, as: CodexLogParser.self, position: position, accounts: accountsByProviderID,
-                   summary: &summary)
+            let position = newLinks.isEmpty ? positions[file.positionKey] : nil
+            let succeeded = ingest(file, as: CodexLogParser.self, position: position, accounts: accountsByProviderID,
+                                   summary: &summary)
+            // The links below are saved as applied, so a file that failed this reread must start over next time.
+            if !newLinks.isEmpty, !succeeded {
+                _ = try? database.pool.write { db in try SourceFilePosition.deleteOne(db, key: file.positionKey) }
+            }
         }
         if !newLinks.isEmpty {
             do {
@@ -101,16 +107,18 @@ public actor LogIngestor {
         return links.filter { !applied.contains($0) }
     }
 
+    /// Returns false when the file could not be read or saved.
+    @discardableResult
     private func ingest<Parser: HistoryLogParser>(_ file: LogFile, as parser: Parser.Type,
                                                   position: SourceFilePosition?, accounts: [String: UUID],
-                                                  summary: inout LogIngestionSummary) {
+                                                  summary: inout LogIngestionSummary) -> Bool {
         let start: Int64
         if let position {
             let modifiedChange = file.modifiedAt.timeIntervalSince(position.modifiedAt)
             // Saved times keep milliseconds only.
             if file.size == position.fileSize, abs(modifiedChange) < 0.001 {
                 summary.filesUnchanged += 1
-                return
+                return true
             }
             // A smaller or older file is a different file at the same path.
             start = file.size < position.fileSize || modifiedChange < -0.001 ? 0 : position.byteOffset
@@ -146,7 +154,7 @@ public actor LogIngestor {
                                              observedAt: reading.observedAt, source: .codexLogBackfill))
             }
             // The first line of the file can come before `start`; the saved position never moves backward.
-            let newPosition = SourceFilePosition(path: file.url.path, byteOffset: max(output.resumeByteOffset, start),
+            let newPosition = SourceFilePosition(path: file.positionKey, byteOffset: max(output.resumeByteOffset, start),
                                                  fileSize: file.size, modifiedAt: file.modifiedAt)
             let added = try database.pool.write { db in
                 for response in output.responses { try response.insert(db) }
@@ -159,9 +167,11 @@ public actor LogIngestor {
             summary.responses += output.responses.count
             summary.commands += commands.count
             summary.quotaReadingsAdded += added
+            return true
         } catch {
             summary.filesFailed += 1
             summary.lastFailure = error.localizedDescription
+            return false
         }
     }
 
@@ -196,7 +206,7 @@ public actor LogIngestor {
         }
     }
 
-    private static func logFiles(in directories: [URL], suffixes: [String]) -> [LogFile] {
+    private static func logFiles(in directories: [URL], suffixes: [String], salt: [UInt8]) -> [LogFile] {
         let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
         var files: [LogFile] = []
         for directory in directories {
@@ -205,7 +215,8 @@ public actor LogIngestor {
             for case let url as URL in enumerator where suffixes.contains(where: url.lastPathComponent.hasSuffix) {
                 guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
                       let size = values.fileSize, let modifiedAt = values.contentModificationDate else { continue }
-                files.append(LogFile(url: url, size: Int64(size), modifiedAt: modifiedAt))
+                files.append(LogFile(url: url, positionKey: ProjectKey.make(workingDirectory: url.path, salt: salt),
+                                     size: Int64(size), modifiedAt: modifiedAt))
             }
         }
         return files
@@ -214,6 +225,9 @@ public actor LogIngestor {
 
 private struct LogFile {
     let url: URL
+    /// Saved in place of the path, which holds the user name and project folder names. It uses the database's
+    /// project key salt, which stays the same across launches, so the next run finds the saved position.
+    let positionKey: String
     let size: Int64
     let modifiedAt: Date
 }
