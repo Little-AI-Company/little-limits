@@ -1,5 +1,8 @@
 import Foundation
+import OSLog
 import UsageCore
+import UsageHistory
+import UsageHistoryStore
 
 /// The answer to the Add Codex Account question shown when this Mac's Codex CLI is already signed in.
 enum CodexLoginChoice {
@@ -25,6 +28,12 @@ final class ApplicationModel {
     private(set) var pendingManualCredits: [UUID: [CreditBalance]] = [:]
     /// Codex accounts whose Terminal sign-in is open. The account page and sidebar show the wait instead of an error.
     private(set) var awaitingCodexSignIns: Set<UUID> = []
+    /// The local usage history, or nil when it could not be opened or the app runs the demonstration.
+    /// `historyDatabaseError` then explains why; monitoring continues without history.
+    let historyDatabase: HistoryDatabase?
+    let historyDatabaseError: String?
+    private let logIngestor: LogIngestor?
+    private var logIngestion: Task<Void, Never>?
     var onChange: (() -> Void)?
     var onError: ((String) -> Void)?
     /// Opens the Terminal login command. Returns false when Terminal could not be opened.
@@ -42,11 +51,81 @@ final class ApplicationModel {
 
     init(isDemo: Bool) {
         self.isDemo = isDemo
+        (historyDatabase, historyDatabaseError) = isDemo ? (nil, nil) : Self.openHistoryDatabase()
+        logIngestor = historyDatabase.map { LogIngestor(database: $0) }
         let defaults = UserDefaults.standard
         chosenMenuBarAccountIDs = isDemo ? nil
             : defaults.stringArray(forKey: Self.menuBarAccountsKey).map { Set($0.compactMap(UUID.init(uuidString:))) }
         let legacy = isDemo ? [] : defaults.stringArray(forKey: Self.legacyMenuBarHiddenKey) ?? []
         legacyMenuBarHiddenAccountIDs = Set(legacy.compactMap(UUID.init(uuidString:)))
+    }
+
+    nonisolated private static let logger = Logger(subsystem: "com.parkerrex.ai-usage-stats", category: "History")
+
+    private static func openHistoryDatabase() -> (HistoryDatabase?, String?) {
+        let url = UsagePaths.applicationSupport.appendingPathComponent("history.sqlite")
+        do {
+            return (try HistoryDatabase(url: url), nil)
+        } catch {
+            logger.error("Could not open the usage history database: \(error.localizedDescription, privacy: .public)")
+            return (nil, "Could not open the usage history: \(error.localizedDescription)")
+        }
+    }
+
+    /// Saves the latest readings to quota history and starts a log read when none is running. Both run on a
+    /// background task; the menu and windows never wait for them.
+    private func recordHistory() {
+        guard let historyDatabase, let logIngestor else { return }
+        let readings = profiles.flatMap { profile in
+            snapshots[profile.id].map { Self.quotaReadings(profile: profile, snapshot: $0) } ?? []
+        }
+        Task.detached(priority: .utility) {
+            do { try historyDatabase.recordQuotaReadings(readings) } catch {
+                Self.logger.error("Could not save quota history: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        guard logIngestion == nil else { return }
+        let codexAccounts = profiles.compactMap { profile -> CodexAccountLink? in
+            guard profile.source == .codexCLI || profile.source == .codexDefaultLogin,
+                  let providerAccountID = profile.providerAccountID else { return nil }
+            return CodexAccountLink(accountID: profile.id, providerAccountID: providerAccountID)
+        }
+        logIngestion = Task.detached(priority: .utility) { [weak self] in
+            let started = ContinuousClock.now
+            let summary = await logIngestor.ingest(codexAccounts: codexAccounts)
+            let duration = ContinuousClock.now - started
+            if summary.filesRead > 0 { Self.logger.notice("""
+                Read \(summary.filesRead) log files (\(summary.filesUnchanged) unchanged, \(summary.filesFailed) failed) \
+                in \(duration, privacy: .public): \(summary.responses) responses, \(summary.commands) commands, \
+                \(summary.quotaReadingsAdded) quota readings added
+                """) }
+            if let failure = summary.lastFailure {
+                Self.logger.error("Could not read a log file: \(failure, privacy: .private)")
+            }
+            await self?.finishLogIngestion()
+        }
+    }
+
+    private func finishLogIngestion() { logIngestion = nil }
+
+    /// One reading per window of an available snapshot. Demonstration and manual accounts have no live source.
+    private static func quotaReadings(profile: AccountProfile, snapshot: AccountSnapshot) -> [QuotaReading] {
+        let source: QuotaReadingSource
+        switch profile.source {
+        case .claudeOAuth: source = .claudeOAuth
+        case .claudeCLI: source = .claudeStatusLine
+        case .codexCLI, .codexDefaultLogin: source = .codexAppServer
+        case .manual, .demo: return []
+        }
+        guard snapshot.state == .available, let fetchedAt = snapshot.fetchedAt else { return [] }
+        let provider: HistoryProvider = profile.provider == .claude ? .claude : .codex
+        return snapshot.currentWindows.compactMap { window in
+            window.utilizationPercent.map {
+                QuotaReading(provider: provider, accountID: profile.id, windowID: window.id, usedPercent: $0,
+                             resetsAt: window.resetsAt, windowDurationMinutes: window.windowDurationMinutes,
+                             observedAt: fetchedAt, source: source)
+            }
+        }
     }
 
     // MARK: Menu bar accounts
@@ -164,6 +243,7 @@ final class ApplicationModel {
             }
             self.isRefreshing = false
             self.refreshTask = nil
+            if !Task.isCancelled { self.recordHistory() }
             self.onChange?()
             if self.refreshRequested {
                 self.refreshRequested = false
@@ -188,6 +268,7 @@ final class ApplicationModel {
                     profiles = try await service.load()
                     message = nil
                 } catch { message = "Could not reload accounts: \(error.localizedDescription)" }
+                recordHistory()
             }
             isRefreshing = false
             refreshTask = nil
