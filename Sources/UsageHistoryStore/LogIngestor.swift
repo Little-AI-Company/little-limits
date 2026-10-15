@@ -176,22 +176,25 @@ public actor LogIngestor {
     }
 
     /// The log backfill records only changes: a reading equal to the account window's previous saved backfill
-    /// reading is skipped. Codex writes the same quota after every response.
+    /// reading is skipped. Codex writes the same quota after every response. Overlapping sessions are read one file
+    /// at a time, so a reading can land before saved later ones; a later saved reading it makes redundant is removed.
     private static func insertChangedReadings(_ readings: [QuotaReading], _ db: Database) throws -> Int {
-        var previous: [String: QuotaReading] = [:]
         var added = 0
         for reading in readings {
-            let key = reading.accountID.uuidString + reading.windowID
-            let earlier = try previous[key] ?? QuotaReading
-                .filter(Column("accountID") == reading.accountID && Column("windowID") == reading.windowID
-                        && Column("source") == QuotaReadingSource.codexLogBackfill.rawValue
-                        && Column("observedAt") < reading.observedAt)
-                .order(Column("observedAt").desc)
-                .fetchOne(db)
-            previous[key] = reading
+            let window = QuotaReading.filter(Column("accountID") == reading.accountID
+                                             && Column("windowID") == reading.windowID
+                                             && Column("source") == QuotaReadingSource.codexLogBackfill.rawValue)
+            let earlier = try window.filter(Column("observedAt") < reading.observedAt)
+                .order(Column("observedAt").desc).fetchOne(db)
             if let earlier, hasSameQuota(earlier, reading) { continue }
             try reading.insert(db)
             added += db.changesCount
+            let later = try window.filter(Column("observedAt") > reading.observedAt)
+                .order(Column("observedAt")).fetchOne(db)
+            if let later, hasSameQuota(later, reading) {
+                try later.delete(db)
+                added -= 1
+            }
         }
         return added
     }

@@ -17,9 +17,10 @@ private func write(_ lines: [String], to url: URL) throws {
     try Data(lines.map { $0 + "\n" }.joined().utf8).write(to: url)
 }
 
-private func codexSession(account: String, usedPercent: [Int]) -> [String] {
+/// `startSecond` moves every line later, so sessions can overlap in time.
+private func codexSession(account: String, usedPercent: [Int], startSecond: Int = 0) -> [String] {
     func line(_ second: Int, _ type: String, _ payload: String) -> String {
-        #"{"timestamp":"2026-10-14T10:00:\#(10 + second).000Z","type":"\#(type)","payload":\#(payload)}"#
+        #"{"timestamp":"2026-10-14T10:00:\#(10 + startSecond + second).000Z","type":"\#(type)","payload":\#(payload)}"#
     }
     var lines = [
         line(0, "session_meta", #"{"cwd":"/work/app","creator_account_id":"\#(account)"}"#),
@@ -34,7 +35,7 @@ private func codexSession(account: String, usedPercent: [Int]) -> [String] {
             line(6 + index * 4, "event_msg", #"{"type":"token_count","info":null,"rate_limits":{"primary":{"used_percent":\#(percent),"window_minutes":300,"resets_at":1791990000}}}"#)
         ]
     }
-    return lines + [line(40, "event_msg", #"{"type":"task_complete"}"#)]
+    return lines + [line(3 + usedPercent.count * 4, "event_msg", #"{"type":"task_complete"}"#)]
 }
 
 private let claudeSession = [
@@ -79,8 +80,26 @@ private func rowCounts(_ database: HistoryDatabase) throws -> [Int] {
     let readings = try await database.pool.read(QuotaReading.fetchAll)
     #expect(Set(readings.map(\.accountID)) == [linked])
     // Only changes are kept: 10, then 20.
-    #expect(readings.map(\.usedPercent).sorted() == [10, 20])
+    #expect(readings.sorted { $0.observedAt < $1.observedAt }.map(\.usedPercent) == [10, 20])
     #expect(readings.allSatisfy { $0.source == .codexLogBackfill && $0.windowID == "codex_primary" })
+}
+
+@Test func overlappingSessionsKeepOnlyQuotaChanges() async throws {
+    let home = try temporaryHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let sessions = home.appendingPathComponent(".codex/sessions/2026/10/14")
+    // The session that started first is read first, but its readings come after the other session's reading.
+    try write(codexSession(account: "acct", usedPercent: [10, 20], startSecond: 20),
+              to: sessions.appendingPathComponent("rollout-2026-10-14T09-00-00-0199e2a1-0000-7000-8000-000000000001.jsonl"))
+    try write(codexSession(account: "acct", usedPercent: [10], startSecond: 1),
+              to: sessions.appendingPathComponent("rollout-2026-10-14T10-00-00-0199e2a1-0000-7000-8000-000000000002.jsonl"))
+    let database = try HistoryDatabase(url: home.appendingPathComponent("history.sqlite"))
+    let ingestor = LogIngestor(database: database, homeDirectory: home)
+
+    _ = await ingestor.ingest(codexAccounts: [CodexAccountLink(accountID: UUID(), providerAccountID: "acct")])
+    let readings = try await database.pool.read(QuotaReading.fetchAll).sorted { $0.observedAt < $1.observedAt }
+    #expect(readings.map(\.usedPercent) == [10, 20])
+    #expect(readings.first?.observedAt == Date(timeIntervalSince1970: 1_791_972_017))
 }
 
 @Test func rereadingOrMovingALogAddsNothing() async throws {
