@@ -51,6 +51,16 @@ private func overview(_ entries: [(AccountProfile, AccountSnapshot?)]) -> UsageO
     #expect(unknown.unknownAccountIDs.count == 2)
 }
 
+@Test func totalsJudgeEachWindowByItsOwnReset() {
+    // The 5-hour reset passed after the reading; the weekly value is still current for the weekly total.
+    let passedSession = account(.claude, [window("five_hour", used: 100, resetsIn: -30), window("seven_day", used: 40),
+                                          window("seven_day_fable_5", title: "7 days (Fable 5)", used: 10, resetsIn: -30)])
+    let provider = overview([passedSession]).providers[0]
+    #expect(provider.weekly.remainingPercent == 60)
+    #expect(provider.scopedWeekly[0].remainingPercent == nil)
+    #expect(provider.scopedWeekly[0].unknownAccountIDs == [passedSession.0.id])
+}
+
 @Test func scopedWeeklyTotalCoversOnlyAccountsReportingThatModel() {
     let personal = account(.claude, [window("seven_day", used: 20), window("seven_day_fable_5", title: "7 days (Fable 5)", used: 16)])
     let stale = account(.claude, [window("seven_day", used: 20), window("seven_day_fable_5", title: "7 days (Fable 5)", used: 0)],

@@ -136,15 +136,19 @@ public struct ProviderQuotaOverview: Equatable, Sendable {
         let members = accounts.filter { $0.profile.provider == provider }
         self.provider = provider
         accountCount = members.count
-        func measured(_ window: UsageWindow) -> Double? {
-            guard window.isActive != false, let used = window.utilizationPercent, used.isFinite else { return nil }
+        /// The used percentage of one window when it stands for now: a fresh reading, the window active and measured,
+        /// and its own reset not passed. Another window's passed reset does not make this value outdated.
+        func currentUsed(_ window: UsageWindow?, in account: UsageOverviewAccount) -> Double? {
+            guard let window, account.snapshot?.isFresh(at: now) == true, window.isActive != false,
+                  window.resetsAt.map({ $0 <= now }) != true,
+                  let used = window.utilizationPercent, used.isFinite else { return nil }
             return used
         }
         var weeklyUsed: [(id: UUID, window: UsageWindow, used: Double)] = []
         var weeklyUnknown: [UUID] = []
         for account in members {
-            let snapshot = account.snapshot.flatMap { $0.isCurrent(at: now) ? $0 : nil }
-            if let window = snapshot?.windows.first(where: { $0.role == .weekly }), let used = measured(window) {
+            let window = account.snapshot?.windows.first { $0.isActive != false && $0.role == .weekly }
+            if let window, let used = currentUsed(window, in: account) {
                 weeklyUsed.append((account.id, window, used))
             } else {
                 weeklyUnknown.append(account.id)
@@ -171,7 +175,7 @@ public struct ProviderQuotaOverview: Equatable, Sendable {
             var remaining = 0.0
             for account in members {
                 guard let window = activeScopedWindow(account, named: name) else { continue }
-                if account.snapshot?.isCurrent(at: now) == true, let used = measured(window) {
+                if let used = currentUsed(window, in: account) {
                     counted.append(account.id)
                     remaining += 100 - used
                 } else {
