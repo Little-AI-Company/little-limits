@@ -16,7 +16,7 @@ func accountWithoutReadingShowsAStateLineAndOpenAccount() {
     let profile = AccountProfile(provider: .codex, label: "Personal", source: .demo, providerEmail: "codex@example.invalid")
     let target = MenuTarget()
     let items = UsageMenu.accountItems(profiles: [profile], snapshots: [:], consoleMessages: [:], now: Date(), target: target,
-                                       openAction: #selector(MenuTarget.open(_:)), reconnectAction: #selector(MenuTarget.reconnect(_:)))
+                                       homeAction: #selector(MenuTarget.open(_:)), openAction: #selector(MenuTarget.open(_:)), reconnectAction: #selector(MenuTarget.reconnect(_:)))
     let titles = items.filter { !$0.isSeparatorItem && !$0.isSectionHeader }.map(\.title)
     #expect(titles == ["Unavailable", "Open Account"])
     let state = items.first { $0.title == "Unavailable" }

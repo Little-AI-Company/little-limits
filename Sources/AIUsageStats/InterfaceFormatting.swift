@@ -69,14 +69,18 @@ enum InterfaceFormatting {
     static func reading(_ window: UsageWindow, snapshot: AccountSnapshot, now: Date) -> (value: String, timing: String) {
         let value = isOutdated(snapshot, now: now) ? lastKnownRemaining(window) : remainingWithStatus(window)
         let timing = snapshot.state == .authenticationRequired ? ""
-            : window.isActive == false ? "Not current" : compactReset(window.resetsAt, now: now)
+            : window.isActive == false ? "Not current"
+            : window.hasNoPendingReset && snapshot.isCurrent(at: now) ? HomeInterfaceFormatting.noPendingResetText
+            : compactReset(window.resetsAt, now: now)
         return (value, timing)
     }
 
-    static func reset(_ window: UsageWindow, now: Date = Date()) -> String {
+    /// `No reset pending` needs a current reading; an old zero cannot show that nothing was used since.
+    static func reset(_ window: UsageWindow, snapshot: AccountSnapshot?, now: Date = Date()) -> String {
         if window.isActive == false {
             return window.resetsAt.map { "Provider reported reset: \(exactDate($0))" } ?? "Reset time unknown"
         }
+        if window.hasNoPendingReset, snapshot?.isCurrent(at: now) == true { return HomeInterfaceFormatting.noPendingResetText }
         return reset(window.resetsAt, now: now)
     }
 

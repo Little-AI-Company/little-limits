@@ -9,9 +9,9 @@ extension NSToolbarItem.Identifier {
     static let homeRefreshAll = NSToolbarItem.Identifier("home.refreshAll")
 }
 
-/// Home: the account table first, then the reset calendar, in one scrolling document. Period
-/// navigation, the account filter, period length, and Refresh All are window toolbar items.
-/// Mode, date, filter, and event selection survive refresh.
+/// Home: weekly totals, then the account table, then the reset calendar, in one scrolling document. Period
+/// navigation, the account filter, period length, and Refresh All are window toolbar items; View > Sort Accounts
+/// orders the table. Mode, date, filter, sort order, and event selection survive refresh.
 @MainActor
 final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemValidation,
                                 WindowToolbarContributor, WindowCommandHandling {
@@ -30,6 +30,7 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
     private var mode: UsageCalendarMode = .twoWeeks
     private var anchor = Date()
     private var filter: AccountFilter = .all
+    private var sortOrder: AccountSortOrder = .saved
     private var filterChoices: [FilterChoice] = []
     private var showsReadings = false
     private var overview = UsageOverview(profiles: [], snapshots: [:])
@@ -46,6 +47,8 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
     private let details = UsageEventDetailsViewController()
     private let calendarView = UsageCalendarView()
     private let tableView = UsageOverviewTableView()
+    private let totalsView = HomeTotalsView()
+    private var totalsTitle: NSTextField?
     private let contextLabel = NSTextField(labelWithString: "")
     private let attentionStack = NSStackView()
     private let emptyPeriodLabel = NSTextField(labelWithString: HomeInterfaceFormatting.emptyPeriodText)
@@ -99,11 +102,15 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         attentionStack.setAccessibilityElement(true)
         attentionStack.setAccessibilityRole(.group)
         attentionStack.setAccessibilityLabel("Accounts needing attention")
+        let totalsTitle = sectionTitle("Weekly Totals")
+        self.totalsTitle = totalsTitle
         let tableTitle = sectionTitle("Account Usage")
         let calendarTitle = sectionTitle("Reset Calendar")
-        for item in [tableTitle, contextLabel, attentionStack, tableView, calendarTitle, emptyPeriodLabel, calendarView, demoLabel] {
+        for item in [totalsTitle, totalsView, tableTitle, contextLabel, attentionStack, tableView, calendarTitle, emptyPeriodLabel,
+                     calendarView, demoLabel] {
             readings.addArrangedSubview(item)
         }
+        readings.setCustomSpacing(16, after: totalsView)
         readings.setCustomSpacing(16, after: tableView)
         stateStack.orientation = .vertical
         stateStack.alignment = .leading
@@ -138,6 +145,7 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
             calendarView.widthAnchor.constraint(equalTo: readings.widthAnchor),
             tableView.widthAnchor.constraint(equalTo: readings.widthAnchor),
             attentionStack.widthAnchor.constraint(equalTo: readings.widthAnchor),
+            totalsView.widthAnchor.constraint(equalTo: readings.widthAnchor),
             stateMessage.widthAnchor.constraint(lessThanOrEqualTo: stateStack.widthAnchor),
             stateDetail.widthAnchor.constraint(lessThanOrEqualTo: stateStack.widthAnchor)
         ])
@@ -191,13 +199,18 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
             case .account(let id): account.id == id
             }
         }
+        // Totals pool every account, whatever the filter shows.
+        let totals = HomeInterfaceFormatting.totalLines(overview, now: now, calendar: calendar)
+        totalsView.apply(totals)
+        totalsView.isHidden = totals.isEmpty
+        totalsTitle?.isHidden = totals.isEmpty
         contextLabel.stringValue = HomeInterfaceFormatting.readingContext(now: now, calendar: calendar)
         applyAttention(HomeInterfaceFormatting.attentionItems(accounts, now: now))
         syncAttentionReconnect()
         demoLabel.isHidden = !model.isDemo
         let placed = HomeInterfaceFormatting.calendarEvents(visibleEvents, days: period.days, now: now, calendar: calendar)
         emptyPeriodLabel.isHidden = !placed.isEmpty
-        tableView.apply(rows: HomeInterfaceFormatting.rows(for: accounts, now: now, calendar: calendar),
+        tableView.apply(rows: HomeInterfaceFormatting.rows(for: sortOrder.sorted(accounts, now: now), now: now, calendar: calendar),
                         headings: HomeInterfaceFormatting.headings(for: accounts))
         calendarView.apply(period: period, events: visibleEvents, mode: mode, anchor: anchor, now: now, calendar: calendar)
         refreshPresentedDetails()
@@ -411,6 +424,9 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         case #selector(chooseFilter(_:)):
             menuItem.state = menuItem.tag == selectedFilterIndex ? .on : .off
             return showsReadings
+        case #selector(chooseAccountSortOrder(_:)):
+            menuItem.state = AccountSortOrder.allCases.firstIndex(of: sortOrder) == menuItem.tag ? .on : .off
+            return showsReadings
         default:
             return true
         }
@@ -432,6 +448,15 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         let index = (sender as? NSPopUpButton)?.selectedTag() ?? (sender as? NSMenuItem)?.tag ?? 0
         let choice = index - 1
         filter = filterChoices.indices.contains(choice) ? .account(filterChoices[choice].id) : .all
+        render()
+    }
+
+    /// View > Sort Accounts. The menu item tag is the index in `AccountSortOrder.allCases`.
+    @objc func chooseAccountSortOrder(_ sender: Any?) {
+        guard showsReadings, let tag = (sender as? NSMenuItem)?.tag, AccountSortOrder.allCases.indices.contains(tag) else { return }
+        let order = AccountSortOrder.allCases[tag]
+        guard order != sortOrder else { return }
+        sortOrder = order
         render()
     }
 
