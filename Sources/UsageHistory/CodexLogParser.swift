@@ -8,8 +8,9 @@ import Foundation
 /// A response is the run of assistant output after a prompt or tool result: reasoning, messages, and tool call
 /// response items, or completed `AgentMessage` and `Reasoning` items, which older subagent logs write instead. Its
 /// usage line can follow its tool results. Its identifier is the conversation id and the offset of its first output
-/// line, so a moved, compressed, or resumed file produces the same identifiers. Shell commands that complete after a
-/// response belong to it. A response and its commands are emitted only when the turn's model is known.
+/// line, so a moved, compressed, or resumed file produces the same identifiers. A shell command belongs to the
+/// response that was active when it started. A response and its commands are emitted only when the turn's model is
+/// known.
 ///
 /// Resuming: the model and turn id are written once per turn, so `resumeByteOffset` is the first line of the last
 /// response's turn, or the turn's prompt when that comes first, at or before the response's first line. The next read
@@ -62,7 +63,6 @@ public struct CodexLogParser: Sendable {
     /// The current turn's first line, moved back to the earliest prompt or tool result that one of its responses
     /// answers. A prompt that interrupts the previous turn comes before the next turn's first line.
     private var turnResumeOffset: Int64?
-    private var turnStartedAt: Date?
     private var isInTask = false
     /// A `turn_context` outside a task started the current turn and no output has followed it yet.
     private var isTurnStartedByContext = false
@@ -98,7 +98,6 @@ public struct CodexLogParser: Sendable {
         case "turn_context":
             if !isInTask && !isTurnStartedByContext {
                 turnResumeOffset = byteOffset
-                turnStartedAt = timestamp
                 isTurnStartedByContext = true
             }
             model = payload["model"] as? String
@@ -166,7 +165,6 @@ public struct CodexLogParser: Sendable {
         case "task_started":
             if isInTask || !isTurnStartedByContext {
                 turnResumeOffset = byteOffset
-                turnStartedAt = timestamp
             }
             isTurnStartedByContext = false
             isInTask = true
@@ -241,16 +239,24 @@ public struct CodexLogParser: Sendable {
                                                       command: command))
     }
 
-    /// A command belongs to the last response. A command that started before the current turn, and completed late,
-    /// belongs to the last response that started before it. On a resumed read, a command can complete before any
-    /// response of the read; it was emitted earlier.
+    /// A command belongs to the response that was active when it started, even when it completes after a later
+    /// response or turn has started. Without a duration, it belongs to the last response. On a resumed read, a
+    /// command can start before any response of the read; it was emitted earlier.
+    ///
+    /// The start is the completion time minus the duration, so it is compared with log line timestamps, which Codex
+    /// writes when it saves a line, not when the event happens. A tool-call-only response's first line can carry the
+    /// same millisecond as the command it starts, or a slightly later one. Ordering by file position is not
+    /// possible: the logs have no command start line. So a response that starts up to `commandStartTolerance` after
+    /// the command still owns it. A later response cannot start that soon: it waits for the tool result and the
+    /// model's first output.
     private func commandOwnerIndex(_ item: [String: Any], completedAt: Date) -> Int? {
-        guard let duration = item["duration"] as? [String: Any], let turnStartedAt,
+        guard let duration = item["duration"] as? [String: Any],
               let seconds = Self.number(duration["secs"]) else { return responses.indices.last }
         let startedAt = completedAt.addingTimeInterval(-(seconds + (Self.number(duration["nanos"]) ?? 0) / 1e9))
-        guard startedAt < turnStartedAt else { return responses.indices.last }
-        return responses.lastIndex { $0.startedAt <= startedAt }
+        return responses.lastIndex { $0.startedAt <= startedAt.addingTimeInterval(Self.commandStartTolerance) }
     }
+
+    private static let commandStartTolerance: TimeInterval = 1
 
     /// Codex writes `command` as an argument list, `[zsh, -lc, script]` for a shell script. A shell script gives the
     /// script; other lists join their arguments with spaces. A plain string is used as it is.

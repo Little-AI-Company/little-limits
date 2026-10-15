@@ -91,6 +91,12 @@ public final class HistoryDatabase: Sendable {
                 table.primaryKey(["accountID", "providerAccountID"])
             }
         }
+        // The Home forecast reads the readings observed since a time. Without this index, every committed change
+        // scans the whole quota history. Its latest reading per account already walks the primary key, which starts
+        // with the account.
+        migrator.registerMigration("v3") { db in
+            try db.create(index: "quotaReadingObservedAt", on: QuotaReading.databaseTableName, columns: ["observedAt"])
+        }
         return migrator
     }
 }
