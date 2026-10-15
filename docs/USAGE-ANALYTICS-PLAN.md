@@ -305,6 +305,7 @@ Rules for every cloud brief:
 - State that the session runs Linux, and name the exact checks: `swift build --target UsageHistory` and `swift test`.
 - State that real Claude and Codex logs are not available and must not be requested. Use synthetic fixtures.
 - Name the files the stream owns. The session pushes its branch and opens a ready-for-review PR against `main`.
+- Never commit `Package.swift` or `Package.resolved` changes. On Linux, SwiftPM can rewrite `Package.resolved` without the macOS-only GRDB pin.
 
 ## Tests to keep
 
