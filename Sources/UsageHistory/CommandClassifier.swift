@@ -121,6 +121,12 @@ private struct Invocation {
             case "time":
                 words.removeFirst()
                 skipOptions(&words, takingArguments: ["-f", "--format", "-o", "--output"])
+            case "command":
+                // `command -v name` and `command -V name` only look a name up, so `command` stays the program.
+                let options = words.dropFirst().prefix { $0.text.hasPrefix("-") }
+                if options.contains(where: { $0.text.contains("v") || $0.text.contains("V") }) { break stripping }
+                words.removeFirst()
+                skipOptions(&words, takingArguments: [])
             default:
                 break stripping
             }
@@ -324,6 +330,10 @@ private func pythonOperand(_ arguments: ArraySlice<ShellWord>) -> InterpreterOpe
         let text = argument.text
         if text == "-" { return .standardInput }
         if text == "--" { return remaining.isEmpty ? .standardInput : .script }
+        if text == "--check-hash-based-pycs" {
+            _ = remaining.popFirst()
+            continue
+        }
         if text.hasPrefix("--") { continue }
         guard text.hasPrefix("-") else { return .script }
         // Short options may be grouped, as in `-uc code`.
