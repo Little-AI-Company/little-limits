@@ -55,7 +55,7 @@ private struct ProviderSection: View {
             Text(MetricDefinition.providerName(provider))
                 .font(.title3.weight(.semibold))
                 .accessibilityAddTraits(.isHeader)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 32, alignment: .top)],
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 340), spacing: 32, alignment: .top)],
                       alignment: .leading, spacing: 22) {
                 ForEach(MetricDefinition.all(for: provider)) { metric in
                     MetricBlock(metric: metric, models: models)
@@ -80,15 +80,16 @@ private struct MetricBlock: View {
                 ForEach(Array(zip(models, readings)), id: \.0.id) { model, reading in
                     let fraction = reading.map { metric.isShare ? $0.value : largest > 0 ? $0.value / largest : 0 }
                     GridRow {
-                        Text(model.model).lineLimit(1).truncationMode(.middle)
+                        Text(model.model).fixedSize()
                         MetricBar(fraction: fraction)
-                        Text(reading?.text ?? metric.emptyText).monospacedDigit().gridColumnAlignment(.trailing)
-                        Text(reading?.detail ?? "").monospacedDigit().foregroundStyle(.secondary).lineLimit(1)
+                        Text(reading?.text ?? metric.emptyText).monospacedDigit().fixedSize().gridColumnAlignment(.trailing)
+                        Text(reading?.detail ?? "").monospacedDigit().foregroundStyle(.secondary).fixedSize()
                     }
                     .opacity(model.isSmallSample ? 0.5 : 1)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(model.model)
                     .accessibilityValue(accessibilityValue(model: model, reading: reading))
+                    .help(accessibilityValue(model: model, reading: reading))
                 }
             }
             .font(.callout)
@@ -99,7 +100,7 @@ private struct MetricBlock: View {
     }
 
     private func accessibilityValue(model: ModelMetrics, reading: MetricReading?) -> String {
-        var parts = [reading.map { [$0.text, $0.detail].filter { !$0.isEmpty }.joined(separator: ", ") } ?? metric.emptyText]
+        var parts = [reading.map { [$0.text, $0.spokenDetail].filter { !$0.isEmpty }.joined(separator: ", ") } ?? metric.emptyText]
         if model.isSmallSample {
             parts.append("Fewer than \(ModelMetrics.reliableResponseCount.formatted()) requests, noisy")
         }
@@ -120,7 +121,7 @@ private struct MetricBar: View {
                 }
             }
         }
-        .frame(minWidth: 60, maxWidth: .infinity, minHeight: 8, maxHeight: 8)
+        .frame(minWidth: 40, maxWidth: .infinity, minHeight: 8, maxHeight: 8)
         .clipShape(RoundedRectangle(cornerRadius: 2))
     }
 }
@@ -156,7 +157,7 @@ private struct PurposeBlock: View {
                 ForEach(models) { model in
                     let total = model.inlinePythonPurposes.values.reduce(0, +)
                     GridRow {
-                        Text(model.model).lineLimit(1).truncationMode(.middle)
+                        Text(model.model).fixedSize()
                         stackedBar(model.inlinePythonPurposes, total: total)
                         ForEach(Self.purposes, id: \.0) { purpose, _, _ in
                             Text(share(model.inlinePythonPurposes[purpose] ?? 0, of: total)).monospacedDigit()
@@ -217,6 +218,9 @@ private struct MetricReading {
     let value: Double
     let text: String
     let detail: String
+    /// The detail with its unit, for VoiceOver and the tooltip.
+    var spokenDetail: String { unit.isEmpty ? detail : "\(detail) \(unit)" }
+    var unit = ""
 }
 
 private struct MetricDefinition: Identifiable {
@@ -316,7 +320,7 @@ private struct MetricDefinition: Identifiable {
                 compact ? value.formatted(.number.notation(.compactName)) : value.formatted()
             }
             return ratio.value.map {
-                MetricReading(value: $0, text: percent($0), detail: "\(number(ratio.count)) of \(number(ratio.total)) \(unit)")
+                MetricReading(value: $0, text: percent($0), detail: "\(number(ratio.count)) of \(number(ratio.total))", unit: unit)
             }
         }
     }
