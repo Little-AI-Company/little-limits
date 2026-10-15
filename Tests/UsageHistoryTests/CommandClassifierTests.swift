@@ -45,6 +45,27 @@ let classifierCases: [ClassifierCase] = [
     ClassifierCase("pipe after a loop", "for f in *.swift; do\n  grep -c x \"$f\"\ndone | head",
                    search: .grep, pipesIntoHeadOrTail: true, sequence: "grep | head"),
 
+    // Only a file search counts. A search that reads a pipe, here-string, or here-document is a filter.
+    ClassifierCase("grep filtering git output", "git log | grep x", sequence: "git log | grep"),
+    ClassifierCase("grep filtering cat output", "cat f | grep x", sequence: "cat | grep"),
+    ClassifierCase("grep reading a here-string", #"grep x <<< "$v""#, sequence: "grep <<<string"),
+    ClassifierCase("recursive grep searches files", "grep -r x .", search: .grep, sequence: "grep"),
+    ClassifierCase("ripgrep piped into head searches files", "rg x src | head", search: .ripgrep,
+                   pipesIntoHeadOrTail: true, sequence: "rg | head"),
+    ClassifierCase("ripgrep then grep filter", "rg x | grep y", search: .ripgrep, sequence: "rg | grep"),
+    ClassifierCase("piped grep with a path searches the path", "git diff | grep x file.swift", search: .grep,
+                   sequence: "git diff | grep"),
+    ClassifierCase("ripgrep with a path ignores a here-string", #"rg x Sources <<< "$t""#, search: .ripgrep,
+                   sequence: "rg <<<string"),
+    ClassifierCase("option value is not a path", "ps | grep -A 2 x", sequence: "ps | grep"),
+    ClassifierCase("pattern option and stdin operand", "git log | grep -e x -", sequence: "git log | grep"),
+    ClassifierCase("attached pattern option with a path", "git log | rg -eneedle Sources", search: .ripgrep,
+                   sequence: "git log | rg"),
+    ClassifierCase("attached option value is not a path", "ps | grep -A2 x", sequence: "ps | grep"),
+    ClassifierCase("explicit standard input operand", "grep -e needle -; rg needle -", sequence: "grep; rg"),
+    ClassifierCase("piped recursive grep searches the directory", "git log | grep -rn needle", search: .grep,
+                   sequence: "git log | grep"),
+
     // Git.
     ClassifierCase("git status with a directory option", "git -C repo status --short", gitStatus: true,
                    sequence: "git status"),
@@ -153,6 +174,6 @@ func classifiesCommand(_ testCase: ClassifierCase) {
     }
 }
 
-@Test func classifierVersionIsOne() {
-    #expect(CommandClassifier.version == 1)
+@Test func classifierVersionIsTwo() {
+    #expect(CommandClassifier.version == 2)
 }

@@ -4,7 +4,7 @@ import Foundation
 /// names and allow-listed subcommands.
 public enum CommandClassifier {
     /// Raise when a rule changes. Stored records keep the version that produced them.
-    public static let version = 1
+    public static let version = 2
 
     public static func classify(_ command: String) -> CommandClassification {
         let elements = ShellParser(command).parse()
@@ -32,10 +32,12 @@ public enum CommandClassifier {
                 }
             case .command(let command):
                 guard let invocation = Invocation(command) else { continue }
+                var readsPipe = false
                 if programSequence.isEmpty {
                     pipelineCommands = []
                 } else {
                     let separator = pendingSeparator ?? .sequence
+                    readsPipe = separator == .pipe
                     if separator != .pipe { pipelineCommands = [] }
                     programSequence += separator.rendered
                     if separator == .pipe, invocation.program == "head" || invocation.program == "tail" {
@@ -45,7 +47,11 @@ public enum CommandClassifier {
                 programSequence += invocation.display
                 pendingSeparator = nil
 
-                if searchProgram == .none { searchProgram = invocation.searchProgram }
+                // A search that reads a pipe, here-string, or here-document filters text instead of searching files.
+                let readsStandardInput = readsPipe || invocation.command.standardInputBody != nil
+                if searchProgram == .none, invocation.searchesFiles(readsStandardInput: readsStandardInput) {
+                    searchProgram = invocation.searchProgram
+                }
                 if invocation.program == "git" {
                     let subcommand = gitSubcommand(invocation.arguments)
                     if subcommand == "status" { runsGitStatus = true }
@@ -159,6 +165,56 @@ private struct Invocation {
         }
     }
 
+    /// True when grep or rg searches files or directories instead of standard input. A path operand other than `-`
+    /// is searched even when standard input is a pipe. With no path operand, recursive grep searches `.`, and any
+    /// other search reads standard input when it has one. The pattern is the first operand unless `-e` or `-f`
+    /// supplies it.
+    func searchesFiles(readsStandardInput: Bool) -> Bool {
+        let optionsTakingArguments: Set<String>
+        switch searchProgram {
+        case .grep: optionsTakingArguments = grepOptionsTakingArguments
+        case .ripgrep: optionsTakingArguments = ripgrepOptionsTakingArguments
+        case .none: return false
+        }
+        var remaining = arguments
+        var patternIsOption = false
+        var isRecursiveGrep = false
+        var operands: [String] = []
+        while let argument = remaining.popFirst() {
+            let text = argument.text
+            if text == "--" {
+                operands += remaining.map(\.text)
+                break
+            }
+            guard text.hasPrefix("-"), text != "-" else {
+                operands.append(text)
+                continue
+            }
+            if text.hasPrefix("--") {
+                let name = text.split(separator: "=", maxSplits: 1).first.map(String.init) ?? text
+                if patternOptions.contains(name) { patternIsOption = true }
+                if searchProgram == .grep, recursiveGrepOptions.contains(name) { isRecursiveGrep = true }
+                if optionsTakingArguments.contains(text) { _ = remaining.popFirst() }
+                continue
+            }
+            // A short option group, such as `-rn`, `-A2`, or `-eneedle`. The first option that takes a value
+            // takes the rest of the word, or the next word when nothing follows it.
+            var group = text.dropFirst()
+            while let letter = group.popFirst() {
+                let option = "-" + String(letter)
+                if searchProgram == .grep, recursiveGrepOptions.contains(option) { isRecursiveGrep = true }
+                guard optionsTakingArguments.contains(option) else { continue }
+                if patternOptions.contains(option) { patternIsOption = true }
+                if group.isEmpty { _ = remaining.popFirst() }
+                break
+            }
+        }
+        let paths = operands.dropFirst(patternIsOption ? 0 : 1)
+        if paths.contains(where: { $0 != "-" }) { return true }
+        if !paths.isEmpty { return false }
+        return isRecursiveGrep || !readsStandardInput
+    }
+
     var interpreter: InlineInterpreter? {
         guard let program else { return nil }
         if isPythonName(program) { return .python }
@@ -207,6 +263,29 @@ private let shellKeywords: Set<String> = [
 
 /// Reserved words whose remaining words are names, values, or patterns rather than a program.
 private let compoundHeaderKeywords: Set<String> = ["for", "select", "function"]
+
+/// grep and rg options that supply the pattern, so every operand is a path.
+private let patternOptions: Set<String> = ["-e", "-f", "--regexp", "--file"]
+
+/// grep options that search `.` when no path is named, even when standard input is a pipe.
+private let recursiveGrepOptions: Set<String> = ["-r", "-R", "--recursive", "--dereference-recursive"]
+
+/// grep options whose value is the next word.
+private let grepOptionsTakingArguments: Set<String> = [
+    "-e", "-f", "-A", "-B", "-C", "-m", "-d", "-D", "--regexp", "--file", "--after-context", "--before-context",
+    "--context", "--max-count", "--directories", "--devices", "--label", "--include", "--exclude", "--exclude-dir",
+    "--binary-files"
+]
+
+/// rg options whose value is the next word.
+private let ripgrepOptionsTakingArguments: Set<String> = [
+    "-e", "-f", "-g", "-t", "-T", "-A", "-B", "-C", "-m", "-M", "-j", "-r", "-E", "-d", "--regexp", "--file",
+    "--glob", "--iglob", "--type", "--type-not", "--type-add", "--after-context", "--before-context", "--context",
+    "--max-count", "--max-columns", "--threads", "--replace", "--encoding", "--max-depth", "--max-filesize",
+    "--sort", "--sortr", "--color", "--colors", "--path-separator", "--pre", "--pre-glob", "--context-separator",
+    "--field-match-separator", "--field-context-separator", "--ignore-file", "--engine", "--dfa-size-limit",
+    "--regex-size-limit"
+]
 
 private func skipOptions(_ words: inout ArraySlice<ShellWord>, takingArguments: Set<String>) {
     while let option = words.first, option.text.hasPrefix("-") {

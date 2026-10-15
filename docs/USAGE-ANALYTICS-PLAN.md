@@ -92,7 +92,7 @@ All Phase 3. Metrics are per model, never per account.
 |---|---|---|---|---|
 | M1 | Output speed, tokens/s | "Output speed, tok/s" | Both providers: output tokens, thinking included, / (response's last log line - previous prompt or tool result) | Includes the wait before the first token. Label approximate; compare within one provider |
 | M2 | Steps per turn | "Steps per turn" | Claude: responses from a human prompt to `end_turn`. Codex: `task_started` to `task_complete` | None |
-| M3 | grep instead of rg | "Uses grep instead of rg" | Classify shell search commands | Definition depends on Decision 7 |
+| M3 | grep instead of rg | "Uses grep instead of rg" | Classify shell commands that search files or directories with grep or rg. A grep or rg that reads a pipe, here-string, or here-document and names no path filters output and is not counted | Decision 7: shell commands only, file searches only |
 | M4 | Piped into head or tail | "Commands piped into head or tail" | Pattern match on the command | None |
 | M5 | git status runs per commit | "git status runs per commit" | `git status` count / successful `git commit` count | Success from exit code or `is_error` |
 | M6 | Shell command length | "Mean shell command length, chars" | Character count | Heredocs skew the mean |
@@ -224,6 +224,7 @@ Mark each decision with the chosen option and date. A decision is settled only w
   - S1 footnote: "Steps per turn counts model calls before the agent stops and replies, in sessions with tool use."
 - Decision: 2026-10-14.
   - M3 grep instead of rg: shell commands only. Claude's Grep tool is not counted. The footnote states this.
+  - M3 counts a grep or rg only when it searches files or directories. A grep or rg that reads a pipe (any stage after `|`), a here-string, or a here-document filters another program's output, so the command counts as no search unless another stage is a file search. A grep or rg that names a path operand other than `-` searches that path even when its input is a pipe, so it counts, and so does a recursive grep with no path, which searches `.`. A named `-` operand reads standard input and does not count. The first file search in a command wins, so `rg x | grep y` is rg. Reason, measured on local Codex logs: 228 of 251 grep counts were grep after a pipe, 194 of them `git ... | grep`. With this rule (`CommandClassifier.version` 2), local counts are Claude 11,333 grep and 1,687 rg (87% grep), Codex 23 grep and 2,684 rg (0.9% grep), against version 1 counts of Claude 14,282 and 1,811, Codex 251 and 2,954 (7.8% grep). 2026-10-15.
   - M1 output speed: one rule for both providers. Output tokens, thinking included, divided by the time from the previous prompt or tool result to the response's last log line. Labeled approximate, with the "compare within one provider" note.
   - M6 command length: mean as the headline, median beside it.
   - M8 parallel tool calls: Claude counts responses with two or more `tool_use` blocks. Codex also counts an `exec` call that runs two or more commands. The footnote states the Codex rule.
