@@ -139,6 +139,18 @@ public enum QuotaForecast {
     public static let drainLookback: TimeInterval = 86_400
     /// 1.5 times the 300 second refresh interval.
     public static let polledGapLimit: TimeInterval = 450
+    /// Sources report the same reset with different precision, such as whole or fractional seconds. Reset times less
+    /// than this far apart are the same reset.
+    public static let resetTolerance: TimeInterval = 60
+
+    /// True when both reset times are unknown, or both are known and less than `resetTolerance` apart.
+    public static func isSameReset(_ first: Date?, _ second: Date?) -> Bool {
+        switch (first, second) {
+        case (nil, nil): true
+        case let (first?, second?): abs(first.timeIntervalSince(second)) < resetTolerance
+        default: false
+        }
+    }
 
     public static func forecast(_ input: QuotaForecastInput) -> QuotaForecastResult {
         let drain = drainRate(provider: input.provider, history: input.history, counted: input.counted, now: input.now)
@@ -151,7 +163,8 @@ public enum QuotaForecast {
 
     /// Each counted account's increase in used percentage between consecutive readings in the last 24 hours, divided
     /// by the hours its pairs cover, idle time included; then summed. A pair counts however far apart its readings
-    /// are. A pair is skipped only when its reset time changed or the earlier reset is at or before the later reading.
+    /// are. A pair is skipped only when its reset time changed (see `isSameReset`) or the earlier reset is at or before
+    /// the later reading.
     /// A pair that starts before the lookback is cut at its start, its increase in proportion. Accounts outside the
     /// counted set contribute nothing, so joining or leaving the pool never registers as drain.
     public static func drainRate(provider: HistoryProvider, history: [QuotaReading], counted: [CountedQuota],
@@ -169,7 +182,7 @@ public enum QuotaForecast {
             var increase = 0.0
             var covered: TimeInterval = 0
             for (earlier, later) in zip(sorted, sorted.dropFirst()) where later.observedAt > start {
-                guard earlier.resetsAt == later.resetsAt,
+                guard isSameReset(earlier.resetsAt, later.resetsAt),
                       earlier.resetsAt.map({ $0 > later.observedAt }) ?? true else { continue }
                 let span = later.observedAt.timeIntervalSince(earlier.observedAt)
                 guard span > 0 else { continue }
@@ -264,7 +277,7 @@ public enum QuotaForecast {
                     if holdEnd > reading.observedAt {
                         points.append(QuotaHistoryPoint(date: holdEnd, remainingPercent: remaining))
                     }
-                    if let next, next.observedAt > holdEnd { close() }
+                    if let next, let reset = reading.resetsAt, reset <= next.observedAt { close() }
                 } else if let next, next.observedAt.timeIntervalSince(reading.observedAt) > polledGapLimit {
                     close()
                 }

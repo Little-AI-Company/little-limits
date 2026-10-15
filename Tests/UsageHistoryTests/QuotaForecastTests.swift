@@ -260,3 +260,33 @@ private func seconds(_ account: UUID, at offset: TimeInterval, used: Double, res
     #expect(segments[0].points.map(\.remainingPercent) == [50, 50, 45, 45])
     #expect(segments[1].points.map(\.remainingPercent) == [90])
 }
+
+@Test func drainKeepsAPairWhoseResetTimesDifferOnlyInPrecision() throws {
+    let whole = Date(timeIntervalSince1970: laterReset.timeIntervalSince1970.rounded())
+    let fractional = whole.addingTimeInterval(0.734)
+    let history = [reading(accountA, hoursAgo: 4, used: 10, resetsAt: whole),
+                   reading(accountA, hoursAgo: 2, used: 30, resetsAt: fractional, source: .claudeStatusLine)]
+    let drain = try #require(QuotaForecast.drainRate(
+        provider: .claude, history: history,
+        counted: [CountedQuota(accountID: accountA, remainingPercent: 70, resetsAt: whole)], now: now))
+    #expect(isClose(drain.percentPerHour, 10))
+
+    let moved = [history[0], reading(accountA, hoursAgo: 2, used: 30, resetsAt: whole.addingTimeInterval(60))]
+    #expect(QuotaForecast.drainRate(
+        provider: .claude, history: moved,
+        counted: [CountedQuota(accountID: accountA, remainingPercent: 70, resetsAt: whole)], now: now) == nil)
+}
+
+@Test func changeOnlyLineBreaksWhenTheNextReadingLandsExactlyAtTheReset() {
+    let reset = now.addingTimeInterval(-hours(5))
+    let segments = QuotaForecast.historySegments(readings: [
+        seconds(accountA, at: -hours(8), used: 30, resetsAt: reset, source: .claudeStatusLine),
+        seconds(accountA, at: -hours(5), used: 0, resetsAt: laterReset, source: .claudeStatusLine)
+    ], now: now)
+    #expect(segments.count == 2)
+    #expect(segments[0].points == [
+        QuotaHistoryPoint(date: now.addingTimeInterval(-hours(8)), remainingPercent: 70),
+        QuotaHistoryPoint(date: reset, remainingPercent: 70)
+    ])
+    #expect(segments[1].points.first == QuotaHistoryPoint(date: reset, remainingPercent: 100))
+}
