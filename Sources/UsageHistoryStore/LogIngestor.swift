@@ -69,10 +69,13 @@ public actor LogIngestor {
         }
 
         let salt = database.projectKeySalt
-        let claudeFiles = Self.logFiles(in: [claudeProjects], suffixes: [".jsonl"], salt: salt)
+        let (claudeFiles, unreadableClaude) = Self.logFiles(in: [claudeProjects], suffixes: [".jsonl"], salt: salt)
         // Rollout names start with their time, so name order is close to the order quota readings were observed.
-        let codexFiles = Self.logFiles(in: codexDirectories, suffixes: [".jsonl", ".jsonl.zst"], salt: salt)
-            .sorted { $0.url.lastPathComponent < $1.url.lastPathComponent }
+        let (unsortedCodexFiles, unreadableCodex) = Self.logFiles(in: codexDirectories,
+                                                                   suffixes: [".jsonl", ".jsonl.zst"], salt: salt)
+        let codexFiles = unsortedCodexFiles.sorted { $0.url.lastPathComponent < $1.url.lastPathComponent }
+        // A log that could not be listed was not read, so the scan is incomplete.
+        summary.filesFailed += unreadableClaude + unreadableCodex
         // Only classification facts are stored, so newer classifier rules apply by reading every log again. Rereading
         // replaces each command row; rows from logs that no longer exist keep the version that produced them. Commands
         // stored before the completed version was recorded may come from any older version.
@@ -234,20 +237,26 @@ public actor LogIngestor {
         }
     }
 
-    private static func logFiles(in directories: [URL], suffixes: [String], salt: [UInt8]) -> [LogFile] {
+    /// `unreadable` counts folders and files that exist but could not be listed or inspected. A missing log folder
+    /// is not a failure: the provider may not be installed.
+    private static func logFiles(in directories: [URL], suffixes: [String],
+                                 salt: [UInt8]) -> (files: [LogFile], unreadable: Int) {
         let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
         var files: [LogFile] = []
-        for directory in directories {
-            guard let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: keys)
-            else { continue }
+        var unreadable = 0
+        for directory in directories where FileManager.default.fileExists(atPath: directory.path) {
+            guard let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: keys,
+                                                                  errorHandler: { _, _ in unreadable += 1; return true })
+            else { unreadable += 1; continue }
             for case let url as URL in enumerator where suffixes.contains(where: url.lastPathComponent.hasSuffix) {
-                guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
-                      let size = values.fileSize, let modifiedAt = values.contentModificationDate else { continue }
+                guard let values = try? url.resourceValues(forKeys: Set(keys)) else { unreadable += 1; continue }
+                guard values.isRegularFile == true, let size = values.fileSize,
+                      let modifiedAt = values.contentModificationDate else { continue }
                 files.append(LogFile(url: url, positionKey: ProjectKey.make(workingDirectory: url.path, salt: salt),
                                      size: Int64(size), modifiedAt: modifiedAt))
             }
         }
-        return files
+        return (files, unreadable)
     }
 }
 

@@ -157,6 +157,33 @@ private func rowCounts(_ database: HistoryDatabase) throws -> [Int] {
     #expect(await ingestor.ingest(codexAccounts: []).filesUnchanged == 1)
 }
 
+@Test func anUnreadableLogFolderKeepsReclassificationPending() async throws {
+    let home = try temporaryHome()
+    let project = home.appendingPathComponent(".claude/projects/-work-app")
+    defer {
+        try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: project.path)
+        try? FileManager.default.removeItem(at: home)
+    }
+    try write(claudeSession, to: project.appendingPathComponent("s1.jsonl"))
+    let database = try HistoryDatabase(url: home.appendingPathComponent("history.sqlite"))
+    let ingestor = LogIngestor(database: database, homeDirectory: home)
+    _ = await ingestor.ingest(codexAccounts: [])
+    try await database.pool.write { db in try db.execute(sql: "UPDATE completedClassifierVersion SET version = 0") }
+    func completedVersion() async throws -> Int? {
+        try await database.pool.read { db in try Int.fetchOne(db, sql: "SELECT version FROM completedClassifierVersion") }
+    }
+
+    try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: project.path)
+    let blocked = await ingestor.ingest(codexAccounts: [])
+    #expect(blocked.filesFailed > 0)
+    #expect(try await completedVersion() == 0)
+
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: project.path)
+    let restored = await ingestor.ingest(codexAccounts: [])
+    #expect(restored.filesFailed == 0 && restored.filesRead == 1)
+    #expect(try await completedVersion() == CommandClassifier.version)
+}
+
 @Test func recorderSkipsAReadingThatIsNotNewer() throws {
     let home = try temporaryHome()
     defer { try? FileManager.default.removeItem(at: home) }
