@@ -84,8 +84,13 @@ extension AccountSnapshot {
     /// A reading that may stand for now: available, observed under five minutes ago and not in the future, with no
     /// current window past its reset. Stale, failed, sign-in-required, and unread accounts are never current.
     public func isCurrent(at now: Date) -> Bool {
-        guard state == .available, let fetchedAt, fetchedAt <= now, now.timeIntervalSince(fetchedAt) < 300 else { return false }
-        return !currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
+        isFresh(at: now) && !currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
+    }
+
+    /// Available and observed under five minutes ago, not in the future. Window resets are not checked.
+    func isFresh(at now: Date) -> Bool {
+        guard state == .available, let fetchedAt, fetchedAt <= now else { return false }
+        return now.timeIntervalSince(fetchedAt) < 300
     }
 }
 
@@ -176,12 +181,16 @@ public struct ProviderQuotaOverview: Equatable, Sendable {
             return QuotaPool(provider: provider, scopeName: name, remainingPercent: counted.isEmpty ? nil : remaining,
                              countedAccountIDs: counted, unknownAccountIDs: unknown)
         }
+        // Used quota without a future reset time could reset before every known reset, so the next reset is unknown.
+        let missingReset = weeklyUsed.contains { $0.used > 0 && $0.window.resetsAt.map { $0 <= now } != false }
         // A reset with nothing used returns nothing, so it is not the next reset of the total.
         let returning = weeklyUsed.compactMap { entry -> (id: UUID, resetsAt: Date, used: Double)? in
             guard entry.used > 0, let resetsAt = entry.window.resetsAt, resetsAt > now else { return nil }
             return (entry.id, resetsAt, entry.used)
         }
-        if let earliest = returning.map(\.resetsAt).min() {
+        if missingReset {
+            nextReset = .unknown
+        } else if let earliest = returning.map(\.resetsAt).min() {
             let resetting = returning.filter { $0.resetsAt == earliest }
             nextReset = .reset(QuotaReset(resetsAt: earliest, gainPercent: resetting.reduce(0) { $0 + $1.used },
                                           accountIDs: resetting.map(\.id)))
@@ -199,21 +208,26 @@ public struct ProviderQuotaOverview: Equatable, Sendable {
 public enum AccountUsability: Equatable, Sendable {
     case usable
     /// A current general window is fully used. The date is the latest reset among the fully used general
-    /// windows, or nil when one of them has no reset time.
+    /// windows, or nil when one of them has no reset time or another general window is unmeasured, since that
+    /// window may hold the account longer.
     case exhausted(usableAt: Date?)
     /// No current reading, no general window, or a general window without a measured value.
     case unknown
 
+    /// Freshness comes from the reading's state and age; only the general windows' resets can make it outdated,
+    /// so a passed model reset leaves the account's general usability current.
     public init(snapshot: AccountSnapshot?, now: Date) {
-        guard let snapshot, snapshot.isCurrent(at: now) else { self = .unknown; return }
+        guard let snapshot, snapshot.isFresh(at: now) else { self = .unknown; return }
         let windows = snapshot.currentWindows.filter { $0.role == .session || $0.role == .weekly }
+        guard !windows.contains(where: { $0.resetsAt.map { $0 <= now } == true }) else { self = .unknown; return }
+        let unmeasured = windows.contains { $0.utilizationPercent?.isFinite != true }
         let exhausted = windows.filter { $0.utilizationPercent.map { $0 >= 100 } == true }
         if !exhausted.isEmpty {
             let resets = exhausted.compactMap(\.resetsAt)
-            self = .exhausted(usableAt: resets.count == exhausted.count ? resets.max() : nil)
+            self = .exhausted(usableAt: unmeasured || resets.count != exhausted.count ? nil : resets.max())
             return
         }
-        self = windows.isEmpty || windows.contains { $0.utilizationPercent?.isFinite != true } ? .unknown : .usable
+        self = windows.isEmpty || unmeasured ? .unknown : .usable
     }
 }
 

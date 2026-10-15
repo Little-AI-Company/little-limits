@@ -92,6 +92,9 @@ private func overview(_ entries: [(AccountProfile, AccountSnapshot?)]) -> UsageO
     #expect(overview([unused]).providers[0].nextReset == .nonePending)
     #expect(overview([account(.claude, [window("seven_day", used: 30, resetsIn: nil)])]).providers[0].nextReset == .unknown)
     #expect(overview([stale]).providers[0].nextReset == .unknown)
+    // Used quota without a reset time could reset before the known one.
+    let noResetTime = account(.claude, [window("seven_day", used: 30, resetsIn: nil)])
+    #expect(overview([later, noResetTime]).providers[0].nextReset == .unknown)
 }
 
 @Test func exhaustedAccountIsUsableAtTheLatestResetOfItsFullWindows() {
@@ -108,6 +111,12 @@ private func overview(_ entries: [(AccountProfile, AccountSnapshot?)]) -> UsageO
                        window("seven_day_fable_5", title: "7 days (Fable 5)", used: 100, resetsIn: 2 * day),
                        window("seven_day_sonnet", title: "7 days (Sonnet)", used: nil)]) == .usable)
     #expect(usability([window("five_hour", used: 100)], readAgo: 600) == .unknown)
+    // An unmeasured general window may hold the account longer, so the time is unknown.
+    #expect(usability([window("five_hour", used: 100, resetsIn: hour), window("seven_day", used: nil)]) == .exhausted(usableAt: nil))
+    // A passed model reset leaves general usability current; a passed general reset does not.
+    let passedModelReset = window("seven_day_fable_5", title: "7 days (Fable 5)", used: 100, resetsIn: -30)
+    #expect(usability([window("five_hour", used: 10), window("seven_day", used: 40), passedModelReset]) == .usable)
+    #expect(usability([window("five_hour", used: 10, resetsIn: -30), window("seven_day", used: 40)]) == .unknown)
 }
 
 @Test func paceComparesUseWithTheElapsedShareOfTheWindow() {

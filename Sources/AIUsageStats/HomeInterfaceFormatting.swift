@@ -564,7 +564,7 @@ enum HomeInterfaceFormatting {
                 // A sign-in failure keeps the last known value but not its timing, as in the status menu.
                 let schedule = basis == .authentication ? nil
                     : window.resetsAt.map { resetText($0, now: now, calendar: calendar) }
-                    ?? (window.hasNoPendingReset ? noPendingResetText : unknownResetText)
+                    ?? (basis == .current && window.hasNoPendingReset ? noPendingResetText : unknownResetText)
                 let exact = exactReset(window.resetsAt)
                 guard let remaining = remainingPercent(window) else {
                     return HomeReadingLine(preface: preface(window), primary: "Unknown", secondary: schedule, tertiary: nil, tone: .neutral,
@@ -754,7 +754,7 @@ enum HomeInterfaceFormatting {
         if window.isActive == false {
             return window.resetsAt.map { "Reported reset \(InterfaceFormatting.exactDate($0))" } ?? unknownResetText
         }
-        guard let date = window.resetsAt else { return window.hasNoPendingReset ? noPendingResetText : unknownResetText }
+        guard let date = window.resetsAt else { return basis == .current && window.hasNoPendingReset ? noPendingResetText : unknownResetText }
         switch basis {
         case .historical, .authentication:
             return "Last reported reset \(InterfaceFormatting.exactDate(date))"

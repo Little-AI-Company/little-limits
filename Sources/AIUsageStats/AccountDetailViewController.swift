@@ -429,7 +429,7 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
                     timing += " · \(HomeInterfaceFormatting.scheduleText(date, now: now, calendar: .current))"
                 }
                 return AccountReadingView.Reading(label: title, value: reading.value, timing: timing,
-                                                  detail: "\(title): \(reading.value). \(InterfaceFormatting.reset(usage, now: now))")
+                                                  detail: "\(title): \(reading.value). \(InterfaceFormatting.reset(usage, snapshot: snapshot, now: now))")
             })
         let credits = snapshot?.credits ?? UsageService.unavailableCredits(for: profile.provider)
         creditReadings.render(credits.map { credit in

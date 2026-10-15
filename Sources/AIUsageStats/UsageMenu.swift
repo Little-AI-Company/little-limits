@@ -137,7 +137,7 @@ enum UsageMenu {
             guard let snapshot else { continue }
             let (value, timing) = InterfaceFormatting.reading(window, snapshot: snapshot, now: now)
             metrics.append(Metric(label: InterfaceFormatting.usageTitle(window), value: value, timing: timing,
-                                  detail: "\(InterfaceFormatting.usageTitle(window)): \(value). \(InterfaceFormatting.reset(window, now: now))"))
+                                  detail: "\(InterfaceFormatting.usageTitle(window)): \(value). \(InterfaceFormatting.reset(window, snapshot: snapshot, now: now))"))
         }
         // A fully used current 5-hour or weekly window: when the account takes requests again, the latest reset among them.
         if case .exhausted(let usableAt) = AccountUsability(snapshot: snapshot, now: now) {
