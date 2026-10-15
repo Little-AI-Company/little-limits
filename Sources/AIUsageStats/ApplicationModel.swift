@@ -172,6 +172,30 @@ final class ApplicationModel {
         }
     }
 
+    /// Reads one account again. It shares `isRefreshing` with Refresh All, so the two never run together and every
+    /// refresh control disables while it runs. Only that account's snapshot changes.
+    func refreshAccount(_ id: UUID) {
+        guard !isDemo, !isChangingAccounts, !isRefreshing, profiles.contains(where: { $0.id == id }) else { return }
+        isRefreshing = true
+        onChange?()
+        refreshTask = Task { [weak self, service] in
+            let snapshot = await service.refreshAccount(id: id)
+            guard let self else { return }
+            if !Task.isCancelled, profiles.contains(where: { $0.id == id }) {
+                snapshots[id] = snapshot
+                // A read can update the saved email or plan, as Refresh All reloads after reading.
+                if let loaded = try? await service.load() { profiles = loaded }
+            }
+            isRefreshing = false
+            refreshTask = nil
+            onChange?()
+            if refreshRequested {
+                refreshRequested = false
+                refresh()
+            }
+        }
+    }
+
     func cancelRefresh() { refreshRequested = false; refreshTask?.cancel() }
 
     func importAccount(provider: Provider, label: String, configurationURL: URL? = nil) {

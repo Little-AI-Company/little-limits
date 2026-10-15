@@ -769,7 +769,9 @@ private final class PageCommandSplitViewController: NSSplitViewController {
         #selector(WindowCommandHandling.showCurrentPeriod(_:)),
         #selector(WindowCommandHandling.showMonthPeriod(_:)),
         #selector(WindowCommandHandling.showTwoWeekPeriod(_:)),
-        #selector(WindowCommandHandling.openSelectedAccountBilling(_:))
+        #selector(WindowCommandHandling.chooseAccountSortOrder(_:)),
+        #selector(WindowCommandHandling.openSelectedAccountBilling(_:)),
+        #selector(WindowCommandHandling.refreshSelectedAccount(_:))
     ]
     var commandPage: (() -> NSViewController?)?
 

@@ -3,6 +3,8 @@ import Foundation
 public struct UsageOverview: Equatable, Sendable {
     public let accounts: [UsageOverviewAccount]
     public let resetEvents: [UsageResetEvent]
+    /// Weekly totals per provider with at least one account, Claude first.
+    public let providers: [ProviderQuotaOverview]
 
     public init(profiles: [AccountProfile], snapshots: [UUID: AccountSnapshot], now: Date = Date()) {
         let identities = Self.identities(for: profiles)
@@ -17,25 +19,20 @@ public struct UsageOverview: Equatable, Sendable {
                                                summary: AccountQuotaSummary(snapshot: snapshot, accountID: profile.id, now: now),
                                                identity: names.identity, shortIdentity: names.shortIdentity)
             accounts.append(account)
-            guard let snapshot, Self.admitsCurrentResets(snapshot, now: now) else { continue }
+            // Missing percentages remove that window only; a reading that is not current removes the account.
+            guard let snapshot, snapshot.isCurrent(at: now) else { continue }
             for window in snapshot.windows {
                 guard let event = Self.resetEvent(account: account, window: window, now: now) else { continue }
                 events.append(event)
             }
         }
         self.accounts = accounts
+        self.providers = Provider.allCases.filter { provider in accounts.contains { $0.profile.provider == provider } }
+            .map { ProviderQuotaOverview(provider: $0, accounts: accounts, now: now) }
         self.resetEvents = events.enumerated().sorted { lhs, rhs in
             if lhs.element.resetsAt != rhs.element.resetsAt { return lhs.element.resetsAt < rhs.element.resetsAt }
             return lhs.offset < rhs.offset
         }.map(\.element)
-    }
-
-    /// Missing percentages remove that window only. Stale, unavailable, authentication, age, and passed resets reject the account.
-    private static func admitsCurrentResets(_ snapshot: AccountSnapshot, now: Date) -> Bool {
-        guard snapshot.state == .available else { return false }
-        guard let fetchedAt = snapshot.fetchedAt, fetchedAt <= now else { return false }
-        guard now.timeIntervalSince(fetchedAt) < 300 else { return false }
-        return !snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
     }
 
     private static func resetEvent(account: UsageOverviewAccount, window: UsageWindow, now: Date) -> UsageResetEvent? {

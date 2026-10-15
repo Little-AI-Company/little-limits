@@ -116,6 +116,16 @@ struct HomeCalendarEventModel: Equatable, Identifiable {
     var dayIndex: Int
 }
 
+/// One line of Home's Weekly Totals. `provider` is set on the first line of each provider's group.
+struct HomeTotalLine: Equatable {
+    var provider: Provider?
+    var label: String
+    var value: String
+    var detail: String
+    var accessibilityLabel: String
+    var toolTip: String
+}
+
 /// One account in the unavailable-readings banner.
 struct HomeAttentionItem: Equatable, Identifiable {
     var id: UUID
@@ -137,12 +147,6 @@ struct HomeDetailContent: Equatable {
     var rows: [Row]
     var updated: String
     var updatedToolTip: String
-}
-
-enum HomeWindowRole: Equatable {
-    case session
-    case weekly
-    case other
 }
 
 @MainActor
@@ -214,6 +218,7 @@ enum HomeInterfaceFormatting {
     static let earnedColumnHelp = "Earned resets available and their next expiry. Expiry is separate from usage window resets and is not placed on the calendar."
     static let updatedColumnHelp = "When this account's usage was last read."
     static let unknownResetText = "Reset time unknown"
+    static let noPendingResetText = "No reset pending"
 
     static func periodTitle(mode: UsageCalendarMode, period: UsageCalendarPeriod, anchor: Date, calendar: Calendar) -> String {
         switch mode {
@@ -261,7 +266,7 @@ enum HomeInterfaceFormatting {
 
     static func headings(for accounts: [UsageOverviewAccount]) -> HomeColumnHeadings {
         let windows = accounts.flatMap { $0.snapshot?.windows ?? [] }
-        let sessions = windows.filter { role($0) == .session }
+        let sessions = windows.filter { $0.role == .session }
         let others = otherScopeLabels(accounts)
         let otherTitle = others.count == 1 ? others.first ?? "Other limits" : "Other limits"
         return HomeColumnHeadings(session: sharedDurationTitle(sessions) ?? "Session", weekly: "Weekly", other: otherTitle)
@@ -274,7 +279,7 @@ enum HomeInterfaceFormatting {
     }
 
     private static func otherScopeLabels(_ accounts: [UsageOverviewAccount]) -> Set<String> {
-        Set(accounts.flatMap { $0.snapshot?.windows ?? [] }.filter { role($0) == .other }.map(scopeLabel))
+        Set(accounts.flatMap { $0.snapshot?.windows ?? [] }.filter { $0.role == .other }.map(scopeLabel))
     }
 
     static func calendarEvents(_ events: [UsageResetEvent], days: [Date], now: Date, calendar: Calendar) -> [HomeCalendarEventModel] {
@@ -324,6 +329,99 @@ enum HomeInterfaceFormatting {
         }
     }
 
+    // MARK: Weekly totals
+
+    /// Weekly totals for each provider with two or more accounts. A single account's total is its own weekly value,
+    /// which the table already shows.
+    static func totalLines(_ overview: UsageOverview, now: Date, calendar: Calendar) -> [HomeTotalLine] {
+        let names = Dictionary(uniqueKeysWithValues: overview.accounts.map { ($0.id, "\($0.profile.provider.title) \($0.shortIdentity)") })
+        return overview.providers.filter { $0.accountCount > 1 }.flatMap { provider -> [HomeTotalLine] in
+            let pools = [provider.weekly] + provider.scopedWeekly
+            var lines = pools.map { pool in
+                let label = poolLabel(pool)
+                let value = poolValue(pool)
+                let detail = poolUnknownText(pool) ?? ""
+                let help = poolHelp(pool, names: names)
+                return HomeTotalLine(label: label, value: value, detail: detail,
+                                     accessibilityLabel: "\(provider.provider.title) \(label) total, \(value)\(detail.isEmpty ? "" : ", \(detail)")",
+                                     toolTip: help)
+            }
+            let reset = nextResetText(provider.nextReset, names: names, now: now, calendar: calendar)
+            lines.append(HomeTotalLine(label: "Next reset", value: reset.value, detail: reset.detail,
+                                       accessibilityLabel: "\(provider.provider.title) next weekly reset, \(reset.value), \(reset.help)",
+                                       toolTip: reset.help))
+            lines[0].provider = provider.provider
+            return lines
+        }
+    }
+
+    /// `Weekly`, or `Weekly · Fable 5` for a model or meter total.
+    static func poolLabel(_ pool: QuotaPool) -> String {
+        pool.scopeName.map { "Weekly · \($0)" } ?? "Weekly"
+    }
+
+    /// `90% of 300% left`, or `Unknown` when no account has a current reading. Never `0%` for unknown.
+    static func poolValue(_ pool: QuotaPool) -> String {
+        guard let remaining = pool.remainingPercent else { return "Unknown" }
+        return "\(percentText(remaining)) of \(Int(pool.capacityPercent))% left"
+    }
+
+    /// `1 account unknown`, or nil when every account in the pool is counted.
+    static func poolUnknownText(_ pool: QuotaPool) -> String? {
+        let count = pool.unknownAccountIDs.count
+        guard count > 0 else { return nil }
+        return "\(count) account\(count == 1 ? "" : "s") unknown"
+    }
+
+    static func poolHelp(_ pool: QuotaPool, names: [UUID: String]) -> String {
+        let label = poolLabel(pool)
+        var parts = ["\(label) remaining quota summed over accounts with a current reading: \(poolValue(pool))."]
+        if !pool.countedAccountIDs.isEmpty {
+            parts.append("Counted: \(pool.countedAccountIDs.compactMap { names[$0] }.joined(separator: ", ")).")
+        }
+        if !pool.unknownAccountIDs.isEmpty {
+            parts.append("Not counted because the reading is stale, failed, missing, or unmeasured: "
+                + "\(pool.unknownAccountIDs.compactMap { names[$0] }.joined(separator: ", ")). Unknown is not zero.")
+        }
+        return parts.joined(separator: " ")
+    }
+
+    /// Value `+24%` and detail `in 1d 4h · Tue 21:59 · Claude personal`, with the exact date in the help text.
+    static func nextResetText(_ reset: NextQuotaReset, names: [UUID: String], now: Date, calendar: Calendar)
+        -> (value: String, detail: String, help: String) {
+        switch reset {
+        case .reset(let reset):
+            let accounts = reset.accountIDs.count == 1 ? names[reset.accountIDs[0]] ?? "1 account" : "\(reset.accountIDs.count) accounts"
+            let relative = "in \(UsageFormatting.countdown(to: reset.resetsAt, now: now))"
+            let value = "+\(percentText(reset.gainPercent))"
+            return (value, "\(relative) · \(scheduleText(reset.resetsAt, now: now, calendar: calendar)) · \(accounts)",
+                    "\(accounts) resets \(relative), \(InterfaceFormatting.exactDate(reset.resetsAt)), adding \(value) to the weekly total.")
+        case .nonePending:
+            return (noPendingResetText, "", "Every counted account has used none of its weekly quota.")
+        case .unknown:
+            return ("Unknown", "", "No current weekly reading reports when used quota resets.")
+        }
+    }
+
+    /// `Ahead of pace` when more quota is used than the share of the window that has passed.
+    static func paceText(_ verdict: QuotaPace.Verdict) -> String {
+        switch verdict {
+        case .ahead: "Ahead of pace"
+        case .onPace: "On pace"
+        case .under: "Under pace"
+        }
+    }
+
+    static func paceSentence(_ pace: QuotaPace) -> String {
+        "\(paceText(pace.verdict)): \(percentText(pace.usedPercent)) used with \(percentText(pace.elapsedPercent)) of the window passed"
+    }
+
+    /// `Usable in 8h 58m` for an account with a fully used window.
+    static func usableText(_ date: Date?, now: Date) -> String {
+        guard let date else { return "Usable time unknown" }
+        return "Usable in \(UsageFormatting.countdown(to: date, now: now))"
+    }
+
     /// Value text with its state word: "17% left, Low".
     static func remainingText(_ remaining: Double) -> String {
         let value = "\(percentText(remaining)) left"
@@ -353,27 +451,6 @@ enum HomeInterfaceFormatting {
         if remaining == 0 { return .critical }
         if remaining > 0, remaining <= 20 { return .warning }
         return .neutral
-    }
-
-    static func role(_ window: UsageWindow) -> HomeWindowRole {
-        if modelScope(in: window.title) != nil { return .other }
-        if hasNamedMeterPrefix(window.title), !isOrdinaryCodexMeter(window) { return .other }
-        if let minutes = window.windowDurationMinutes {
-            if minutes == 300 { return .session }
-            if minutes == 10_080 { return .weekly }
-            return .other
-        }
-        switch window.id {
-        case "five_hour": return .session
-        case "seven_day": return .weekly
-        default: break
-        }
-        let title = window.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if title == "5 hours" || title == "5-hour" { return .session }
-        if title == "7 days" || title == "Weekly" { return .weekly }
-        if let hours = hourCount(in: title), hours == 5 { return .session }
-        if let days = dayCount(in: title), days == 7 { return .weekly }
-        return .other
     }
 
     /// Vocabulary names: "5-hour", "Weekly", model-scoped "Weekly · Fable 5".
@@ -414,7 +491,7 @@ enum HomeInterfaceFormatting {
         if let status { spoken.append(status) }
         spoken.append("Updated \(updated.primary)\(updated.secondary.map { ", \($0)" } ?? "")")
         let toolTip = spoken.joined(separator: ". ")
-        func cell(_ role: HomeWindowRole) -> HomeMeterCell {
+        func cell(_ role: UsageWindowRole) -> HomeMeterCell {
             meterCell(role, account: account, namesWindow: role == .other && namesOther, now: now, calendar: calendar, basis: basis)
         }
         return HomeAccountRow(id: account.id, provider: account.profile.provider,
@@ -455,10 +532,10 @@ enum HomeInterfaceFormatting {
         return .current
     }
 
-    private static func meterCell(_ role: HomeWindowRole, account: UsageOverviewAccount, namesWindow: Bool,
+    private static func meterCell(_ role: UsageWindowRole, account: UsageOverviewAccount, namesWindow: Bool,
                                   now: Date, calendar: Calendar, basis: ReadingBasis) -> HomeMeterCell {
         let windows = account.snapshot?.windows ?? []
-        let matching = windows.filter { self.role($0) == role }
+        let matching = windows.filter { $0.role == role }
         func preface(_ window: UsageWindow) -> [String] { namesWindow ? [scopeLabel(window)] : [] }
         switch basis {
         case .unavailable:
@@ -486,7 +563,8 @@ enum HomeInterfaceFormatting {
                 let scope = scopeLabel(window)
                 // A sign-in failure keeps the last known value but not its timing, as in the status menu.
                 let schedule = basis == .authentication ? nil
-                    : window.resetsAt.map { resetText($0, now: now, calendar: calendar) } ?? unknownResetText
+                    : window.resetsAt.map { resetText($0, now: now, calendar: calendar) }
+                    ?? (window.hasNoPendingReset ? noPendingResetText : unknownResetText)
                 let exact = exactReset(window.resetsAt)
                 guard let remaining = remainingPercent(window) else {
                     return HomeReadingLine(preface: preface(window), primary: "Unknown", secondary: schedule, tertiary: nil, tone: .neutral,
@@ -502,8 +580,10 @@ enum HomeInterfaceFormatting {
                                            accessibilityLabel: spoken, toolTip: spoken)
                 }
                 // The table draws the state word on its own line, so the percentage and the word both stay whole.
-                let spoken = "\(scope), \(remainingText(remaining)), \(exact)"
-                return HomeReadingLine(preface: preface(window), primary: "\(percentText(remaining)) left", secondary: schedule, tertiary: nil,
+                let pace = role == .weekly ? QuotaPace(window: window, now: now) : nil
+                let spoken = "\(scope), \(remainingText(remaining)), \(exact)" + (pace.map { ". \(paceSentence($0))" } ?? "")
+                return HomeReadingLine(preface: preface(window), primary: "\(percentText(remaining)) left", secondary: schedule,
+                                       tertiary: pace.map { paceText($0.verdict) },
                                        tone: tone(for: remaining), accessibilityLabel: spoken, toolTip: spoken)
             })
         }
@@ -674,7 +754,7 @@ enum HomeInterfaceFormatting {
         if window.isActive == false {
             return window.resetsAt.map { "Reported reset \(InterfaceFormatting.exactDate($0))" } ?? unknownResetText
         }
-        guard let date = window.resetsAt else { return unknownResetText }
+        guard let date = window.resetsAt else { return window.hasNoPendingReset ? noPendingResetText : unknownResetText }
         switch basis {
         case .historical, .authentication:
             return "Last reported reset \(InterfaceFormatting.exactDate(date))"
@@ -713,6 +793,9 @@ enum HomeInterfaceFormatting {
         case .historical: return staleText(account, now: now)
         case .current:
             let active = account.snapshot?.currentWindows ?? []
+            if case .exhausted(let usableAt) = AccountUsability(snapshot: account.snapshot, now: now) {
+                return usableText(usableAt, now: now)
+            }
             if active.contains(where: { remainingPercent($0) == nil }) { return "Some usage unknown" }
             if active.isEmpty { return "Inactive" }
             return nil
@@ -845,7 +928,7 @@ enum HomeInterfaceFormatting {
     }
 
     /// "today 13:43" within today, "Wed 13:43" within six days, otherwise "Oct 21 13:43".
-    private static func scheduleText(_ date: Date, now: Date, calendar: Calendar) -> String {
+    static func scheduleText(_ date: Date, now: Date, calendar: Calendar) -> String {
         let time = timeText(date)
         if calendar.isDate(date, inSameDayAs: now) { return "today \(time)" }
         let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: date)).day ?? .max

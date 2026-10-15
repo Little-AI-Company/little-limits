@@ -845,3 +845,18 @@ Owner testing found that Show in Menu Bar never showed more than one number per 
 | Cask `parkerrex/tap/ai-usage-stats` | Checksum updated; `brew audit --cask --online` exit 0; `brew fetch --cask` verified the download. |
 
 Build 1 (SHA-256 `9228a047…5f6a9`) is no longer published.
+
+## Quota overview from current readings, October 15, 2026
+
+Phase 1 of the [usage analytics plan](https://github.com/ParkerRex/ai-usage-stats/pull/21): weekly totals, next reset, pace, usable time, account sorting, `No reset pending`, and Refresh Account. Checked on macOS 27.0.1 (26A434), Apple silicon, Swift 6.4, from a packaged ad hoc signed Release build.
+
+| Command or check | Result |
+| --- | --- |
+| `swift build -j 4 --build-tests`, then `swift test --skip-build` | Both test runs passed: 68 and 22 tests, including six new `QuotaOverviewTests`. |
+| `swift build -c release -j 4` | Build complete. |
+| `scripts/package_app.sh` | Packaged and signature verified; ad hoc fallback. |
+| `--demo-home --show-home`, window capture | Weekly Totals above Account Usage: Claude `175% of 200% left`, `Weekly · Fable 5` and `Weekly · Sonnet` rows, `Next reset +25%` with countdown, time, and account; Codex `17% of 200% left`, `Next reset +100%`. Weekly cells show `Under pace` or `Ahead of pace`; the exhausted Codex account shows `Usable in 2d 0h`; a measured-zero 5-hour window with no reset shows `No reset pending`. Earned resets stay in the Home table's Earned resets column and the menu's Earned resets row (Q8, unchanged). |
+| `--demo-reading-states --show-home`, window capture | Claude `75% of 100% left, 1 account unknown` (sign-in required left out); `Weekly · Sonnet` `Unknown, 1 account unknown`; Codex `Unknown, 2 accounts unknown` and `Next reset Unknown` with one stale and one unread account. No unknown total shows 0%. |
+| `--demo-home --show-menu`, menu capture (system dark appearance) | `Claude • All accounts` and `Codex • All accounts` sections with text rows only, aligned to the account rows; `Usable in 2d 0h · Sat 11:50` in the exhausted account's section; `No reset pending` timing. |
+
+Not verified: keyboard and pointer interaction. `osascript` was refused permission to send keystrokes, so View > Sort Accounts, the Refresh Account toolbar item and File > Refresh Account (Shift-Command-R), arrow-key menu navigation, and VoiceOver reading of the totals grid were checked from source only. Sort order is covered by `soonestUsableOrderKeepsSavedOrderForTies`. Refresh Account was not run against a live account, and the account page with the new toolbar item was not captured, because no flag opens it without input.

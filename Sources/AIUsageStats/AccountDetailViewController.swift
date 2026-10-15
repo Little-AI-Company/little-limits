@@ -6,6 +6,7 @@ import UsageCore
 @MainActor
 final class AccountDetailViewController: NSViewController, WindowToolbarContributor, NSMenuItemValidation {
     private static let refreshAllItem = NSToolbarItem.Identifier("AccountRefreshAll")
+    private static let refreshAccountItem = NSToolbarItem.Identifier("AccountRefresh")
     private static let reconnectItem = NSToolbarItem.Identifier("AccountReconnect")
     private static let billingItem = NSToolbarItem.Identifier("AccountBilling")
     /// Matches `ClaudeKeychainStore.read`: the saved sign-in exists but macOS has not granted this app access to it.
@@ -40,6 +41,7 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
     private let clearBalanceButton = NSButton(title: "Clear Balance", target: nil, action: nil)
     private let status = InterfaceControls.label("")
     private weak var refreshAllToolbarItem: NSToolbarItem?
+    private weak var refreshAccountToolbarItem: NSToolbarItem?
     private weak var reconnectToolbarItem: NSToolbarItem?
     private weak var billingToolbarItem: NSToolbarItem?
     private var accountID: UUID?
@@ -63,7 +65,7 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
     }
     required init?(coder: NSCoder) { nil }
 
-    let toolbarItemIdentifiers: [NSToolbarItem.Identifier] = [.flexibleSpace, AccountDetailViewController.reconnectItem, AccountDetailViewController.billingItem, .space, AccountDetailViewController.refreshAllItem]
+    let toolbarItemIdentifiers: [NSToolbarItem.Identifier] = [.flexibleSpace, AccountDetailViewController.reconnectItem, AccountDetailViewController.billingItem, .space, AccountDetailViewController.refreshAccountItem, AccountDetailViewController.refreshAllItem]
 
     func makeToolbarItem(_ identifier: NSToolbarItem.Identifier) -> NSToolbarItem? {
         let item: NSToolbarItem
@@ -71,6 +73,9 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         case Self.refreshAllItem:
             item = makeRefreshAllItem()
             refreshAllToolbarItem = item
+        case Self.refreshAccountItem:
+            item = makeTextItem(identifier, title: "Refresh Account", action: #selector(refreshSelectedAccount(_:)))
+            refreshAccountToolbarItem = item
         case Self.reconnectItem:
             item = makeTextItem(identifier, title: "Reconnect…", action: #selector(reconnect(_:)))
             reconnectToolbarItem = item
@@ -88,6 +93,8 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         let canSave = !model.isDemo && profile != nil && !model.isRefreshing && !model.isChangingAccounts
         refreshAllToolbarItem?.isEnabled = !model.isDemo && !model.isRefreshing && !model.isChangingAccounts && !model.profiles.isEmpty
         refreshAllToolbarItem?.toolTip = model.isRefreshing ? "Refreshing…" : "Refresh All"
+        refreshAccountToolbarItem?.isEnabled = canRefreshAccount
+        refreshAccountToolbarItem?.toolTip = model.isRefreshing ? "Refreshing…" : "Read this account's usage again"
         reconnectToolbarItem?.isEnabled = canSave && profile?.source != .codexDefaultLogin
         reconnectToolbarItem?.toolTip = profile?.source == .codexDefaultLogin
             ? "This account reads the Codex CLI login on this Mac"
@@ -416,7 +423,12 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
                 let title = InterfaceFormatting.usageTitle(usage)
                 let reading = snapshot.map { InterfaceFormatting.reading(usage, snapshot: $0, now: now) }
                     ?? (value: InterfaceFormatting.remaining(usage), timing: "")
-                return AccountReadingView.Reading(label: title, value: reading.value, timing: reading.timing,
+                // The page has room for the absolute time beside the countdown: `Resets in 2d 4h · Fri 13:43`.
+                var timing = reading.timing
+                if timing.hasPrefix("Resets in "), let date = usage.resetsAt {
+                    timing += " · \(HomeInterfaceFormatting.scheduleText(date, now: now, calendar: .current))"
+                }
+                return AccountReadingView.Reading(label: title, value: reading.value, timing: timing,
                                                   detail: "\(title): \(reading.value). \(InterfaceFormatting.reset(usage, now: now))")
             })
         let credits = snapshot?.credits ?? UsageService.unavailableCredits(for: profile.provider)
@@ -607,9 +619,22 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
     /// File > Open Billing. Enabled under the same rule as the Billing toolbar item.
     @objc func openSelectedAccountBilling(_ sender: Any?) { openBilling(sender) }
 
+    /// File > Refresh Account and the Refresh Account toolbar item: reads only this account again.
+    @objc func refreshSelectedAccount(_ sender: Any?) {
+        guard canRefreshAccount, let id = accountID else { return }
+        model.refreshAccount(id)
+    }
+
+    private var canRefreshAccount: Bool {
+        profile != nil && !model.isDemo && !model.isRefreshing && !model.isChangingAccounts
+    }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        guard menuItem.action == #selector(openSelectedAccountBilling(_:)) else { return true }
-        return profile != nil && view.window?.attachedSheet == nil
+        switch menuItem.action {
+        case #selector(openSelectedAccountBilling(_:)): profile != nil && view.window?.attachedSheet == nil
+        case #selector(refreshSelectedAccount(_:)): canRefreshAccount
+        default: true
+        }
     }
 
     @objc private func openBilling(_ sender: Any?) {

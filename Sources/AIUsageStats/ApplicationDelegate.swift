@@ -385,6 +385,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let now = Date()
         for item in UsageMenu.accountItems(profiles: model.profiles, snapshots: model.snapshots,
                                            consoleMessages: model.consoleMessages, now: now, target: self,
+                                           homeAction: #selector(showAccounts(_:)),
                                            openAction: #selector(openAccountFromMenu(_:)),
                                            reconnectAction: #selector(reconnectAccountFromMenu(_:))) {
             // The status menu does not autoenable items, so validate Reconnect… here.
@@ -497,6 +498,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         fileMenu.addItem(.separator())
         // Selected-account commands; disabled until the window or account page implements and validates them.
         fileMenu.addItem(nilTargetItem("Reconnect…", #selector(WindowCommandHandling.reconnectSelectedAccount(_:)), ""))
+        let refreshAccount = nilTargetItem("Refresh Account", #selector(WindowCommandHandling.refreshSelectedAccount(_:)), "r")
+        refreshAccount.keyEquivalentModifierMask = [.command, .shift]
+        fileMenu.addItem(refreshAccount)
         fileMenu.addItem(nilTargetItem("Open Billing", #selector(WindowCommandHandling.openSelectedAccountBilling(_:)), ""))
         for (title, action, key) in [("Move Up", #selector(WindowCommandHandling.moveSelectedAccountUp(_:)), NSUpArrowFunctionKey),
                                      ("Move Down", #selector(WindowCommandHandling.moveSelectedAccountDown(_:)), NSDownArrowFunctionKey)] {
@@ -532,6 +536,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         viewMenu.addItem(nilTargetItem("Next", #selector(WindowCommandHandling.showNextPeriod(_:)), "]"))
         viewMenu.addItem(nilTargetItem("Today", #selector(WindowCommandHandling.showCurrentPeriod(_:)), "t"))
         viewMenu.addItem(.separator())
+        let sortAccounts = NSMenuItem(title: "Sort Accounts", action: nil, keyEquivalent: "")
+        let sortMenu = NSMenu(title: "Sort Accounts")
+        for (index, title) in ["Saved Order", "Most Remaining", "Soonest Usable"].enumerated() {
+            let item = nilTargetItem(title, #selector(WindowCommandHandling.chooseAccountSortOrder(_:)), "")
+            item.tag = index
+            sortMenu.addItem(item)
+        }
+        sortAccounts.submenu = sortMenu
+        viewMenu.addItem(sortAccounts)
         // The toolbar Accounts filter as a menu command; Home supplies the items each time the submenu opens.
         let showAccount = NSMenuItem(title: "Show Account", action: nil, keyEquivalent: "")
         accountFilterMenu.delegate = self
