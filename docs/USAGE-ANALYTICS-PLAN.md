@@ -73,7 +73,7 @@ Phase 1 uses data the app already has. Phase 2 adds quota history. Phase 3 adds 
 | Q6 | Sort accounts | "Ledger" and "Default" menus | Sort by soonest usable or most remaining. No grouping modes | 1 |
 | Q7 | Window rows with relative and absolute reset, dimmed when none pending | Per-account rows | Mostly exists. Verify "no reset pending" is its own state | 1 |
 | Q8 | Resets remaining | "Resets remaining: --" | Exists for Codex in the Home table. Verify placement | 1 |
-| Q9 | Refresh one account | "Refresh quota" | Verify a per-account refresh exists | 1 |
+| Q9 | Refresh one account | "Refresh quota" | Add a native Refresh control on the account page. `UsageService.refreshAccount(id:)` exists; the UI has only Refresh All | 1 |
 | Q10 | Last seen | "Last seen Oct 13, 1:00 PM" | Last time the reading changed, from history. Not the last fetch | 2 |
 | Q11 | Drain rate | "~7.7% per hour" | Slope of total remaining over a recent period, ignoring reset jumps | 2 |
 | Q12 | Remaining chart with projection | Solid history, dashed projection, "Now" line | History table plus a line chart | 2 |
@@ -90,7 +90,7 @@ All Phase 3. Metrics are per model, never per account.
 
 | ID | Metric | Evidence | Computation | Caveat |
 |---|---|---|---|---|
-| M1 | Output speed, tokens/s | "Output speed, tok/s" | Claude: output tokens / (last block time - previous tool result or prompt time). Codex: per turn, excluding time to first token | Claude value includes wait before first token. Label approximate |
+| M1 | Output speed, tokens/s | "Output speed, tok/s" | Both providers: output tokens, thinking included, / (response's last log line - previous prompt or tool result) | Includes the wait before the first token. Label approximate; compare within one provider |
 | M2 | Steps per turn | "Steps per turn" | Claude: responses from a human prompt to `end_turn`. Codex: `task_started` to `task_complete` | None |
 | M3 | grep instead of rg | "Uses grep instead of rg" | Classify shell search commands | Definition depends on Decision 7 |
 | M4 | Piped into head or tail | "Commands piped into head or tail" | Pattern match on the command | None |
@@ -117,9 +117,9 @@ All Phase 4.
 | ID | Component | Purpose | Phase |
 |---|---|---|---|
 | S1 | History database | One SQLite file in `~/Library/Application Support/AI Usage Stats/` | 2 |
-| S2 | Quota observation recorder | Add a row when an account's windows change | 2 |
+| S2 | Quota observation recorder | Add a row for every successful reading (Decision 6) | 2 |
 | S3 | Codex quota backfill | Read `rate_limits` from rollout logs. Match `creator_account_id` to the account's `providerAccountID` | 2 |
-| S4 | Log ingestor | Runs on the refresh timer. Tracks a byte offset per file, rescans for new files, rereads a file after it moves | 3 |
+| S4 | Log ingestor | Runs on the refresh timer. Tracks a byte offset per file, rescans for new files, rereads a file after it moves. Each read resumes at the first line of the file's last response, which may still be growing; records emitted again replace the earlier ones | 3 |
 | S5 | Claude log parser | Groups lines by `message.id` into response records | 3 |
 | S6 | Codex log parser | Joins usage to model through `turn_id` | 3 |
 | S7 | Command classifier | Pure function from a command string to stored facts | 3 |
@@ -193,6 +193,7 @@ Mark each decision with the chosen option and date. A decision is settled only w
   - Drain rate is the average change per hour over the last 24 hours, excluding jumps at resets, including idle time. With less than 24 hours of history, use all available history and say so.
   - Reset rule: at an account's reset, the projected total gains that account's used percentage as of now. This slightly underestimates the gain because future use cannot be assigned to a specific account. The total never falls below 0 or rises above the account count times 100%.
   - Per-model weekly windows show a pooled total as text (Q2) but get no forecast line at first.
+  - Unknown readings: the total and its denominator include only accounts with a current, available 7-day reading. Accounts with a missing, unsupported, failed, or stale reading are left out and counted beside the total, for example "90% / 500% remaining, 1 account unknown". A stale last-known value never counts as current. With no current readings, the total is unknown, not 0%.
 
 ### 6. Quota history recording
 
@@ -234,7 +235,7 @@ Mark each decision with the chosen option and date. A decision is settled only w
 - Screenshot evidence: every element of the S3 phone mockup ("12% left", "Ahead of pace", "Under pace", "+24% in 1d 4h", per-account rows with percentage and reset time) and the S3 "back in 8h 58m" and sort controls derive from current readings without history.
 - Which of Q1 to Q9 ship first, and whether Phase 1 ships before the database exists.
 - Recommendation: ship Q1 to Q7 without any database, in parallel with the database foundation.
-- Decision: Phase 1 (Q1 to Q7, plus verifying Q8 and Q9) runs in parallel with the `UsageHistory` foundation, 2026-10-14. Phase 1 changes Home, the menu, and pure functions in `UsageCore`; the foundation is a new target, so they share no files. Phase 2 forecast UI starts after Phase 1 lands, because both change Home.
+- Decision: Phase 1 (Q1 to Q7 and Q9, plus verifying Q8) runs in parallel with the `UsageHistory` foundation, 2026-10-14. Phase 1 changes Home, the menu, and pure functions in `UsageCore`; the foundation is a new target, so they share no files. Phase 2 forecast UI starts after Phase 1 lands, because both change Home.
 
 ### 10. Work split for parallel workflows
 
@@ -262,7 +263,7 @@ Mark each decision with the chosen option and date. A decision is settled only w
 | 2a | App integration | Mac | Quota recorder in `UsageHistoryStore`, log ingestion on the refresh timer, Codex account matching, hooks in `UsageService` and `ApplicationModel` | Wave 1 |
 | 2b | Home forecast UI | Mac | New SwiftUI files for the Home forecast | Phase 1 and 2a |
 | 2b | Models page | Mac | New SwiftUI files for the Models page, metric queries, sidebar item | 2a |
-| 3 | Documents and app check | Mac | `STRATEGY.md`, `AGENTS.md`, `README.md`, `docs/research/claude.md`, `VALIDATION.md`; checks in the running `.app` | Everything |
+| 3 | Documents and app check | Mac | `README.md`, `docs/research/claude.md`, `VALIDATION.md`; checks in the running `.app` | Everything |
 
 - Order on the Mac: one local stream builds at a time. Foundation goes first because cloud sessions start from `main`, so it must merge before wave 1 starts. Phase 1 then runs on the Mac while the four cloud streams run. Stream 2b runs its two streams one after the other.
 - Phase 1 moved from wave 0 to wave 1 so the Mac never builds two streams at once.
@@ -316,6 +317,6 @@ Only behavior that can plausibly break:
 - Claude response grouping by `message.id`, including responses with no final usage line.
 - Codex quota backfill does not attach readings to the wrong account.
 
-## Documents to update after decisions
+## Documents to update
 
-`docs/STRATEGY.md`, `AGENTS.md`, `README.md`, and `docs/research/claude.md` still describe the original small scope: no forecasts, no transcript reading, no SwiftUI, no external dependencies. Update them once the decisions above are settled. `Package.swift` gains GRDB (Decision 1) and `facebook/zstd` (Decision 3).
+`docs/STRATEGY.md` and `AGENTS.md` are updated with this plan, before implementation, so the new dependencies, SwiftUI pages, and log reading are within the documented scope when they land. `README.md` and `docs/research/claude.md` still describe the original scope and are updated in wave 3, with `VALIDATION.md` evidence.

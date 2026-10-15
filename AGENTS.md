@@ -4,16 +4,19 @@ Build a small native macOS menu bar utility for viewing Claude and Codex account
 
 ## Repository map
 
-- `Package.swift`: Swift 6, macOS 14 minimum, Swift Package Manager, no external dependencies.
+- `Package.swift`: Swift 6, macOS 14 minimum, Swift Package Manager. Dependencies: GRDB (macOS only) and facebook/zstd, pinned exactly.
 - `Sources/AIUsageStats/`: AppKit status item, account panel, settings, and app lifecycle.
 - `Sources/UsageCore/`: account identity, provider data, usage windows, credit balances, and refresh state.
 - `Sources/UsageCapture/`: quota-only Claude status-line capture and preservation of the existing command.
-- `Tests/UsageCoreTests/`: focused behavior tests.
+- `Sources/UsageHistory/`: usage history record types, log parsers, command classifier, and forecast. Foundation and zstd only; builds on Linux.
+- `Sources/UsageHistoryStore/`: GRDB usage history database. macOS only.
+- `Tests/`: focused behavior tests, one target per source target.
 - `Resources/`: app metadata and generated icon.
 - `scripts/package_app.sh`: canonical local Release app packaging.
 - `docs/STRATEGY.md`, `docs/NATIVE-DESIGN.md`: product scope and native interface criteria.
 - `docs/VALIDATION.md`, `docs/RELEASING.md`: observed evidence, limits, and packaging procedure.
 - `docs/research/`: source research and provider limitations.
+- `docs/USAGE-ANALYTICS-PLAN.md`: usage history features, settled decisions, and the work split.
 
 ## Working method
 
@@ -21,7 +24,7 @@ Build a small native macOS menu bar utility for viewing Claude and Codex account
 - Define the observable result and use the cheapest reliable check that could disprove it. Reuse existing checks before adding tests.
 - Use precise types, professional names, explicit ownership, and direct error handling. Avoid speculative abstractions and compatibility layers.
 - Preserve Swift 6 concurrency checking. AppKit state belongs on the main actor; file and network work must not block UI updates.
-- Follow the AppKit and SwiftPM architecture. Account and settings controls remain native. The experimental Claude Console sign-in uses an isolated browser session; do not add web views for ordinary app controls, SwiftUI, an Xcode project, or external dependencies.
+- Follow the AppKit and SwiftPM architecture. Account and settings controls remain native. The experimental Claude Console sign-in uses an isolated browser session; do not add web views for ordinary app controls, an Xcode project, or dependencies beyond GRDB and zstd. New analytics pages may use SwiftUI and Swift Charts inside the AppKit window; account and settings controls stay AppKit.
 - Use one agent for work that fits one pass. When parallel work is explicitly requested, assign file ownership first and coordinate shared APIs. Never revert another contributor's changes.
 - Questions ask for answers, not changes. Follow the user's scope and publishing disposition.
 
@@ -33,6 +36,7 @@ Build a small native macOS menu bar utility for viewing Claude and Codex account
 - Do not invent a provider endpoint or present a private endpoint as an official supported API. Claude Console integration is experimental. Ground its field meanings in `docs/research/`, preserve unknown values, and keep its session isolated from subscription CLI capture.
 - Never display, log, commit, or include credentials in screenshots. Never change the user's Claude or Codex login as a side effect of monitoring.
 - Keep monitoring read-only. Do not purchase credits, alter plans, consume model requests as a probe, or add telemetry.
+- Usage history reads local Claude Code and Codex logs and stores derived facts only. Never store or log prompts, replies, tool output, file contents, or command text. Logs never leave the Mac.
 
 ## Native interface
 
