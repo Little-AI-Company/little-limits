@@ -243,7 +243,7 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         guard isViewLoaded, showsReadings else { return }
         let now = Date()
         let forecasts = HomeForecastModel.providers(overview: overview, readings: forecastHistory.readings,
-                                                    range: forecastRange, now: now, calendar: .current)
+                                                    latestReadings: forecastHistory.latestReadings, range: forecastRange, now: now, calendar: .current)
         // With no history for any provider, one line replaces the whole forecast.
         let noHistory = forecasts.allSatisfy { $0.lines.isEmpty && $0.chart == nil }
         forecastView.apply(forecasts, notice: forecastHistory.unavailableReason ?? (noHistory ? HomeForecastModel.noHistoryText : nil),

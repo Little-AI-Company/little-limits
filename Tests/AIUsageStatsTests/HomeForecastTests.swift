@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import UsageCore
 import UsageHistory
+import UsageHistoryStore
 @testable import AIUsageStats
 
 private let forecastNow = Date(timeIntervalSince1970: 1_800_000_000)
@@ -94,6 +95,31 @@ private extension UsageOverviewAccount {
         let snapshot = AccountSnapshot(profileID: id, fetchedAt: forecastNow, windows: windows, state: .available)
         return UsageOverview(profiles: [profile], snapshots: [id: snapshot], now: forecastNow).accounts[0]
     }
+}
+
+/// History older than the observed span stays out of the chart rows, but its latest reading still gives Last seen,
+/// so old history is not reported as none.
+@Test @MainActor
+func databaseHistoryKeepsTheLatestReadingOfAnyAge() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let database = try HistoryDatabase(url: directory.appendingPathComponent("history.sqlite"))
+    let now = Date()
+    func reading(_ account: UUID, daysAgo: Double, used: Double) -> QuotaReading {
+        QuotaReading(provider: .claude, accountID: account, windowID: "seven_day", usedPercent: used, resetsAt: nil,
+                     windowDurationMinutes: nil, observedAt: now.addingTimeInterval(-daysAgo * 86_400), source: .claudeOAuth)
+    }
+    try database.recordQuotaReadings([reading(firstAccount, daysAgo: 30, used: 10), reading(firstAccount, daysAgo: 20, used: 20),
+                                      reading(secondAccount, daysAgo: 1, used: 5)])
+    let history = HomeForecastHistory(source: .database(database))
+    await withCheckedContinuation { continuation in
+        history.onChange = { continuation.resume() }
+        history.observe(now: now, profiles: [], snapshots: [:])
+    }
+    #expect(history.readings.map(\.accountID) == [secondAccount])
+    let latest = Dictionary(uniqueKeysWithValues: history.latestReadings.map { ($0.accountID, $0) })
+    #expect(latest[firstAccount]?.usedPercent == 20)
+    #expect(latest[secondAccount]?.usedPercent == 5)
 }
 
 /// A change-only value recorded before the range holds until its reset, so the line starts at the range start

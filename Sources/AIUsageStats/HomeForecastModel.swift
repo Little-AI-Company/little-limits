@@ -50,10 +50,13 @@ enum HomeForecastModel {
     static let historyStep: TimeInterval = 300
 
     /// Forecast blocks for each provider with an account, Claude first. Claude and Codex are never combined.
-    static func providers(overview: UsageOverview, readings: [QuotaReading], range: HomeForecastRange, now: Date,
+    /// `latestReadings` holds each account's latest reading of any age; it may be older than `readings` covers.
+    static func providers(overview: UsageOverview, readings: [QuotaReading], latestReadings: [QuotaReading] = [],
+                          range: HomeForecastRange, now: Date,
                           calendar: Calendar) -> [HomeProviderForecast] {
         overview.providers.filter { $0.accountCount > 0 }.map { provider in
-            forecast(provider, overview: overview, readings: readings, range: range, now: now, calendar: calendar)
+            forecast(provider, overview: overview, readings: readings, latestReadings: latestReadings, range: range,
+                     now: now, calendar: calendar)
         }
     }
 
@@ -148,11 +151,14 @@ enum HomeForecastModel {
     }
 
     private static func forecast(_ provider: ProviderQuotaOverview, overview: UsageOverview, readings: [QuotaReading],
-                                 range: HomeForecastRange, now: Date, calendar: Calendar) -> HomeProviderForecast {
+                                 latestReadings: [QuotaReading], range: HomeForecastRange, now: Date, calendar: Calendar) -> HomeProviderForecast {
         let members = overview.accounts.filter { $0.profile.provider == provider.provider }
         let memberIDs = Set(members.map(\.id))
         let own = readings.filter { $0.provider == historyProvider(provider.provider) && memberIDs.contains($0.accountID) }
-        guard !own.isEmpty else {
+        let ownLatest = latestReadings.filter {
+            $0.provider == historyProvider(provider.provider) && memberIDs.contains($0.accountID)
+        }
+        guard !own.isEmpty || !ownLatest.isEmpty else {
             return HomeProviderForecast(provider: provider.provider, lines: [], chart: nil,
                                         notice: "\(provider.provider.title): \(noHistoryText)")
         }
@@ -168,7 +174,7 @@ enum HomeForecastModel {
         let title = provider.provider.title
         var lines = [drainLine(result.drain, title: title, hasCounted: !counted.isEmpty, now: now),
                      zeroLine(result.projection, title: title, range: range, now: now, calendar: calendar)]
-        let latest = Dictionary(grouping: own, by: \.accountID).mapValues { readings in
+        let latest = Dictionary(grouping: own + ownLatest, by: \.accountID).mapValues { readings in
             readings.max { $0.observedAt < $1.observedAt }
         }
         for account in members {

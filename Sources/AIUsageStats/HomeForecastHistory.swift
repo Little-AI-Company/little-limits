@@ -20,6 +20,8 @@ final class HomeForecastHistory {
 
     var onChange: (() -> Void)?
     private(set) var readings: [QuotaReading] = []
+    /// Each account's latest reading of any age, so Last seen tells old history from none.
+    private(set) var latestReadings: [QuotaReading] = []
     /// Why history cannot be shown at all, or nil.
     private(set) var unavailableReason: String?
     private let source: Source
@@ -40,12 +42,22 @@ final class HomeForecastHistory {
             let bound = now.addingTimeInterval(-Self.observedSpan)
             lowerBound = bound
             observation = ValueObservation
-                .tracking { db in try QuotaReading.filter(Column("observedAt") >= bound).fetchAll(db) }
+                .tracking { db in
+                    ObservedHistory(
+                        readings: try QuotaReading.filter(Column("observedAt") >= bound).fetchAll(db),
+                        // SQLite takes the other columns of a MAX aggregate from the row holding the maximum.
+                        latestReadings: try QuotaReading.fetchAll(db, sql: """
+                            SELECT provider, accountID, windowID, usedPercent, resetsAt, windowDurationMinutes,
+                                   MAX(observedAt) AS observedAt, source
+                            FROM quotaReading GROUP BY accountID
+                            """))
+                }
                 .start(in: database.pool, onError: { [weak self] error in
                     self?.unavailableReason = "Could not read the quota history: \(error.localizedDescription)"
                     self?.onChange?()
-                }, onChange: { [weak self] readings in
-                    self?.readings = readings
+                }, onChange: { [weak self] observed in
+                    self?.readings = observed.readings
+                    self?.latestReadings = observed.latestReadings
                     self?.unavailableReason = nil
                     self?.onChange?()
                 })
@@ -56,4 +68,9 @@ final class HomeForecastHistory {
             break
         }
     }
+}
+
+private struct ObservedHistory: Sendable {
+    let readings: [QuotaReading]
+    let latestReadings: [QuotaReading]
 }
