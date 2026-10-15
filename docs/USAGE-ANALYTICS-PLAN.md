@@ -119,7 +119,7 @@ All Phase 4.
 | S1 | History database | One SQLite file in `~/Library/Application Support/AI Usage Stats/` | 2 |
 | S2 | Quota observation recorder | Add a row for every successful reading (Decision 6) | 2 |
 | S3 | Codex quota backfill | Read `rate_limits` from rollout logs. Match `creator_account_id` to the account's `providerAccountID` | 2 |
-| S4 | Log ingestor | Runs on the refresh timer. Tracks a byte offset per file, rescans for new files, rereads a file after it moves. Each read resumes at the first line of the file's last response, which may still be growing; records emitted again replace the earlier ones | 3 |
+| S4 | Log ingestor | Runs on the refresh timer. Tracks a byte offset per file, rescans for new files, rereads a file after it moves. Each read resumes at the first line of the turn that contains the file's last response, because a response's `requestedAt`, `turnID`, and Codex model come from earlier lines of its turn; records emitted again replace the earlier ones. A resumed Codex read feeds the file's first line (`session_meta`, which holds the account id) before the resumed lines | 3 |
 | S5 | Claude log parser | Groups lines by `message.id` into response records | 3 |
 | S6 | Codex log parser | Joins usage to model through `turn_id` | 3 |
 | S7 | Command classifier | Pure function from a command string to stored facts | 3 |
@@ -151,7 +151,7 @@ Mark each decision with the chosen option and date. A decision is settled only w
 - Decision: derived facts plus program sequence, 2026-10-14.
   - Per command: model, provider, time, project key, character length, line count, search program (grep, rg, none), pipe into head or tail, git status, git commit with success, inline interpreter (Python, JavaScript, none), saved script run, inline script purpose, inline script line count.
   - Project key: a salted hash of the full working directory path, with a random salt created once per database. Folder names are never stored. The full path keeps `~/clients/acme/web` and `~/personal/web` apart, and no planned feature displays a project name, so a name would only add exposure in screenshots and backups.
-  - Program sequence: pipeline and command-list program names with all arguments removed, for example `grep | head`, `git status`, `python3 <<heredoc`. The only kept words after a program name are subcommands from a fixed allow list (such as `git status`, `git commit`); everything else is dropped.
+  - Program sequence: pipeline and command-list program names with all arguments removed, for example `grep | head`, `git status`, `python3 <<heredoc`. The only kept words after a program name are subcommands from a fixed allow list (such as `git status`, `git commit`); everything else is dropped. A program name is kept only if it is on a fixed list of known command-line programs; any other word in program position becomes `<other>`, so a misparsed argument such as a `case` pattern can never be stored.
   - Every record carries a classifier version. When rules change, recompute records whose source logs still exist; older records keep their earlier classification.
 
 ### 3. Compressed Codex logs
@@ -192,6 +192,8 @@ Mark each decision with the chosen option and date. A decision is settled only w
   - Claude and Codex totals are always separate. Their percentages measure different quotas.
   - Only the 7-day window feeds the total and forecast. The 5-hour window affects only per-account availability (Q3).
   - Drain rate is computed per account, then summed: each account's increase in used percentage between consecutive recorded readings of its 7-day window, over the last 24 hours, divided by the hours covered, including idle time. A pair counts however far apart its readings are, because a failed refresh, sleep, or the app being closed does not invalidate the change between two good readings. A pair is skipped only when its reset time changed or the earlier reset time is at or before the later reading. Accounts joining or leaving the pooled total therefore never register as drain, and overnight idle time is measured rather than dropped. With less than 24 hours of history, use all available history and say so.
+  - Reset times from different sources can differ in precision. Two reset times less than 60 seconds apart are the same reset.
+  - Only counted accounts add to the drain rate. A pair that starts before the 24-hour cutoff counts only its part inside the window.
   - Reset rule: at an account's reset, the projected total gains that account's used percentage as of now. This slightly underestimates the gain because future use cannot be assigned to a specific account. The total never falls below 0 or rises above the account count times 100%.
   - Per-model weekly windows show a pooled total as text (Q2) but get no forecast line at first.
   - Per-model pools: a model pool covers every account that has reported that window, active, in its current or previous weekly period, from any source. Covered accounts with a current measured value count; other covered accounts are unknown, including accounts whose current source cannot report model windows (status-line capture reports only `five_hour` and `seven_day`). An account is outside the pool only if it never reported the window or reported it inactive. This needs history; until Phase 2, Phase 1 decides membership from the latest saved reading only.
@@ -269,8 +271,8 @@ Mark each decision with the chosen option and date. A decision is settled only w
 | 2b | Models page | Mac | New SwiftUI files for the Models page, metric queries, sidebar item | 2a |
 | 3 | Documents and app check | Mac | `README.md`, `docs/research/claude.md`, `VALIDATION.md`; checks in the running `.app` | Everything |
 
-- Order on the Mac: one local stream builds at a time. Foundation goes first because cloud sessions start from `main`, so it must merge before wave 1 starts. Phase 1 then runs on the Mac while the four cloud streams run. Stream 2b runs its two streams one after the other.
-- Phase 1 moved from wave 0 to wave 1 so the Mac never builds two streams at once.
+- Order: Foundation went first because cloud sessions start from `main`. Phase 1 ran on the Mac while the four cloud streams ran.
+- Status 2026-10-15: Foundation (#22) and Phase 1 (#23) merged. Wave 1 opened as #24 to #27 from Linux cloud sessions; each lands only after macOS verification and, for the parsers, real-log count checks on the Mac. Waves 2a and 2b run in parallel: 2a pushes the `Package.swift` dependency and `ApplicationModel.historyDatabase` first, and both 2b streams build on that branch and open their PRs after 2a merges. Each parallel stream builds with `-j 2`.
 - The parsers do not call the command classifier. A parser emits each shell command as an event that holds the command text in memory only. Stream 2a classifies the event and stores the resulting facts; command text is never written. The four cloud streams therefore share only the types Foundation writes.
 
 ## Cloud environment
@@ -285,25 +287,31 @@ Source: [Claude Code cloud environments](https://code.claude.com/docs/en/cloud-e
 Configuration for the "Swift Mac App Dev" environment, created 2026-10-15. Cloud sessions for this repository use it, not "Default":
 
 1. Network access: Custom, keep the default list, add `download.swift.org`.
-2. Setup script. It installs the same Swift version as the development Mac, in the layout used by the official Swift container images:
+2. Setup script. It installs the same Swift version as the development Mac, in the layout used by the official Swift container images. The package step is best effort: in the cloud VM `apt-get update` cannot reach the Ubuntu mirrors, and the base image already has the libraries Swift needs. `swift --version` at the end is the real check. Verified 2026-10-15: Swift 6.4 runs and wave 1 built and tested with this script.
 
 ```bash
 #!/bin/bash
-set -euo pipefail
+set -uo pipefail
 SWIFT_VERSION=6.4.0
+SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO="sudo"
 if ! swift --version 2>/dev/null | grep -q "swift-${SWIFT_VERSION}-RELEASE"; then
-  apt-get update
-  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    binutils git gnupg2 libc6-dev libcurl4-openssl-dev libedit2 libgcc-13-dev \
-    libncurses-dev libpython3-dev libsqlite3-0 libstdc++-13-dev libxml2-dev \
-    libz3-dev pkg-config tzdata unzip zlib1g-dev
-  curl -fsSL "https://download.swift.org/swift-${SWIFT_VERSION}-release/ubuntu2404/swift-${SWIFT_VERSION}-RELEASE/swift-${SWIFT_VERSION}-RELEASE-ubuntu24.04.tar.gz" \
-    | tar -xz --directory / --strip-components=1
+  PROXY="${http_proxy:-${HTTP_PROXY:-}}"
+  APT_OPTS=()
+  if [ -n "$PROXY" ]; then
+    APT_OPTS=(-o "Acquire::http::Proxy=$PROXY" -o "Acquire::https::Proxy=${https_proxy:-${HTTPS_PROXY:-$PROXY}}")
+  fi
+  # Most Swift runtime libraries ship in the base image; a failed apt step is not fatal.
+  $SUDO apt-get "${APT_OPTS[@]}" update || echo "apt-get update failed; continuing"
+  DEBIAN_FRONTEND=noninteractive $SUDO apt-get "${APT_OPTS[@]}" install -y --no-install-recommends \
+    libedit2 libncurses-dev libz3-dev libxml2-dev libcurl4-openssl-dev libsqlite3-0 \
+    || echo "apt-get install failed; continuing"
+  curl -fsSL --retry 3 "https://download.swift.org/swift-${SWIFT_VERSION}-release/ubuntu2404/swift-${SWIFT_VERSION}-RELEASE/swift-${SWIFT_VERSION}-RELEASE-ubuntu24.04.tar.gz" \
+    | $SUDO tar -xz --directory / --strip-components=1 || { echo "Swift download failed"; exit 1; }
 fi
 swift --version
 ```
 
-3. Before wave 1, start one cloud session that runs `swift --version`, then `swift test` on `main` after Foundation merges. Record the setup duration and whether the second session starts without reinstalling. Wave 1 does not start until both pass.
+3. When starting a session on claude.ai/code, select repository `ParkerRex/ai-usage-stats`, branch `main`, and this environment. Every cloud brief begins with an environment check (`swift --version`, `swift build --target UsageHistory`) and stops with the exact error if it fails.
 
 Rules for every cloud brief:
 
