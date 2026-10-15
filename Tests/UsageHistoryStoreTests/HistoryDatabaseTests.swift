@@ -75,7 +75,9 @@ private func temporaryDatabaseURL() -> URL {
     #expect(try database.pool.read(SourceFilePosition.fetchAll) == [second])
 }
 
-@Test func freshAndPreviousVersionDatabasesMigrateToTheQuotaHistoryIndex() throws {
+/// A v2 database keeps its quota history, gains the index, and forgets its read positions, so every log is read
+/// again with the current Codex command attribution.
+@Test func freshAndPreviousVersionDatabasesMigrateCleanly() throws {
     let freshURL = temporaryDatabaseURL()
     let previousURL = temporaryDatabaseURL()
     defer {
@@ -89,7 +91,10 @@ private func temporaryDatabaseURL() -> URL {
                                             withIntermediateDirectories: true)
     let previous = try DatabasePool(path: previousURL.path)
     try HistoryDatabase.migrator.migrate(previous, upTo: "v2")
-    try previous.write { db in try reading.insert(db) }
+    try previous.write { db in
+        try reading.insert(db)
+        try SourceFilePosition(path: "/logs/a.jsonl", byteOffset: 10, fileSize: 10, modifiedAt: observedAt).insert(db)
+    }
     try previous.close()
 
     for url in [freshURL, previousURL] {
@@ -101,5 +106,9 @@ private func temporaryDatabaseURL() -> URL {
         #expect(state.0)
         #expect(state.1.contains(["observedAt"]))
     }
-    #expect(try HistoryDatabase(url: previousURL).pool.read(QuotaReading.fetchAll) == [reading])
+    let migrated = try HistoryDatabase(url: previousURL).pool.read { db in
+        (try QuotaReading.fetchAll(db), try SourceFilePosition.fetchCount(db))
+    }
+    #expect(migrated.0 == [reading])
+    #expect(migrated.1 == 0)
 }
