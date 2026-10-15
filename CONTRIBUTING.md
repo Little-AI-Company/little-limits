@@ -14,7 +14,7 @@ For a bug fix, reproduce the problem on a named baseline commit before editing. 
 
 Define an observable result and choose the cheapest reliable check that could detect a failure. Reuse existing tests. Add a test when it protects a meaningful contract, catches a plausible regression, or exercises a consequential failure. Do not mirror implementation or create extra production layers to support tests.
 
-Follow the [build instructions](README.md#build-and-install) and [verification requirements](AGENTS.md#verification). Preserve type safety and Swift concurrency checking. Update relevant docs in the same PR. For native UI, exercise the packaged app and record the actual views and interactions checked. Review screenshots for private account information before sharing.
+Follow the [build instructions](README.md#build-from-source) and [verification requirements](AGENTS.md#verification). Preserve type safety and Swift concurrency checking. Update relevant docs in the same PR. For native UI, exercise the packaged app and record the actual views and interactions checked. Review screenshots for private account information before sharing.
 
 For provider work, identify the source and whether an endpoint is official or private. Use redacted fixtures. Preserve account isolation, missing-data states, and authentication failures. Never change a user's active CLI login to test monitoring.
 
