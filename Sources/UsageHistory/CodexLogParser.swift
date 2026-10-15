@@ -14,7 +14,7 @@ import Foundation
 /// Resuming: the model and turn id are written once per turn, so `resumeByteOffset` is the first line of the last
 /// response's turn, or the turn's prompt when that comes first, at or before the response's first line. The next read
 /// emits every response of that turn again, complete, with the same identifiers. A read without a response resumes
-/// at its started turn or pending prompt, or after its last line.
+/// at its open turn, or after its last line.
 ///
 /// The account and working directory are written once per file, in its first line (`session_meta`). A read that
 /// starts after offset 0 must first pass the file's first line, then the lines from `resumeByteOffset`; otherwise its
@@ -40,6 +40,8 @@ public struct CodexLogParser: Sendable {
         let model: String?
         let projectKey: String?
         let requestedAt: Date?
+        /// The time of the first output line.
+        let startedAt: Date
         var completedAt: Date
         var outputTokens: Int?
         var thinkingTokens: Int?
@@ -60,6 +62,7 @@ public struct CodexLogParser: Sendable {
     /// The current turn's first line, moved back to the earliest prompt or tool result that one of its responses
     /// answers. A prompt that interrupts the previous turn comes before the next turn's first line.
     private var turnResumeOffset: Int64?
+    private var turnStartedAt: Date?
     private var isInTask = false
     /// A `turn_context` outside a task started the current turn and no output has followed it yet.
     private var isTurnStartedByContext = false
@@ -95,6 +98,7 @@ public struct CodexLogParser: Sendable {
         case "turn_context":
             if !isInTask && !isTurnStartedByContext {
                 turnResumeOffset = byteOffset
+                turnStartedAt = timestamp
                 isTurnStartedByContext = true
             }
             model = payload["model"] as? String
@@ -110,7 +114,9 @@ public struct CodexLogParser: Sendable {
     }
 
     public func finish() -> LogParseOutput {
-        let pendingTurnOffset = [turnResumeOffset, lastInput?.offset].compactMap { $0 }.min()
+        // Without a response, an open turn may still produce one; otherwise the read resumes after its last line.
+        let isTurnOpen = isInTask || isTurnStartedByContext
+        let pendingTurnOffset = isTurnOpen ? [turnResumeOffset, lastInput?.offset].compactMap { $0 }.min() : nil
         let resumeOffset = responses.last?.resumeOffset ?? pendingTurnOffset ?? endOffset
         var output = LogParseOutput(quotaReadings: quotaReadings, resumeByteOffset: resumeOffset)
         for draft in responses {
@@ -158,7 +164,10 @@ public struct CodexLogParser: Sendable {
     private mutating func readEvent(_ event: String?, _ payload: [String: Any], at byteOffset: Int64, timestamp: Date) {
         switch event {
         case "task_started":
-            if isInTask || !isTurnStartedByContext { turnResumeOffset = byteOffset }
+            if isInTask || !isTurnStartedByContext {
+                turnResumeOffset = byteOffset
+                turnStartedAt = timestamp
+            }
             isTurnStartedByContext = false
             isInTask = true
             turnID = payload["turn_id"] as? String ?? "\(sessionID):\(byteOffset)"
@@ -190,7 +199,8 @@ public struct CodexLogParser: Sendable {
             if turnResumeOffset != nil { turnResumeOffset = resumeOffset }
             responses.append(ResponseDraft(responseID: responseID, resumeOffset: resumeOffset,
                                            turnID: turnID ?? responseID, model: model, projectKey: projectKey,
-                                           requestedAt: lastInput?.timestamp, completedAt: timestamp))
+                                           requestedAt: lastInput?.timestamp, startedAt: timestamp,
+                                           completedAt: timestamp))
             lastInput = nil
             acceptsOutput = true
         }
@@ -222,12 +232,24 @@ public struct CodexLogParser: Sendable {
         case "AgentMessage", "Reasoning": addOutput(at: byteOffset, timestamp: timestamp, isToolCall: false)
         default: break
         }
-        // On a resumed read, a command can complete before any response of the read; it was emitted earlier.
-        guard let item, let command = Self.commandText(item["command"]), let itemID = item["id"] as? String,
-              let index = responses.indices.last else { return }
+        // A command the user runs with `/shell` is not a model command.
+        guard let item, item["source"] as? String != "user_shell", let command = Self.commandText(item["command"]),
+              let itemID = item["id"] as? String, let index = commandOwnerIndex(item, completedAt: timestamp)
+        else { return }
         responses[index].commands.append(CommandDraft(itemID: itemID, executedAt: timestamp,
                                                       succeeded: Self.integer(item["exit_code"]).map { $0 == 0 },
                                                       command: command))
+    }
+
+    /// A command belongs to the last response. A command that started before the current turn, and completed late,
+    /// belongs to the last response that started before it. On a resumed read, a command can complete before any
+    /// response of the read; it was emitted earlier.
+    private func commandOwnerIndex(_ item: [String: Any], completedAt: Date) -> Int? {
+        guard let duration = item["duration"] as? [String: Any], let turnStartedAt,
+              let seconds = Self.number(duration["secs"]) else { return responses.indices.last }
+        let startedAt = completedAt.addingTimeInterval(-(seconds + (Self.number(duration["nanos"]) ?? 0) / 1e9))
+        guard startedAt < turnStartedAt else { return responses.indices.last }
+        return responses.lastIndex { $0.startedAt <= startedAt }
     }
 
     /// Codex writes `command` as an argument list, `[zsh, -lc, script]` for a shell script. A shell script gives the

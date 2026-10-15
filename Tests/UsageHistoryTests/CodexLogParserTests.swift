@@ -236,9 +236,33 @@ private let rateLimitsWithID = #"""
 @Test func readWithoutAResponseResumesAtItsTurnOrAfterItsLastLine() {
     let quotaOnly = [sessionMeta(account: "account-1"), tokenCount(1, rateLimits: rateLimitsWithID)]
     let openTurn = quotaOnly + [taskStarted(2, "turn-1"), turnContext(2), userPrompt(3)]
+    let failedTurn = openTurn + [taskComplete(4)]
 
     #expect(parse(quotaOnly).resumeByteOffset == Int64(quotaOnly.map { $0.utf8.count + 1 }.reduce(0, +)))
     #expect(parse(openTurn).resumeByteOffset == offsets(openTurn)[2])
+    #expect(parse(failedTurn).resumeByteOffset == Int64(failedTurn.map { $0.utf8.count + 1 }.reduce(0, +)))
+}
+
+/// A command can complete after a later turn starts; it stays with the response that started it. A `/shell`
+/// command run by the user is not a model command.
+@Test func lateCommandsKeepTheirResponseAndUserShellCommandsAreSkipped() {
+    func completed(_ second: Int, _ item: String, source: String, seconds: Int) -> String {
+        let fields = #""source":"\#(source)","duration":{"secs":\#(seconds),"nanos":0},"exit_code":0"#
+        let command = #""command":["zsh","-lc","sleep 8"]"#
+        return event(second, #"{"type":"item_completed","item":{"id":"\#(item)","type":"CommandExecution",\#(command),\#(fields)}}"#)
+    }
+    let lines = [
+        sessionMeta(account: "account-1"), taskStarted(1, "turn-1"), turnContext(1), userPrompt(2), toolCall(3),
+        usageRecord(4, output: 1, reasoning: 0), toolResult(5), taskComplete(6),
+        taskStarted(7, "turn-2"), turnContext(7), userPrompt(8), reasoning(9),
+        completed(12, "exec-1", source: "unified_exec_startup", seconds: 8),
+        completed(13, "exec-2", source: "unified_exec_startup", seconds: 1),
+        completed(14, "exec-3", source: "user_shell", seconds: 1)
+    ]
+    let output = parse(lines)
+
+    #expect(output.commands.map(\.commandID) == ["exec-1", "exec-2"].map { "\(sessionID):\($0)" })
+    #expect(output.commands.map(\.responseID) == output.responses.map(\.responseID))
 }
 
 /// In multi-agent sessions a message from another agent is input; hosted image generation is a tool call.
