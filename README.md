@@ -5,7 +5,7 @@
 <h1 align="center">AI Usage Stats</h1>
 
 <p align="center">
-  See how much of your Claude and Codex limits are left, on every account, right from your Mac's menu bar.
+  See how much of your Claude and Codex limits are left, on every account, right from your Mac's menu bar. Keep a private history of how you use them, stored only on your Mac.
 </p>
 
 <p align="center">
@@ -19,13 +19,25 @@
 ## What it does
 
 - **Menu bar number.** Shows how much quota is left. By default you see the lowest number for Claude and for Codex. Pick the accounts you actually use and each one gets its own number.
-- **Menu with every account.** Click the menu bar item for each account's 5-hour, weekly, and model limits, with when each one resets.
+- **Menu with every account.** Click the menu bar item for each account's 5-hour, weekly, and model limits, with when each one resets. With two or more accounts of one provider, the menu also shows their weekly total and next reset.
 - **Home window.** One table for all accounts, plus a calendar of upcoming resets.
+- **Weekly totals and pace.** With two or more accounts of one provider, Home adds up the weekly quota left across them and shows when the next reset comes and how much it gives back. Each account's weekly cell says whether it is ahead of or under pace. Claude and Codex totals are always kept apart.
+- **Forecast.** Home keeps each reading and shows how fast your weekly total is going down, when it would reach 0%, and a chart of the next 1 or 7 days. Gaps in the history stay gaps.
+- **Models page.** See how each Claude and Codex model behaves in your own work: output speed, steps per turn, thinking share, parallel tool calls, and the shell commands it runs (grep instead of rg, piping into head or tail, inline Python or JavaScript).
 - **Many accounts.** Keep several Claude and Codex accounts side by side without touching your everyday logins.
 
 It only reads usage. It never buys credits, changes plans, or sends AI requests to check your usage, and it has no tracking or telemetry.
 
 <img src="assets/screenshots/status-menu.png" width="400" alt="The menu bar menu listing each account's remaining quota and reset times">
+
+## Your usage history
+
+The forecast and the Models page come from a history the app keeps on your Mac. Nothing in it is uploaded.
+
+- **What it reads.** Claude Code logs in `~/.claude/projects` and Codex logs in `~/.codex/sessions` and `~/.codex/archived_sessions`, including compressed `.jsonl.zst` files. It reads them in the background after each refresh and skips files that have not changed. Codex logs also fill in earlier Codex quota readings for the account they belong to.
+- **What it stores.** Derived facts only: quota readings over time, and for each model response its model, time, and token counts. For each shell command it keeps the length, line count, a few categories (search program, pipe into head or tail, git status or commit, inline script language and purpose), and the program names with every argument removed, such as `grep | head`. A project is a salted hash of its folder path.
+- **What it never stores.** Prompts, replies, tool output, file contents, command text, or folder names.
+- **Where.** `~/Library/Application Support/AI Usage Stats/history.sqlite`. It is kept until you delete it, so it outlasts Claude Code's own logs, which Claude Code deletes after 30 days by default. To clear it, quit the app and delete the files whose names start with `history.sqlite`.
 
 ## Install
 
@@ -72,11 +84,13 @@ scripts/package_app.sh
 open "dist/AI Usage Stats.app"
 ```
 
+The first build downloads two pinned Swift packages: [GRDB](https://github.com/groue/GRDB.swift) 7.11.1 for the history database and [facebook/zstd](https://github.com/facebook/zstd) 1.5.7 to read compressed Codex logs. The app has no other dependencies.
+
 Local builds use your own development certificate and are not notarized. [docs/RELEASING.md](docs/RELEASING.md) covers packaging options and the public release steps.
 
 ## More
 
-- [Native design](docs/NATIVE-DESIGN.md) and [product scope](docs/STRATEGY.md)
+- [Native design](docs/NATIVE-DESIGN.md), [product scope](docs/STRATEGY.md), and [usage analytics plan](docs/USAGE-ANALYTICS-PLAN.md)
 - [Validation record](docs/VALIDATION.md), [Claude sources](docs/research/claude.md), and [Codex sources](docs/research/codex.md)
 - [Contributing](CONTRIBUTING.md) and [agent guide](AGENTS.md)
 

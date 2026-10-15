@@ -866,3 +866,48 @@ Phase 1 of the [usage analytics plan](https://github.com/ParkerRex/ai-usage-stat
 | `--demo-home --show-menu`, menu capture (system dark appearance) | `Claude • All accounts` and `Codex • All accounts` sections with text rows only, aligned to the account rows; `Usable in 2d 0h · Sat 11:50` in the exhausted account's section; `No reset pending` timing. |
 
 Not verified: keyboard and pointer interaction. `osascript` was refused permission to send keystrokes, so View > Sort Accounts, the Refresh Account toolbar item and File > Refresh Account (Shift-Command-R), arrow-key menu navigation, and VoiceOver reading of the totals grid were checked from source only. Sort order is covered by `soonestUsableOrderKeepsSavedOrderForTies`. Refresh Account was not run against a live account, and the account page with the new toolbar item was not captured, because no flag opens it without input.
+
+## Usage history waves 0 to 2, October 15, 2026
+
+Evidence from the pull request descriptions of [#22](https://github.com/ParkerRex/ai-usage-stats/pull/22) to [#31](https://github.com/ParkerRex/ai-usage-stats/pull/31), the waves 0 to 2 of the [usage analytics plan](USAGE-ANALYTICS-PLAN.md). Numbers are copied as each PR reported them; no check was repeated for this record. Real logs were read on the development Mac by temporary harnesses that printed aggregate counts only and were deleted before commit. No log content was printed or committed.
+
+| PR | Tested revision and system | Tests and builds |
+| --- | --- | --- |
+| #22 Foundation: record types, `HistoryDatabase`, GRDB 7.11.1 and `facebook/zstd` 1.5.7 | 55812fb, macOS 27.0, Xcode 27.0, Swift 6.4, Apple silicon | `swift test -j 4`: all pass, 0 failures. `swift build -c release -j 4`: succeeds. Linux build not run locally. |
+| #23 Phase 1 quota overview | 574aa27, macOS 27.0.1 (26A434), Apple silicon, Swift 6.4 | 2, 2, 71, and 22 tests passed; Release build and packaging. Details in [Quota overview from current readings](#quota-overview-from-current-readings-october-15-2026). |
+| #24 Claude log parser | 9d59d3c, macOS 27.0.1, arm64, Swift 6.4 | 122 Swift Testing tests (27 in `UsageHistoryTests`, 8 of them Claude parser) and 21 XCTest tests passed, 0 failed. Release build complete. |
+| #25 Quota forecast | 56ed74e, macOS 27.0.1, Swift 6.4 | Swift Testing 114 passed (19 in `UsageHistoryTests`, 16 of them forecast); XCTest 21, 0 failures. Earlier Linux run at 5d8720f: 17 tests passed. |
+| #26 Command classifier | 9ad6996, macOS 27.0.1, arm64, Swift 6.4 | Swift Testing 125 (30 + 2 + 71 + 22), including `classifiesCommand` with 53 cases; XCTest 21, 0 failures. Release build complete. Baseline at c2a7622 put `case` pattern words in the program sequence; fixed with an allow list of program names. |
+| #27 Codex log parser and Zstandard reader | a6eeb80, macOS 27.0.1, arm64, Swift 6.4 | Swift Testing 49 `UsageHistoryTests` (21 Codex parser and reader), 71, 22, 2; XCTest 21; 0 failures. Release build complete. |
+| #29 Quota recorder and log ingestion | e09584d, macOS 27.0.1, Apple M1 Max; packaged-app and real-log measurements at ae01db7 | 49 + 5 + 71 + 22 Swift Testing tests passed, then 49 + 6 + 71 + 22 at e09584d. Release build complete. |
+| #30 Home forecast | 69a5144, macOS 27.0.1 | `UsageHistoryTests` 49, `UsageHistoryStoreTests` 6, `UsageCoreTests` 71, `AIUsageStatsTests` 27, all pass. Release build complete. |
+| #31 Models page | 2809ee0; packaged app last opened on a4bce09 | 152 tests passed (49 + 10 + 71 + 22). Release build passed. |
+
+### Real-log counts
+
+| Check | Result |
+| --- | --- |
+| Claude parser (#24), 2026-10-15 | 602 files (527 subagent files), 1,022 MB. 32,019 unique responses; 7,385 (23%) without a final usage line, 7,383 of them in subagent files. 974 turns. 28,562 Bash command events (28,033 succeeded, 524 failed, 5 unknown). 25,490 resumed rows compared with whole-file rows, 0 differ. Parse time 4.1 s on one thread. After the final-usage fix (9d59d3c): 32,161 unique responses, 7,387 without final usage. Plan reference from 2026-10-14: 29,422 responses. |
+| Codex parser (#27), plain files | 121 files, 71,560 lines, 0 decode errors, 0 reader errors. 9,253 responses, 6,249 command events, 9,322 quota readings. A resumed read equals the full read in 121 of 121 files. |
+| Codex parser (#27), compressed files | 259 files, 207,007 lines, 0 decode errors, 0 reader errors. 42,972 responses, 6,888 command events, 2 quota readings. A resumed read equals the full read in 259 of 259 files. Duration for all files: 95 s, debug build. |
+| Integration harness (#29) | Claude 32,404 responses, 14,232 grep and 1,811 rg. Codex 251 grep and 2,954 rg. Codex quota readings: 9,324 matched to an account, 0 unmatched. |
+| First ingestion in the packaged Release app (#29), fresh `history.sqlite` | 982 files read, 0 failed, in 23.8 s: 84,692 responses, 42,110 commands, 500 Codex quota readings. Peak resident memory 291 MB, sampled every 0.5 s. Database 36.3 MB plus a 2.0 MB write-ahead log. |
+| Next refresh (#29) | 3 changed files read, 979 unchanged files skipped, in 0.11 s. |
+| Main thread during first ingestion (#29) | `sample` for 3 s, 6 s after launch: the main thread was idle in the run loop in 1,537 of 1,537 samples. `LogIngestor` ran on a worker thread. |
+
+The Codex grep count differs from the plan's reference of 34 grep and 1,936 rg. Plain Codex logs alone give 5 grep and 1,780 rg. 246 of the 251 grep commands are in compressed history, mostly from older models, and 194 of them are `git ... | grep` pipelines, which `CommandClassifier` counts as grep (#29). The plan's reference was counted another way; the difference is in classification rules and scope, not in which commands the parser emits (#27).
+
+### Packaged-app views
+
+- #30: `open -n "dist/AI Usage Stats.app" --args --demo-home --show-home` on macOS 27.0.1. A window screenshot showed both provider forecast blocks with demo data: drain rate, zero time, Last seen rows, solid history with a gap, dashed projection, Now rule, and the range pop-up showing Next 7 days. The Next 1 day range, the no-history line, and the unavailable-history line were rendered off screen and checked from images.
+- #31: `--demo --show-home --show-models` opened the Models page with the demo subtitle and date range, and the Models row selected. The full page was also rendered off screen at 760 and 1020 points wide, plus the empty state.
+
+### Not verified
+
+- Keyboard navigation in the running app: Sort Accounts, Refresh Account, and menu arrow keys (#23); the Models page (#31, covered only by a unit test).
+- VoiceOver output for the totals grid (#23), the Home forecast (#30), and the Models page (#31).
+- Clicking the Home forecast range pop-up in the running app (#30).
+- Refresh Account against a live account (#23).
+- The menu's `Usable time unknown` row: no fixture shows it, so it was checked by source only (#23).
+- The Home forecast with a real history database and live accounts (#30), and the Models page with real logs (#31). Both used demo or synthetic rows.
+- A Codex account added while the app runs (#29, unit test only), Intel runtime (#27, #29), and a local Linux build of the foundation (#22).
