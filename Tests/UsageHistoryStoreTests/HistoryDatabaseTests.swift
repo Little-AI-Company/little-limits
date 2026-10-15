@@ -74,3 +74,41 @@ private func temporaryDatabaseURL() -> URL {
     }
     #expect(try database.pool.read(SourceFilePosition.fetchAll) == [second])
 }
+
+/// A v2 database keeps its quota history, gains the index, and forgets its read positions, so every log is read
+/// again with the current Codex command attribution.
+@Test func freshAndPreviousVersionDatabasesMigrateCleanly() throws {
+    let freshURL = temporaryDatabaseURL()
+    let previousURL = temporaryDatabaseURL()
+    defer {
+        try? FileManager.default.removeItem(at: freshURL.deletingLastPathComponent())
+        try? FileManager.default.removeItem(at: previousURL.deletingLastPathComponent())
+    }
+    let reading = QuotaReading(provider: .claude, accountID: UUID(), windowID: "seven_day", usedPercent: 40,
+                               resetsAt: nil, windowDurationMinutes: 10_080, observedAt: observedAt,
+                               source: .claudeOAuth)
+    try FileManager.default.createDirectory(at: previousURL.deletingLastPathComponent(),
+                                            withIntermediateDirectories: true)
+    let previous = try DatabasePool(path: previousURL.path)
+    try HistoryDatabase.migrator.migrate(previous, upTo: "v2")
+    try previous.write { db in
+        try reading.insert(db)
+        try SourceFilePosition(path: "/logs/a.jsonl", byteOffset: 10, fileSize: 10, modifiedAt: observedAt).insert(db)
+    }
+    try previous.close()
+
+    for url in [freshURL, previousURL] {
+        let database = try HistoryDatabase(url: url)
+        let state = try database.pool.read { db in
+            (try HistoryDatabase.migrator.hasCompletedMigrations(db),
+             try db.indexes(on: QuotaReading.databaseTableName).map(\.columns))
+        }
+        #expect(state.0)
+        #expect(state.1.contains(["observedAt"]))
+    }
+    let migrated = try HistoryDatabase(url: previousURL).pool.read { db in
+        (try QuotaReading.fetchAll(db), try SourceFilePosition.fetchCount(db))
+    }
+    #expect(migrated.0 == [reading])
+    #expect(migrated.1 == 0)
+}

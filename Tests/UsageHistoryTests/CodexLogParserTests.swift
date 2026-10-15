@@ -265,6 +265,31 @@ private let rateLimitsWithID = #"""
     #expect(output.commands.map(\.responseID) == output.responses.map(\.responseID))
 }
 
+/// Within a turn, a command belongs to the response that was active when it started, not to a later response that
+/// is active when it completes. A response whose first line is written up to a second after the computed start still
+/// owns the command, because Codex timestamps a line when it saves it.
+@Test func commandsBelongToTheResponseActiveWhenTheyStarted() {
+    func completed(_ second: Int, _ item: String, seconds: Int, nanos: Int) -> String {
+        let fields = #""duration":{"secs":\#(seconds),"nanos":\#(nanos)},"exit_code":0"#
+        return event(second, #"{"type":"item_completed","item":{"id":"\#(item)","type":"CommandExecution","command":["zsh","-lc","sleep 5"],\#(fields)}}"#)
+    }
+    let lines = [
+        sessionMeta(account: "account-1"), taskStarted(1, "turn-1"), turnContext(1), userPrompt(2),
+        toolCall(3), usageRecord(4, output: 1, reasoning: 0), toolResult(5),
+        reasoning(6), usageRecord(7, output: 1, reasoning: 0), toolResult(8),
+        // Started at 4.25, during the first response, and completes during the second.
+        completed(9, "exec-1", seconds: 5, nanos: 0),
+        toolCall(10), usageRecord(10, output: 1, reasoning: 0),
+        // Started at 10.0, a quarter second before the third response's tool call line.
+        completed(12, "exec-2", seconds: 2, nanos: 250_000_000)
+    ]
+    let output = parse(lines)
+    let responseIDs = output.responses.map(\.responseID)
+
+    #expect(responseIDs.count == 3)
+    #expect(output.commands.map(\.responseID) == [responseIDs[0], responseIDs[2]])
+}
+
 /// In multi-agent sessions a message from another agent is input; hosted image generation is a tool call.
 @Test func agentMessagesAreInputAndImageGenerationIsAToolCall() {
     let lines = [

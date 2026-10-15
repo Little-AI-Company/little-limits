@@ -91,6 +91,18 @@ public final class HistoryDatabase: Sendable {
                 table.primaryKey(["accountID", "providerAccountID"])
             }
         }
+        // The Home forecast reads the readings observed since a time. Without this index, every committed change
+        // scans the whole quota history. Its latest reading per account already walks the primary key, which starts
+        // with the account.
+        migrator.registerMigration("v3-quota-reading-index") { db in
+            try db.create(index: "quotaReadingObservedAt", on: QuotaReading.databaseTableName, columns: ["observedAt"])
+        }
+        // Codex commands now belong to the response active when they started. Saved positions would skip unchanged
+        // logs, so every log is read once more and its commands replace the stored ones. Positions are keyed by a
+        // hash of the path, which does not tell Codex logs from Claude logs, so all of them are cleared.
+        migrator.registerMigration("v3-reread-logs-for-command-attribution") { db in
+            try SourceFilePosition.deleteAll(db)
+        }
         return migrator
     }
 }
