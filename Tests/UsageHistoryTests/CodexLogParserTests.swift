@@ -257,7 +257,7 @@ private let rateLimitsWithID = #"""
     #expect(output.responses[0].outputTokens == 9)
 }
 
-@Test func resumingReemitsTheLastResponseComplete() throws {
+@Test func resumingCodexReemitsTheLastResponseComplete() throws {
     let lines = [
         sessionMeta(account: "account-1"),
         taskStarted(1, "turn-1"), turnContext(1), userPrompt(2), assistantReply(3),

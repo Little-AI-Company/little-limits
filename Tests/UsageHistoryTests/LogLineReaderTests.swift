@@ -8,18 +8,18 @@ private let syntheticLines: [String] = (0..<6_000).map { index in
     #"{"index":\#(index),"text":"\#(String(repeating: "x", count: (index * 37) % 400))"}"#
 }
 
-private func expectedLines(_ lines: [String]) -> [LogLine] {
+private func expectedLines(_ lines: [String]) -> [LogFileLine] {
     var offset: Int64 = 0
     return lines.map { line in
         defer { offset += Int64(line.utf8.count + 1) }
-        return LogLine(data: Data(line.utf8), byteOffset: offset)
+        return LogFileLine(data: Data(line.utf8), byteOffset: offset)
     }
 }
 
-private func readAll(_ path: String, from startOffset: Int64 = 0, maximumLineLength: Int? = nil) throws -> [LogLine] {
+private func readAll(_ path: String, from startOffset: Int64 = 0, maximumLineLength: Int? = nil) throws -> [LogFileLine] {
     let reader = try maximumLineLength.map { try LogLineReader(path: path, startOffset: startOffset, maximumLineLength: $0) }
         ?? LogLineReader(path: path, startOffset: startOffset)
-    var lines: [LogLine] = []
+    var lines: [LogFileLine] = []
     while let line = try reader.nextLine() { lines.append(line) }
     return lines
 }

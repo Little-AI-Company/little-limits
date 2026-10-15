@@ -2,7 +2,7 @@ import Foundation
 import libzstd
 
 /// One complete line of a log file, without its line feed.
-public struct LogLine: Sendable, Equatable {
+public struct LogFileLine: Sendable, Equatable {
     public let data: Data
     /// Absolute offset of the line's first byte in the uncompressed content.
     public let byteOffset: Int64
@@ -66,11 +66,12 @@ public final class LogLineReader {
 
     deinit { try? handle.close() }
 
-    public func nextLine() throws -> LogLine? {
+    public func nextLine() throws -> LogFileLine? {
         while true {
             if let newline = pending[scanned...].firstIndex(of: 0x0A) {
                 let isTooLong = isSkippingLongLine || newline - cursor > maximumLineLength
-                let line = isTooLong ? nil : LogLine(data: Data(pending[cursor..<newline]), byteOffset: cursorOffset)
+                let line = isTooLong
+                    ? nil : LogFileLine(data: Data(pending[cursor..<newline]), byteOffset: cursorOffset)
                 cursorOffset += Int64(newline + 1 - cursor)
                 cursor = newline + 1
                 scanned = cursor
