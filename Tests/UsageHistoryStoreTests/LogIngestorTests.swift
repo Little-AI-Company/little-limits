@@ -28,9 +28,10 @@ private func codexSession(account: String, usedPercent: [Int]) -> [String] {
     ]
     for (index, percent) in usedPercent.enumerated() {
         lines += [
-            line(3 + index * 3, "response_item", #"{"type":"reasoning","summary":[]}"#),
-            line(4 + index * 3, "event_msg", #"{"type":"item_completed","item":{"id":"item-\#(index)","type":"command_execution","command":"rg synthetic","exit_code":0}}"#),
-            line(5 + index * 3, "event_msg", #"{"type":"token_count","info":null,"rate_limits":{"primary":{"used_percent":\#(percent),"window_minutes":300,"resets_at":1791990000}}}"#)
+            line(3 + index * 4, "response_item", #"{"type":"reasoning","summary":[]}"#),
+            line(4 + index * 4, "event_msg", #"{"type":"item_completed","item":{"id":"item-\#(index)","type":"CommandExecution","command":["/bin/zsh","-lc","rg synthetic"],"exit_code":0}}"#),
+            line(5 + index * 4, "response_item", #"{"type":"custom_tool_call_output","call_id":"call","output":"x"}"#),
+            line(6 + index * 4, "event_msg", #"{"type":"token_count","info":null,"rate_limits":{"primary":{"used_percent":\#(percent),"window_minutes":300,"resets_at":1791990000}}}"#)
         ]
     }
     return lines + [line(40, "event_msg", #"{"type":"task_complete"}"#)]
