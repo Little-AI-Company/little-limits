@@ -1,5 +1,6 @@
 import AppKit
 import UsageCore
+import UsageHistory
 
 extension NSToolbarItem.Identifier {
     static let homePeriodNavigation = NSToolbarItem.Identifier("home.periodNavigation")
@@ -9,7 +10,7 @@ extension NSToolbarItem.Identifier {
     static let homeRefreshAll = NSToolbarItem.Identifier("home.refreshAll")
 }
 
-/// Home: weekly totals, then the account table, then the reset calendar, in one scrolling document. Period
+/// Home: weekly totals, the forecast, then the account table, then the reset calendar, in one scrolling document. Period
 /// navigation, the account filter, period length, and Refresh All are window toolbar items; View > Sort Accounts
 /// orders the table. Mode, date, filter, sort order, and event selection survive refresh.
 @MainActor
@@ -48,6 +49,9 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
     private let calendarView = UsageCalendarView()
     private let tableView = UsageOverviewTableView()
     private let totalsView = HomeTotalsView()
+    private let forecastView = HomeForecastView()
+    private let forecastHistory: HomeForecastHistory
+    private var forecastRange: HomeForecastRange = .nextWeek
     private var totalsTitle: NSTextField?
     private let contextLabel = NSTextField(labelWithString: "")
     private let attentionStack = NSStackView()
@@ -69,7 +73,20 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
 
     init(model: ApplicationModel) {
         self.model = model
+        if let database = model.historyDatabase {
+            forecastHistory = HomeForecastHistory(source: .database(database))
+        } else if model.isDemo {
+            forecastHistory = HomeForecastHistory(source: CommandLine.arguments.contains("--demo-home") ? .demonstration
+                : .unavailable("The demonstration has no quota history."))
+        } else {
+            forecastHistory = HomeForecastHistory(source: .unavailable(model.historyDatabaseError ?? "Quota history is unavailable."))
+        }
         super.init(nibName: nil, bundle: nil)
+        forecastHistory.onChange = { [weak self] in self?.renderForecast() }
+        forecastView.onRangeChange = { [weak self] range in
+            self?.forecastRange = range
+            self?.renderForecast()
+        }
     }
 
     required init?(coder: NSCoder) { nil }
@@ -106,11 +123,12 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         self.totalsTitle = totalsTitle
         let tableTitle = sectionTitle("Account Usage")
         let calendarTitle = sectionTitle("Reset Calendar")
-        for item in [totalsTitle, totalsView, tableTitle, contextLabel, attentionStack, tableView, calendarTitle, emptyPeriodLabel,
+        for item in [totalsTitle, totalsView, forecastView, tableTitle, contextLabel, attentionStack, tableView, calendarTitle, emptyPeriodLabel,
                      calendarView, demoLabel] {
             readings.addArrangedSubview(item)
         }
         readings.setCustomSpacing(16, after: totalsView)
+        readings.setCustomSpacing(16, after: forecastView)
         readings.setCustomSpacing(16, after: tableView)
         stateStack.orientation = .vertical
         stateStack.alignment = .leading
@@ -146,6 +164,7 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
             tableView.widthAnchor.constraint(equalTo: readings.widthAnchor),
             attentionStack.widthAnchor.constraint(equalTo: readings.widthAnchor),
             totalsView.widthAnchor.constraint(equalTo: readings.widthAnchor),
+            forecastView.widthAnchor.constraint(equalTo: readings.widthAnchor),
             stateMessage.widthAnchor.constraint(lessThanOrEqualTo: stateStack.widthAnchor),
             stateDetail.widthAnchor.constraint(lessThanOrEqualTo: stateStack.widthAnchor)
         ])
@@ -204,6 +223,8 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         totalsView.apply(totals)
         totalsView.isHidden = totals.isEmpty
         totalsTitle?.isHidden = totals.isEmpty
+        forecastHistory.observe(now: now, profiles: model.profiles, snapshots: model.snapshots)
+        renderForecast()
         contextLabel.stringValue = HomeInterfaceFormatting.readingContext(now: now, calendar: calendar)
         applyAttention(HomeInterfaceFormatting.attentionItems(accounts, now: now))
         syncAttentionReconnect()
@@ -214,6 +235,19 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
                         headings: HomeInterfaceFormatting.headings(for: accounts))
         calendarView.apply(period: period, events: visibleEvents, mode: mode, anchor: anchor, now: now, calendar: calendar)
         refreshPresentedDetails()
+    }
+
+    /// The forecast pools every account, whatever the filter shows. It also redraws alone when recorded history
+    /// changes or the range changes.
+    private func renderForecast() {
+        guard isViewLoaded, showsReadings else { return }
+        let now = Date()
+        let forecasts = HomeForecastModel.providers(overview: overview, readings: forecastHistory.readings,
+                                                    range: forecastRange, now: now, calendar: .current)
+        // With no history for any provider, one line replaces the whole forecast.
+        let noHistory = forecasts.allSatisfy { $0.lines.isEmpty && $0.chart == nil }
+        forecastView.apply(forecasts, notice: forecastHistory.unavailableReason ?? (noHistory ? HomeForecastModel.noHistoryText : nil),
+                           range: forecastRange)
     }
 
     /// Focuses the page's main action when there is one: Add Claude Account… on an empty page, Retry on a load
