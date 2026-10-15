@@ -47,11 +47,11 @@ public enum CommandClassifier {
                 programSequence += invocation.display
                 pendingSeparator = nil
 
-                // A search that reads a pipe, here-string, or here-document filters text instead of searching files,
-                // unless it names a path, which grep and rg read in place of standard input.
+                // A search that reads a pipe, here-string, or here-document filters text instead of searching files.
                 let readsStandardInput = readsPipe || invocation.command.standardInputBody != nil
-                let isFilter = readsStandardInput && !invocation.namesSearchPath
-                if searchProgram == .none, !isFilter { searchProgram = invocation.searchProgram }
+                if searchProgram == .none, invocation.searchesFiles(readsStandardInput: readsStandardInput) {
+                    searchProgram = invocation.searchProgram
+                }
                 if invocation.program == "git" {
                     let subcommand = gitSubcommand(invocation.arguments)
                     if subcommand == "status" { runsGitStatus = true }
@@ -165,9 +165,11 @@ private struct Invocation {
         }
     }
 
-    /// True when grep or rg names a file or directory operand other than `-`. The pattern is the first operand
-    /// unless `-e` or `-f` supplies it.
-    var namesSearchPath: Bool {
+    /// True when grep or rg searches files or directories instead of standard input. A path operand other than `-`
+    /// is searched even when standard input is a pipe. With no path operand, recursive grep searches `.`, and any
+    /// other search reads standard input when it has one. The pattern is the first operand unless `-e` or `-f`
+    /// supplies it.
+    func searchesFiles(readsStandardInput: Bool) -> Bool {
         let optionsTakingArguments: Set<String>
         switch searchProgram {
         case .grep: optionsTakingArguments = grepOptionsTakingArguments
@@ -176,6 +178,7 @@ private struct Invocation {
         }
         var remaining = arguments
         var patternIsOption = false
+        var isRecursiveGrep = false
         var operands: [String] = []
         while let argument = remaining.popFirst() {
             let text = argument.text
@@ -190,6 +193,7 @@ private struct Invocation {
             if text.hasPrefix("--") {
                 let name = text.split(separator: "=", maxSplits: 1).first.map(String.init) ?? text
                 if patternOptions.contains(name) { patternIsOption = true }
+                if searchProgram == .grep, recursiveGrepOptions.contains(name) { isRecursiveGrep = true }
                 if optionsTakingArguments.contains(text) { _ = remaining.popFirst() }
                 continue
             }
@@ -198,13 +202,17 @@ private struct Invocation {
             var group = text.dropFirst()
             while let letter = group.popFirst() {
                 let option = "-" + String(letter)
+                if searchProgram == .grep, recursiveGrepOptions.contains(option) { isRecursiveGrep = true }
                 guard optionsTakingArguments.contains(option) else { continue }
                 if patternOptions.contains(option) { patternIsOption = true }
                 if group.isEmpty { _ = remaining.popFirst() }
                 break
             }
         }
-        return operands.dropFirst(patternIsOption ? 0 : 1).contains { $0 != "-" }
+        let paths = operands.dropFirst(patternIsOption ? 0 : 1)
+        if paths.contains(where: { $0 != "-" }) { return true }
+        if !paths.isEmpty { return false }
+        return isRecursiveGrep || !readsStandardInput
     }
 
     var interpreter: InlineInterpreter? {
@@ -258,6 +266,9 @@ private let compoundHeaderKeywords: Set<String> = ["for", "select", "function"]
 
 /// grep and rg options that supply the pattern, so every operand is a path.
 private let patternOptions: Set<String> = ["-e", "-f", "--regexp", "--file"]
+
+/// grep options that search `.` when no path is named, even when standard input is a pipe.
+private let recursiveGrepOptions: Set<String> = ["-r", "-R", "--recursive", "--dereference-recursive"]
 
 /// grep options whose value is the next word.
 private let grepOptionsTakingArguments: Set<String> = [
