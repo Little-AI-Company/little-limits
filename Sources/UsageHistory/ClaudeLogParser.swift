@@ -50,8 +50,8 @@ public struct ClaudeLogParser: Sendable {
             return ModelResponse(
                 provider: .claude, responseID: id, sessionID: state.sessionID, turnID: state.turnID,
                 model: state.model, projectKey: state.projectKey, requestedAt: state.requestedAt,
-                completedAt: state.completedAt, outputTokens: state.hasFinalLine ? state.maxOutputTokens : nil,
-                thinkingTokens: state.hasFinalLine ? state.maxThinkingTokens : nil,
+                completedAt: state.completedAt, outputTokens: state.hasFinalUsage ? state.maxOutputTokens : nil,
+                thinkingTokens: state.hasFinalUsage ? state.maxThinkingTokens : nil,
                 toolCallCount: state.toolUseIDs.count, hasParallelToolCalls: state.toolUseIDs.count >= 2)
         }
         let outputCommands = commands.map { command in
@@ -114,7 +114,8 @@ public struct ClaudeLogParser: Sendable {
             }
         }
         if let stopReason = message.stopReason {
-            state.hasFinalLine = true
+            // Only the response's last line carries the final count. Without a valid one, the count stays unknown.
+            if message.usage?.outputTokens != nil { state.hasFinalUsage = true }
             if stopReason == "end_turn", turn?.id == state.turnID { turn?.closedAtOffset = byteOffset }
         }
         responses[responseID] = state
@@ -164,7 +165,7 @@ private struct ResponseState: Sendable {
     var completedAt: Date
     var maxOutputTokens: Int?
     var maxThinkingTokens: Int?
-    var hasFinalLine = false
+    var hasFinalUsage = false
     var toolUseIDs: Set<String> = []
 }
 

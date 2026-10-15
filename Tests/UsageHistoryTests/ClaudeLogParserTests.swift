@@ -88,13 +88,16 @@ private func parse(_ lines: [String]) -> LogParseOutput {
     let output = parse([
         prompt("p1", at: "12:00:00.000"),
         assistant("msg_A", at: "12:00:02.000", block: thinkingBlock, outputTokens: 5, thinkingTokens: 4),
-        assistant("msg_A", at: "12:00:03.000", block: textBlock, outputTokens: 9)
+        assistant("msg_A", at: "12:00:03.000", block: textBlock, outputTokens: 9),
+        assistant("msg_B", at: "12:00:04.000", block: textBlock, outputTokens: 0, thinkingTokens: 2),
+        // A final line without usage.
+        #"{"type":"assistant","uuid":"a-B-end","timestamp":"2026-06-09T12:00:05.000Z","sessionId":"s1","message":{"id":"msg_B","model":"claude-test-1","content":[],"stop_reason":"end_turn"}}"#
     ])
 
-    let response = try #require(output.responses.first)
-    #expect(response.outputTokens == nil)
-    #expect(response.thinkingTokens == nil)
-    #expect(response.completedAt == date("12:00:03.000"))
+    #expect(output.responses.map(\.responseID) == ["msg_A", "msg_B"])
+    #expect(output.responses.map(\.outputTokens) == [nil, nil])
+    #expect(output.responses.map(\.thinkingTokens) == [nil, nil])
+    #expect(output.responses.map(\.completedAt) == [date("12:00:03.000"), date("12:00:05.000")])
 }
 
 @Test func parallelToolCallsAndTurnsSpanToolResults() throws {
