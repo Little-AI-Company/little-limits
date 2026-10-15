@@ -66,7 +66,9 @@ public struct ClaudeLogParser: Sendable {
     }
 
     private mutating func consumeUser(_ entry: LogLine, at byteOffset: Int64, timestamp: Date) {
-        guard entry.isMeta != true, let content = entry.message?.content else { return }
+        // Claude Code writes meta lines and compaction summaries as user lines. Neither is a prompt or a tool result.
+        guard entry.isMeta != true, entry.isCompactSummary != true,
+              let content = entry.message?.content else { return }
         let toolResults = content.blocks.filter { $0.type == "tool_result" }
         if toolResults.isEmpty {
             // The file path holds folder names, so a prompt without a uuid is named by session and offset.
@@ -89,9 +91,13 @@ public struct ClaudeLogParser: Sendable {
         if let existing = responses[responseID] {
             state = existing
         } else {
-            state = ResponseState(sessionID: sessionID, turnID: openTurn(responseID: responseID, at: byteOffset),
-                                  model: model, projectKey: projectKey, requestedAt: lastRequest?.timestamp,
-                                  completedAt: timestamp)
+            let turnID = openTurn(responseID: responseID, at: byteOffset)
+            // A request line before the turn's first line belongs to an earlier turn, and a read resuming at the
+            // turn's first line would not see it.
+            let turnStart = turn?.startOffset ?? byteOffset
+            let requestedAt = lastRequest.flatMap { $0.offset >= turnStart ? $0.timestamp : nil }
+            state = ResponseState(sessionID: sessionID, turnID: turnID, model: model, projectKey: projectKey,
+                                  requestedAt: requestedAt, completedAt: timestamp)
             responseOrder.append(responseID)
         }
         state.completedAt = timestamp
@@ -183,10 +189,11 @@ private struct LogLine: Decodable {
     let sessionId: String?
     let cwd: String?
     let isMeta: Bool?
+    let isCompactSummary: Bool?
     let message: LogMessage?
 
     private enum CodingKeys: String, CodingKey {
-        case type, uuid, timestamp, sessionId, cwd, isMeta, message
+        case type, uuid, timestamp, sessionId, cwd, isMeta, isCompactSummary, message
     }
 
     init(from decoder: any Decoder) throws {
@@ -197,6 +204,7 @@ private struct LogLine: Decodable {
         sessionId = container.lenient(String.self, .sessionId)
         cwd = container.lenient(String.self, .cwd)
         isMeta = container.lenient(Bool.self, .isMeta)
+        isCompactSummary = container.lenient(Bool.self, .isCompactSummary)
         message = container.lenient(LogMessage.self, .message)
     }
 }

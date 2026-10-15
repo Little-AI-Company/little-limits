@@ -123,6 +123,33 @@ private func parse(_ lines: [String]) -> LogParseOutput {
     #expect(byID["msg_D"]?.turnID == "p2")
 }
 
+@Test func compactionSummariesAndMetaLinesDoNotOpenTurns() {
+    let compactSummary = #"{"type":"user","uuid":"c1","isCompactSummary":true,"timestamp":"2026-06-09T12:00:05.000Z","sessionId":"s1","cwd":"\#(cwd)","message":{"role":"user","content":"synthetic summary"}}"#
+    let meta = #"{"type":"user","uuid":"m1","isMeta":true,"timestamp":"2026-06-09T12:00:06.000Z","sessionId":"s1","cwd":"\#(cwd)","message":{"role":"user","content":"synthetic caveat"}}"#
+    let lines = [
+        prompt("p1", at: "12:00:00.000"),
+        assistant("msg_A", at: "12:00:01.000", block: read("toolu_1"), outputTokens: 8, stopReason: "tool_use"),
+        toolResult("toolu_1", at: "12:00:02.000"),
+        compactSummary,
+        meta,
+        assistant("msg_B", at: "12:00:08.000", block: textBlock, outputTokens: 4, stopReason: "end_turn"),
+        meta,
+        assistant("msg_C", at: "12:00:09.000", block: textBlock, outputTokens: 3, stopReason: "end_turn")
+    ]
+    var parser = ClaudeLogParser(filePath: "/synthetic/s1.jsonl", projectKeySalt: salt)
+    let offsets = feed(lines, into: &parser)
+    let output = parser.finish()
+
+    #expect(output.responses.map(\.turnID) == ["p1", "p1", "msg_C"])
+    #expect(output.responses[1].requestedAt == date("12:00:02.000"))
+    // A response after a closed turn with no new prompt has no request time, so a resumed read gives the same row.
+    #expect(output.responses[2].requestedAt == nil)
+    #expect(output.resumeByteOffset == offsets[7])
+    var resumed = ClaudeLogParser(filePath: "/synthetic/s1.jsonl", projectKeySalt: salt)
+    feed([lines[7]], into: &resumed, from: offsets[7])
+    #expect(resumed.finish().responses == [output.responses[2]])
+}
+
 @Test func bashCommandsTakeSuccessFromTheMatchingToolResult() {
     let output = parse([
         prompt("p1", at: "12:00:00.000"),
