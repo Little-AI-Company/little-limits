@@ -4,10 +4,11 @@ import UsageCore
 @MainActor
 final class AccountsWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate,
                                       NSToolbarDelegate, NSMenuItemValidation, WindowCommandHandling {
-    private enum Section: Equatable { case home, account, settings, platform }
+    private enum Section: Equatable { case home, models, account, settings, platform }
     private static let accountPasteboardType = NSPasteboard.PasteboardType("com.parkerrex.ai-usage-stats.account-id")
     private static let homeRow = 0
-    private static let accountRowOffset = 1
+    private static let modelsRow = 1
+    private static let accountRowOffset = 2
     private static let windowMinimumSize = NSSize(width: 1020, height: 640)
     private static let windowMaximumSize = NSSize(width: 1680, height: 1040)
     private static let windowDefaultSize = NSSize(width: 1280, height: 780)
@@ -15,6 +16,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private static let fixedToolbarItems: [NSToolbarItem.Identifier] = [.toggleSidebar, .sidebarTrackingSeparator]
     private let model: ApplicationModel
     private let home: HomeViewController
+    private let models: ModelsViewController
     private let detail: AccountDetailViewController
     private let settings = GeneralSettingsViewController()
     private var platform: ClaudePlatformViewController?
@@ -29,6 +31,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private var sidebarDisplays: [UUID: AccountSidebarCellView.Display] = [:]
     private var isUpdatingSelection = false
     private var toolbarPageIdentifiers: [NSToolbarItem.Identifier] = []
+    /// `--show-models` opens the Models page the first time the window shows, for local verification.
+    private var opensModelsOnFirstShow = CommandLine.arguments.contains("--show-models")
     private weak var toolbarContributor: (any WindowToolbarContributor)?
     var onClaudeConnection: ((UUID?, String) -> Void)?
     var onConsoleConnection: ((UUID) -> Void)?
@@ -39,6 +43,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     init(model: ApplicationModel) {
         self.model = model
         home = HomeViewController(model: model)
+        models = ModelsViewController(model: model)
         detail = AccountDetailViewController(model: model)
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: Self.windowDefaultSize),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
@@ -64,7 +69,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         detail.onConsoleDisconnection = { [weak self] id in self?.onConsoleDisconnection?(id) }
         detail.onRetryAccountLoad = { [weak self] in self?.onRetryAccountLoad?() }
         detail.isAccountLoadComplete = { [weak self] in self?.isAccountLoadComplete() ?? false }
-        for page in [home, detail] as [NSViewController] {
+        for page in [home, models, detail] as [NSViewController] {
             (page as? any WindowToolbarContributor)?.onToolbarStateChange = { [weak self] in self?.updateToolbar() }
         }
         splitController.commandPage = { [weak self] in self?.visiblePage }
@@ -113,7 +118,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         table.rowSizeStyle = .default
         table.allowsEmptySelection = true
         table.setAccessibilityLabel("Sidebar")
-        table.setAccessibilityHelp("Select Home or an account. Drag an account, or choose Move Up or Move Down, to change its order. Use Add Account below the list. Delete asks for confirmation.")
+        table.setAccessibilityHelp("Select Home, Models, or an account. Drag an account, or choose Move Up or Move Down, to change its order. Use Add Account below the list. Delete asks for confirmation.")
         table.registerForDraggedTypes([Self.accountPasteboardType])
         table.setDraggingSourceOperationMask(.move, forLocal: true)
         table.draggingDestinationFeedbackStyle = .gap
@@ -172,7 +177,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         isUpdatingSelection = true
         let profilesChanged = displayedProfiles != model.profiles
         if profilesChanged { displayedProfiles = model.profiles }
-        if profilesChanged || table.numberOfRows != displayedProfiles.count + 1 {
+        if profilesChanged || table.numberOfRows != displayedProfiles.count + Self.accountRowOffset {
             sidebarDisplays = nextDisplays
             table.reloadData()
         } else {
@@ -192,6 +197,11 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             if let selectedID, !model.profiles.contains(where: { $0.id == selectedID }) { self.selectedID = nil }
             if table.numberOfRows > Self.homeRow {
                 table.selectRowIndexes(IndexSet(integer: Self.homeRow), byExtendingSelection: false)
+            }
+        case .models:
+            if let selectedID, !model.profiles.contains(where: { $0.id == selectedID }) { self.selectedID = nil }
+            if table.numberOfRows > Self.modelsRow {
+                table.selectRowIndexes(IndexSet(integer: Self.modelsRow), byExtendingSelection: false)
             }
         case .account, .platform:
             if let selectedID, let row = sidebarRow(for: selectedID) {
@@ -215,6 +225,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             window?.contentView?.layoutSubtreeIfNeeded()
             home.render()
         }
+        if section == .models { models.reload() }
     }
 
     // MARK: Pages
@@ -222,6 +233,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private var visiblePage: NSViewController {
         switch section {
         case .home: home
+        case .models: models
         case .account: detail
         case .settings: settings
         case .platform: platform ?? detail
@@ -252,6 +264,18 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         guard entering, let window, window.isVisible else { return }
         window.contentView?.layoutSubtreeIfNeeded()
         if !home.focusInitialControl() { window.makeFirstResponder(table) }
+    }
+
+    func showModels() {
+        guard window?.attachedSheet == nil else { return }
+        leavePlatform()
+        hideHome()
+        installPage(models)
+        setSection(.models)
+        render()
+        window?.recalculateKeyViewLoop()
+        // The page has no controls of its own, so focus stays in the sidebar.
+        window?.makeFirstResponder(table)
     }
 
     func showSettings() {
@@ -327,7 +351,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
 
     private var currentToolbarContributor: (any WindowToolbarContributor)? {
         switch section {
-        case .home, .account: visiblePage as? any WindowToolbarContributor
+        case .home, .models, .account: visiblePage as? any WindowToolbarContributor
         case .settings, .platform: nil
         }
     }
@@ -348,6 +372,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         var subtitle = contributor?.windowSubtitle ?? ""
         switch section {
         case .home: title = "Home"
+        case .models: title = "Models"
         case .settings: title = "Settings"
         case .account, .platform:
             title = model.profiles.first(where: { $0.id == selectedID }).map(distinctIdentity) ?? "Accounts"
@@ -381,6 +406,10 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         let wasVisible = window?.isVisible == true
         if section == .platform { platform?.presentPane() }
         super.showWindow(sender)
+        if opensModelsOnFirstShow {
+            opensModelsOnFirstShow = false
+            showModels()
+        }
         guard section == .home, !wasVisible else { return }
         window?.contentView?.layoutSubtreeIfNeeded()
         if !home.focusInitialControl() { window?.makeFirstResponder(table) }
@@ -402,12 +431,18 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
 
     // MARK: Sidebar
 
-    func numberOfRows(in tableView: NSTableView) -> Int { displayedProfiles.count + 1 }
+    func numberOfRows(in tableView: NSTableView) -> Int { displayedProfiles.count + Self.accountRowOffset }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         if row == Self.homeRow {
             let identifier = NSUserInterfaceItemIdentifier("home")
             let cell = tableView.makeView(withIdentifier: identifier, owner: self) as? HomeSidebarCellView ?? HomeSidebarCellView()
+            cell.identifier = identifier
+            return cell
+        }
+        if row == Self.modelsRow {
+            let identifier = NSUserInterfaceItemIdentifier("models")
+            let cell = tableView.makeView(withIdentifier: identifier, owner: self) as? ModelsSidebarCellView ?? ModelsSidebarCellView()
             cell.identifier = identifier
             return cell
         }
@@ -488,9 +523,9 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             : date.formatted(.dateTime.month(.abbreviated).day().hour().minute())
     }
 
-    /// Home keeps the system sidebar row height; account rows add the quota line below the identity.
+    /// Home and Models keep the system sidebar row height; account rows add the quota line below the identity.
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-        guard row != Self.homeRow else { return tableView.rowHeight }
+        guard row >= Self.accountRowOffset else { return tableView.rowHeight }
         let identitySize: CGFloat = switch tableView.effectiveRowSizeStyle {
         case .small: 11
         case .large: 15
@@ -514,6 +549,10 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         let row = table.selectedRow
         if row == Self.homeRow {
             showHome()
+            return
+        }
+        if row == Self.modelsRow {
+            showModels()
             return
         }
         guard let accountID = accountID(forSidebarRow: row) else { return }
@@ -739,10 +778,10 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         return true
     }
 
-    // Row 0 is Home. Later rows follow the saved account order and are addressed by UUID.
+    // Row 0 is Home and row 1 is Models. Later rows follow the saved account order and are addressed by UUID.
     private func profileIndex(forSidebarRow row: Int) -> Int? {
         let index = row - Self.accountRowOffset
-        guard row != Self.homeRow, displayedProfiles.indices.contains(index) else { return nil }
+        guard displayedProfiles.indices.contains(index) else { return nil }
         return index
     }
 
