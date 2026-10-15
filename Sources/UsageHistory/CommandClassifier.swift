@@ -359,7 +359,7 @@ private func nodeOperand(_ arguments: ArraySlice<ShellWord>) -> InterpreterOpera
     let codeOptions: Set<String> = ["-e", "--eval", "-p", "--print"]
     let optionsTakingArguments: Set<String> = [
         "-r", "--require", "--import", "--loader", "--experimental-loader", "-C", "--conditions", "--input-type",
-        "--env-file", "--title"
+        "--env-file", "--title", "--inspect-port", "--debug-port"
     ]
     var remaining = arguments
     while let argument = remaining.popFirst() {
@@ -669,7 +669,8 @@ private final class ParsedCommand {
 
     /// Inline text supplied on standard input by a here-document or here-string.
     var standardInputBody: String? {
-        redirections.last { $0.kind != .input && $0.kind != .other }?.body
+        // Redirections apply left to right, so the last one that sets standard input wins. `< file` has no body.
+        redirections.last { $0.kind != .other }?.body
     }
 }
 

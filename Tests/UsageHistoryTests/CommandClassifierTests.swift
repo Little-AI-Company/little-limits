@@ -101,8 +101,11 @@ let classifierCases: [ClassifierCase] = [
                    purpose: .other, lines: 1, sequence: "python3.12"),
 
     // JavaScript and saved scripts.
-    ClassifierCase("node option value is not a script", "node --input-type module -e 'console.log(1)'",
+    ClassifierCase("node option value is not a script",
+                   "node --input-type module --inspect-port 9229 -e 'console.log(1)'",
                    interpreter: .javascript, lines: 1, sequence: "node"),
+    ClassifierCase("last input redirection wins", "python3 <<EOF < tool.py\nprint(1)\nEOF", savedScript: true,
+                   sequence: "python3 <<heredoc"),
     ClassifierCase("node -e", "node -e 'console.log(1)\nconsole.log(2)'", interpreter: .javascript, lines: 2,
                    sequence: "node"),
     ClassifierCase("node heredoc", "node - <<'EOF'\nconsole.log(require('fs').readdirSync('.'))\nEOF",
