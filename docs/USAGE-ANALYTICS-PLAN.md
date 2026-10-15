@@ -205,6 +205,7 @@ Mark each decision with the chosen option and date. A decision is settled only w
 - Decision: record every successful reading, keep the 300 second refresh, 2026-10-14.
   - One history row per successful reading from any source: Claude OAuth, Claude status-line capture, Codex app-server, and the Codex log backfill. Each row carries its source.
   - A missing row is a gap. Charts show gaps as gaps, never as zero or a joined line.
+  - Exception: Claude status-line capture is change-only. It saves only when quota changes, because Claude can repaint the status line without new quota data (`ClaudeCapture.swift:37`), so an unchanged repaint is not a new observation. For capture accounts the value is held between consecutive captures rather than shown as a gap, Last seen is the last capture, and the chart labels the account "changes only".
   - Expected volume: about 288 rows per account per day, about 630,000 rows per year for 6 accounts.
   - The Claude OAuth poll stays at 300 seconds to limit load on a private endpoint.
 
@@ -255,7 +256,7 @@ Mark each decision with the chosen option and date. A decision is settled only w
 | Wave | Stream | Runs on | Owns | Depends on |
 |---|---|---|---|---|
 | 0 | Foundation | Mac | `Package.swift` (GRDB, `facebook/zstd`, Linux target split), `UsageHistory` record and classifier types, `UsageHistoryStore` schema version 1 (quota readings, responses, shell commands, file read positions), cloud environment setup | Nothing |
-| 1 | Phase 1 quota display | Mac | Pure functions in `UsageCore` (total remaining, time until usable, pace, next reset), Home and menu files | Nothing |
+| 1 | Phase 1 quota display | Mac | Pure functions in `UsageCore` (total remaining, time until usable, pace, next reset), Home and menu files, `AccountDetailViewController` and an `ApplicationModel` entry point for Q9 | Nothing |
 | 1 | Claude log parser | Cloud | `UsageHistory/ClaudeLogParser.swift`, tests, fixtures | Foundation merged |
 | 1 | Codex log parser | Cloud | `UsageHistory/CodexLogParser.swift`, `UsageHistory/ZstandardLineReader.swift`, Codex quota reading extraction, tests, fixtures | Foundation merged |
 | 1 | Command classifier | Cloud | `UsageHistory/CommandClassifier.swift`, tests | Foundation merged |
