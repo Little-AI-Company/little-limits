@@ -53,12 +53,14 @@ public actor LogIngestor {
             .compactMapValues { $0.count == 1 ? $0[0].accountID : nil }
         let positions: [String: SourceFilePosition]
         let newLinks: [CodexAccountLink]
-        let storedClassifierVersion: Int?
+        let completedClassifierVersion: Int?
+        let hasCommands: Bool
         do {
             newLinks = try readCodexLinksToApply(codexAccounts.filter { accountsByProviderID[$0.providerAccountID] != nil })
-            (positions, storedClassifierVersion) = try database.pool.read { db in
+            (positions, completedClassifierVersion, hasCommands) = try database.pool.read { db in
                 (Dictionary(uniqueKeysWithValues: try SourceFilePosition.fetchAll(db).map { ($0.path, $0) }),
-                 try Int.fetchOne(db, sql: "SELECT MAX(classifierVersion) FROM shellCommand"))
+                 try Int.fetchOne(db, sql: "SELECT version FROM completedClassifierVersion"),
+                 try Bool.fetchOne(db, sql: "SELECT EXISTS (SELECT 1 FROM shellCommand)") ?? false)
             }
         } catch {
             summary.filesFailed += 1
@@ -72,8 +74,10 @@ public actor LogIngestor {
         let codexFiles = Self.logFiles(in: codexDirectories, suffixes: [".jsonl", ".jsonl.zst"], salt: salt)
             .sorted { $0.url.lastPathComponent < $1.url.lastPathComponent }
         // Only classification facts are stored, so newer classifier rules apply by reading every log again. Rereading
-        // replaces each command row; rows from logs that no longer exist keep the version that produced them.
-        let reclassifies = storedClassifierVersion.map { $0 < CommandClassifier.version } ?? false
+        // replaces each command row; rows from logs that no longer exist keep the version that produced them. Commands
+        // stored before the completed version was recorded may come from any older version.
+        let appliedVersion = completedClassifierVersion ?? (hasCommands ? 0 : CommandClassifier.version)
+        let reclassifies = appliedVersion < CommandClassifier.version
         for file in claudeFiles {
             let succeeded = ingest(file, as: ClaudeLogParser.self,
                                    position: reclassifies ? nil : positions[file.positionKey], accounts: [:],
@@ -90,6 +94,18 @@ public actor LogIngestor {
             // A reread that failed must start over next time, because newer runs will not reread it again.
             if rereads, !succeeded {
                 _ = try? database.pool.write { db in try SourceFilePosition.deleteOne(db, key: file.positionKey) }
+            }
+        }
+        // Recorded only after a scan with no failures, so an interrupted or failed reclassification runs again.
+        if summary.filesFailed == 0, completedClassifierVersion != CommandClassifier.version {
+            do {
+                try database.pool.write { db in
+                    try db.execute(sql: "DELETE FROM completedClassifierVersion")
+                    try db.execute(sql: "INSERT INTO completedClassifierVersion (version) VALUES (?)",
+                                   arguments: [CommandClassifier.version])
+                }
+            } catch {
+                summary.lastFailure = error.localizedDescription
             }
         }
         if !newLinks.isEmpty {

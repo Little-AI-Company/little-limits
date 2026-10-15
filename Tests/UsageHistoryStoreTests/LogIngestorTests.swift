@@ -142,9 +142,11 @@ private func rowCounts(_ database: HistoryDatabase) throws -> [Int] {
     let database = try HistoryDatabase(url: home.appendingPathComponent("history.sqlite"))
     let ingestor = LogIngestor(database: database, homeDirectory: home)
     _ = await ingestor.ingest(codexAccounts: [])
-    // Stand in for rows an older classifier wrote with different rules.
+    // Stand in for an older classifier whose reclassification was interrupted: rows already carry the current
+    // version, but the completed version was never advanced, so their facts may be stale.
     try await database.pool.write { db in
-        try db.execute(sql: "UPDATE shellCommand SET classifierVersion = 0, searchProgram = 'none'")
+        try db.execute(sql: "UPDATE shellCommand SET searchProgram = 'none'")
+        try db.execute(sql: "UPDATE completedClassifierVersion SET version = 0")
     }
 
     let summary = await ingestor.ingest(codexAccounts: [])
