@@ -9,20 +9,21 @@ public struct ShellCommandEvent: Sendable, Equatable {
     public let responseID: String
     public let sessionID: String
     public let model: String
-    public let projectName: String?
+    /// `ProjectKey` of the working directory.
+    public let projectKey: String?
     public let executedAt: Date
     /// From the exit code or `is_error`. Unknown when the log has no result.
     public let succeeded: Bool?
     public let command: String
 
     public init(provider: HistoryProvider, commandID: String, responseID: String, sessionID: String, model: String,
-                projectName: String?, executedAt: Date, succeeded: Bool?, command: String) {
+                projectKey: String?, executedAt: Date, succeeded: Bool?, command: String) {
         self.provider = provider
         self.commandID = commandID
         self.responseID = responseID
         self.sessionID = sessionID
         self.model = model
-        self.projectName = projectName
+        self.projectKey = projectKey
         self.executedAt = executedAt
         self.succeeded = succeeded
         self.command = command

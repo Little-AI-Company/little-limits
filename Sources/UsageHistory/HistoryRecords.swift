@@ -46,8 +46,8 @@ public struct ModelResponse: Codable, Sendable, Equatable {
     /// Groups the responses between a user prompt and the final reply, for steps per turn.
     public let turnID: String
     public let model: String
-    /// The working directory's last path component only.
-    public let projectName: String?
+    /// `ProjectKey` of the working directory. Folder names are never stored.
+    public let projectKey: String?
     /// The previous user prompt or tool result, which starts the approximate output speed interval.
     public let requestedAt: Date?
     /// The response's last log line.
@@ -60,14 +60,14 @@ public struct ModelResponse: Codable, Sendable, Equatable {
     public let hasParallelToolCalls: Bool
 
     public init(provider: HistoryProvider, responseID: String, sessionID: String, turnID: String, model: String,
-                projectName: String?, requestedAt: Date?, completedAt: Date, outputTokens: Int?, thinkingTokens: Int?,
+                projectKey: String?, requestedAt: Date?, completedAt: Date, outputTokens: Int?, thinkingTokens: Int?,
                 toolCallCount: Int, hasParallelToolCalls: Bool) {
         self.provider = provider
         self.responseID = responseID
         self.sessionID = sessionID
         self.turnID = turnID
         self.model = model
-        self.projectName = projectName
+        self.projectKey = projectKey
         self.requestedAt = requestedAt
         self.completedAt = completedAt
         self.outputTokens = outputTokens
@@ -133,7 +133,7 @@ public struct ShellCommandRecord: Codable, Sendable, Equatable {
     public let responseID: String
     public let sessionID: String
     public let model: String
-    public let projectName: String?
+    public let projectKey: String?
     public let executedAt: Date
     public let succeeded: Bool?
     public let characterCount: Int
@@ -156,7 +156,7 @@ public struct ShellCommandRecord: Codable, Sendable, Equatable {
         responseID = event.responseID
         sessionID = event.sessionID
         model = event.model
-        projectName = event.projectName
+        projectKey = event.projectKey
         executedAt = event.executedAt
         succeeded = event.succeeded
         characterCount = event.command.count

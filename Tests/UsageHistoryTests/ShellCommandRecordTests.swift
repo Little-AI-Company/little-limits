@@ -5,7 +5,7 @@ import UsageHistory
 @Test func storedShellCommandKeepsLengthsButNotText() throws {
     let command = "python3 - <<'EOF'\nprint(open('secret-token.txt').read())\nEOF"
     let event = ShellCommandEvent(provider: .codex, commandID: "item_1:0", responseID: "response", sessionID: "session",
-                                  model: "gpt-6.1-sol", projectName: "project", executedAt: Date(timeIntervalSince1970: 0),
+                                  model: "gpt-6.1-sol", projectKey: "project", executedAt: Date(timeIntervalSince1970: 0),
                                   succeeded: true, command: command)
     let classification = CommandClassification(searchProgram: .none, pipesIntoHeadOrTail: false, runsGitStatus: false,
                                                runsGitCommit: false, inlineInterpreter: .python, runsSavedScript: false,

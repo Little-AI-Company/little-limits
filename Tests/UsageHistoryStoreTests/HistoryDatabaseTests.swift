@@ -19,13 +19,13 @@ private func temporaryDatabaseURL() -> URL {
                                source: .codexLogBackfill)
     func response(outputTokens: Int?) -> ModelResponse {
         ModelResponse(provider: .claude, responseID: "msg_1", sessionID: "session", turnID: "turn",
-                      model: "claude-opus-5-5", projectName: "ai-usage-stats", requestedAt: nil,
+                      model: "claude-opus-5-5", projectKey: "0123456789abcdef", requestedAt: nil,
                       completedAt: observedAt, outputTokens: outputTokens, thinkingTokens: 0, toolCallCount: 2,
                       hasParallelToolCalls: true)
     }
     func event(succeeded: Bool?) -> ShellCommandEvent {
         ShellCommandEvent(provider: .claude, commandID: "toolu_1", responseID: "msg_1", sessionID: "session",
-                          model: "claude-opus-5-5", projectName: nil, executedAt: observedAt, succeeded: succeeded,
+                          model: "claude-opus-5-5", projectKey: nil, executedAt: observedAt, succeeded: succeeded,
                           command: "git status")
     }
     let classification = CommandClassification(searchProgram: .none, pipesIntoHeadOrTail: false, runsGitStatus: true,
@@ -50,6 +50,9 @@ private func temporaryDatabaseURL() -> URL {
     }
 
     let reopened = try HistoryDatabase(url: url)
+    // A new salt would split every project's history at the reopen.
+    #expect(reopened.projectKeySalt == database.projectKeySalt)
+    #expect(database.projectKeySalt.count == 16)
     let stored = try reopened.pool.read { db in
         (try QuotaReading.fetchAll(db), try ModelResponse.fetchAll(db), try ShellCommandRecord.fetchAll(db))
     }
