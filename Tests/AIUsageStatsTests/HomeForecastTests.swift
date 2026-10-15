@@ -95,3 +95,24 @@ private extension UsageOverviewAccount {
         return UsageOverview(profiles: [profile], snapshots: [id: snapshot], now: forecastNow).accounts[0]
     }
 }
+
+/// A change-only value recorded before the range holds until its reset, so the line starts at the range start
+/// instead of showing a false gap.
+@Test func changeOnlyReadingBeforeTheRangeHoldsIntoIt() throws {
+    let reset = forecastNow.addingTimeInterval(3 * 86_400)
+    let account = UsageOverviewAccount.forecastAccount(firstAccount, provider: .claude, windows: [
+        UsageWindow(id: "seven_day", title: "7 days", utilizationPercent: 42, resetsAt: reset)
+    ])
+    let overview = UsageOverview(profiles: [account.profile], snapshots: [firstAccount: try #require(account.snapshot)],
+                                 now: forecastNow)
+    let readings = [(-2 * 86_400.0, 40.0), (-3_600, 42)].map { offset, used in
+        QuotaReading(provider: .claude, accountID: firstAccount, windowID: "seven_day", usedPercent: used, resetsAt: reset,
+                     windowDurationMinutes: nil, observedAt: forecastNow.addingTimeInterval(offset), source: .claudeStatusLine)
+    }
+    let forecast = try #require(HomeForecastModel.providers(overview: overview, readings: readings, range: .nextDay,
+                                                            now: forecastNow, calendar: .current).first)
+    let history = try #require(forecast.chart?.history)
+    #expect(history.count == 1)
+    #expect(history.first?.first == QuotaHistoryPoint(date: forecastNow.addingTimeInterval(-86_400), remainingPercent: 60))
+    #expect(history.first?.last?.remainingPercent == 58)
+}

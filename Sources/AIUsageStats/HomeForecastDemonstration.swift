@@ -12,7 +12,8 @@ enum HomeForecastDemonstration {
         let week: TimeInterval = 7 * 86_400
         let latest = now.addingTimeInterval(-60)
         let closed = now.addingTimeInterval(-30 * 3_600)...now.addingTimeInterval(-22 * 3_600)
-        let count = Int(HomeForecastHistory.observedSpan / step)
+        // Eight days: the longest range plus the drain lookback.
+        let count = Int(8 * 86_400 / step)
         let dates = (0...count).reversed().map { latest.addingTimeInterval(-Double($0) * step) }
         // Active hours from the first date to each date, accumulated once.
         var active: [Double] = []

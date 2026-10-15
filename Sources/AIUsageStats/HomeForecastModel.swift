@@ -177,8 +177,9 @@ enum HomeForecastModel {
         lines[0].provider = provider.provider
 
         let start = now.addingTimeInterval(-range.horizon.duration)
-        let segments = QuotaForecast.historySegments(readings: weekly.filter { $0.observedAt >= start - QuotaForecast.polledGapLimit },
-                                                     now: now)
+        // Every reading is kept: a change-only value recorded before the range holds until its reset or the next
+        // reading, which can fall inside the range. Pooling samples only from `start`.
+        let segments = QuotaForecast.historySegments(readings: weekly, now: now)
         let history = pooledHistory(segments, accounts: counted.map(\.accountID), from: start, to: now)
         var chart: HomeForecastChartModel?
         if !history.isEmpty || result.projection != nil {

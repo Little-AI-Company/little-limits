@@ -14,8 +14,9 @@ final class HomeForecastHistory {
         case unavailable(String)
     }
 
-    /// The longest range plus the drain lookback and one polled gap, rounded up to whole days.
-    nonisolated static let observedSpan: TimeInterval = 8 * 86_400
+    /// The longest range plus one weekly window and a day: a change-only reading holds its value until its reset,
+    /// at most a week later, so a reading that old can still reach into the range.
+    nonisolated static let observedSpan: TimeInterval = 15 * 86_400
 
     var onChange: (() -> Void)?
     private(set) var readings: [QuotaReading] = []
