@@ -77,6 +77,15 @@ private func writeLogFiles(_ content: String) throws -> (plain: String, compress
     #expect(try readAll(files.compressed, maximumLineLength: 1_000) == [expected[0], expected[2]])
 }
 
+/// The frame's last call fills the output buffer exactly; the reader must not treat the finished frame as truncated.
+@Test func frameEndingOnAFullOutputBufferIsComplete() throws {
+    let lineLength = 1_023
+    let lines = (0..<(ZSTD_DStreamOutSize() / (lineLength + 1))).map { _ in String(repeating: "z", count: lineLength) }
+    let files = try writeLogFiles(lines.joined(separator: "\n") + "\n")
+
+    #expect(try readAll(files.compressed) == expectedLines(lines))
+}
+
 @Test func truncatedCompressedFileThrows() throws {
     let files = try writeLogFiles(syntheticLines.joined(separator: "\n") + "\n")
     let truncated = try Data(contentsOf: URL(fileURLWithPath: files.compressed)).dropLast(16)

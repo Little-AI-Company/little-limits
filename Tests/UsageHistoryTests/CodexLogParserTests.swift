@@ -175,15 +175,15 @@ private func parse(_ lines: [String], from start: Int64 = 0) -> LogParseOutput {
 }
 
 /// Older subagent logs keep only the final reply as a response item. Each earlier response is a completed
-/// `AgentMessage` or `Reasoning` item followed by `token_count`, and usage can follow a tool result.
+/// `AgentMessage` or `Reasoning` item followed by `token_count`, and usage can follow a tool result, here a tool search.
 @Test func olderSubagentLogsGiveOneResponsePerUsageLine() {
     let lines = [
         sessionMeta(account: "account-1"), taskStarted(1, "turn-1"), turnContext(1, model: "gpt-5.5"), userPrompt(2),
         completedItem(3, "AgentMessage"), tokenCount(4, output: 11, reasoning: 1),
         completedItem(5, "Reasoning"), completedItem(5, "AgentMessage"), completedItem(5, "FileChange"),
         tokenCount(6, output: 12, reasoning: 2), tokenCount(6, output: 12, reasoning: 2),
-        entry(7, "response_item", #"{"type":"function_call","name":"exec_command","arguments":"{}","call_id":"c"}"#),
-        entry(8, "response_item", #"{"type":"function_call_output","call_id":"c","output":"x"}"#),
+        entry(7, "response_item", #"{"type":"tool_search_call","call_id":"c","execution":"client"}"#),
+        entry(8, "response_item", #"{"type":"tool_search_output","call_id":"c","tools":[]}"#),
         tokenCount(9, output: 13, reasoning: 3),
         assistantReply(10), tokenCount(11, output: 14, reasoning: 4), taskComplete(12)
     ]
@@ -191,6 +191,7 @@ private func parse(_ lines: [String], from start: Int64 = 0) -> LogParseOutput {
 
     #expect(output.responses.map(\.outputTokens) == [11, 12, 13, 14])
     #expect(output.responses.map(\.toolCallCount) == [0, 0, 1, 0])
+    #expect(output.responses[3].requestedAt == at(8))
     #expect(output.responses.allSatisfy { $0.model == "gpt-5.5" })
 }
 

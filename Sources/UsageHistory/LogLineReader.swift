@@ -161,7 +161,8 @@ private final class ZstandardDecompressor {
                     throw LogLineReaderError.decompressionFailed(String(cString: ZSTD_getErrorName(result)))
                 }
                 inputPosition = inBuffer.pos
-                mayHoldOutput = outBuffer.pos == outBuffer.size
+                // A result of 0 means the frame is decoded and flushed, even when the output buffer is full.
+                mayHoldOutput = outBuffer.pos == outBuffer.size && result != 0
                 isAtFrameBoundary = result == 0
                 sink(UnsafeRawBufferPointer(rebasing: destination[..<outBuffer.pos]))
             }

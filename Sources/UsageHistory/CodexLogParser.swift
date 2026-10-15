@@ -135,9 +135,9 @@ public struct CodexLogParser: Sendable {
             }
         case "reasoning":
             addOutput(at: byteOffset, timestamp: timestamp, isToolCall: false)
-        case "function_call", "custom_tool_call", "local_shell_call", "web_search_call":
+        case "function_call", "custom_tool_call", "local_shell_call", "web_search_call", "tool_search_call":
             addOutput(at: byteOffset, timestamp: timestamp, isToolCall: true)
-        case "function_call_output", "custom_tool_call_output":
+        case "function_call_output", "custom_tool_call_output", "tool_search_output":
             receiveInput(at: byteOffset, timestamp: timestamp)
         default:
             break
