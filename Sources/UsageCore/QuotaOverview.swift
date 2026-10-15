@@ -188,18 +188,20 @@ public struct ProviderQuotaOverview: Equatable, Sendable {
     }
 }
 
-/// Whether an account can take requests now, from its current reading.
+/// Whether an account can take requests now, from its current reading. Only the general 5-hour and weekly
+/// windows decide; a model-scoped or named limit restricts that model alone, so it never makes the account
+/// exhausted or unknown.
 public enum AccountUsability: Equatable, Sendable {
     case usable
-    /// A current window is fully used. The date is the latest reset among the fully used windows, or nil when
-    /// one of them has no reset time.
+    /// A current general window is fully used. The date is the latest reset among the fully used general
+    /// windows, or nil when one of them has no reset time.
     case exhausted(usableAt: Date?)
-    /// No current reading, or a current window without a measured value.
+    /// No current reading, no general window, or a general window without a measured value.
     case unknown
 
     public init(snapshot: AccountSnapshot?, now: Date) {
         guard let snapshot, snapshot.isCurrent(at: now) else { self = .unknown; return }
-        let windows = snapshot.currentWindows
+        let windows = snapshot.currentWindows.filter { $0.role == .session || $0.role == .weekly }
         let exhausted = windows.filter { $0.utilizationPercent.map { $0 >= 100 } == true }
         if !exhausted.isEmpty {
             let resets = exhausted.compactMap(\.resetsAt)

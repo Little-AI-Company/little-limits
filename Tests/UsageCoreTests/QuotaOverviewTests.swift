@@ -87,6 +87,10 @@ private func overview(_ entries: [(AccountProfile, AccountSnapshot?)]) -> UsageO
             == .exhausted(usableAt: now.addingTimeInterval(3 * day)))
     #expect(usability([window("five_hour", used: 100, resetsIn: nil), window("seven_day", used: 100)]) == .exhausted(usableAt: nil))
     #expect(usability([window("five_hour", used: 99), window("seven_day", used: 40)]) == .usable)
+    // A model limit restricts that model only: full or unmeasured, it leaves the account usable.
+    #expect(usability([window("five_hour", used: 30), window("seven_day", used: 40),
+                       window("seven_day_fable_5", title: "7 days (Fable 5)", used: 100, resetsIn: 2 * day),
+                       window("seven_day_sonnet", title: "7 days (Sonnet)", used: nil)]) == .usable)
     #expect(usability([window("five_hour", used: 100)], readAgo: 600) == .unknown)
 }
 

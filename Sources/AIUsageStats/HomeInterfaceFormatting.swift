@@ -416,7 +416,7 @@ enum HomeInterfaceFormatting {
         "\(paceText(pace.verdict)): \(percentText(pace.usedPercent)) used with \(percentText(pace.elapsedPercent)) of the window passed"
     }
 
-    /// `Usable in 8h 58m` for an account with a fully used window.
+    /// `Usable in 8h 58m` for an account with a fully used 5-hour or weekly window.
     static func usableText(_ date: Date?, now: Date) -> String {
         guard let date else { return "Usable time unknown" }
         return "Usable in \(UsageFormatting.countdown(to: date, now: now))"
