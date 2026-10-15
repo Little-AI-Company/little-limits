@@ -1,5 +1,8 @@
 import Foundation
+import OSLog
 import UsageCore
+import UsageHistory
+import UsageHistoryStore
 
 /// The answer to the Add Codex Account question shown when this Mac's Codex CLI is already signed in.
 enum CodexLoginChoice {
@@ -25,6 +28,10 @@ final class ApplicationModel {
     private(set) var pendingManualCredits: [UUID: [CreditBalance]] = [:]
     /// Codex accounts whose Terminal sign-in is open. The account page and sidebar show the wait instead of an error.
     private(set) var awaitingCodexSignIns: Set<UUID> = []
+    /// The local usage history, or nil when it could not be opened or the app runs the demonstration.
+    /// `historyDatabaseError` then explains why; monitoring continues without history.
+    let historyDatabase: HistoryDatabase?
+    let historyDatabaseError: String?
     var onChange: (() -> Void)?
     var onError: ((String) -> Void)?
     /// Opens the Terminal login command. Returns false when Terminal could not be opened.
@@ -42,11 +49,24 @@ final class ApplicationModel {
 
     init(isDemo: Bool) {
         self.isDemo = isDemo
+        (historyDatabase, historyDatabaseError) = isDemo ? (nil, nil) : Self.openHistoryDatabase()
         let defaults = UserDefaults.standard
         chosenMenuBarAccountIDs = isDemo ? nil
             : defaults.stringArray(forKey: Self.menuBarAccountsKey).map { Set($0.compactMap(UUID.init(uuidString:))) }
         let legacy = isDemo ? [] : defaults.stringArray(forKey: Self.legacyMenuBarHiddenKey) ?? []
         legacyMenuBarHiddenAccountIDs = Set(legacy.compactMap(UUID.init(uuidString:)))
+    }
+
+    private static let logger = Logger(subsystem: "com.parkerrex.ai-usage-stats", category: "History")
+
+    private static func openHistoryDatabase() -> (HistoryDatabase?, String?) {
+        let url = UsagePaths.applicationSupport.appendingPathComponent("history.sqlite")
+        do {
+            return (try HistoryDatabase(url: url), nil)
+        } catch {
+            logger.error("Could not open the usage history database: \(error.localizedDescription, privacy: .public)")
+            return (nil, "Could not open the usage history: \(error.localizedDescription)")
+        }
     }
 
     // MARK: Menu bar accounts
