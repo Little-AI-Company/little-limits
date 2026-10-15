@@ -300,7 +300,7 @@ private struct MetricDefinition: Identifiable {
             share(title: "Saved script runs", footnote: "Running a saved script file. Not counted as inline code.",
                   unit: "commands") { $0.savedScriptRuns },
             share(title: "Inline code outside the busiest project",
-                  footnote: "Inline code share of commands outside the project with the most commands. Project names are not stored.",
+                  footnote: "Inline code share of commands outside the project where this model runs the most commands. Project names are not stored.",
                   unit: "commands") { $0.inlineOutsideBusiestProject },
             MetricDefinition(title: "Inline script length, lines", footnote: "Median, with the 90th percentile beside it.",
                              isShare: false, emptyText: "No data") { model in

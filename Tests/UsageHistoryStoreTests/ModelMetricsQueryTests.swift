@@ -104,8 +104,15 @@ private func command(_ id: String, model: String = "claude-opus-5-5", project: S
             try command("12", project: "quiet", interpreter: .javascript, scriptLines: 4).insert(db)
             try command("13", project: nil, interpreter: .python, purpose: .readsJSON, scriptLines: 6).insert(db)
             try command("14", project: "quiet").insert(db)
+            // Another model works mostly in "quiet", so its busiest project is "quiet", not the overall "busy".
+            try command("15", model: "claude-fable-5-1", project: "quiet").insert(db)
+            try command("16", model: "claude-fable-5-1", project: "quiet", interpreter: .python).insert(db)
+            try command("17", model: "claude-fable-5-1", project: "busy", interpreter: .python).insert(db)
         }
-        let opus = try #require(try await database.modelMetrics().models.first)
+        let models = try await database.modelMetrics().models
+        let fable = try #require(models.first { $0.model == "claude-fable-5-1" })
+        #expect(fable.inlineOutsideBusiestProject == MetricRatio(count: 1, total: 1))
+        let opus = try #require(models.first { $0.model == "claude-opus-5-5" })
         #expect(opus.shellCommandCount == 14)
         // Only searches count: commands without grep or rg stay out of the denominator.
         #expect(opus.grepSearches == MetricRatio(count: 2, total: 3))

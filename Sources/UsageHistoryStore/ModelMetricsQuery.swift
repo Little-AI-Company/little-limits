@@ -82,7 +82,7 @@ public struct ModelMetrics: Sendable, Equatable, Identifiable {
     public let inlineJavaScript: MetricRatio
     /// P2: runs of a saved script file, counted apart from inline code.
     public let savedScriptRuns: MetricRatio
-    /// P3: commands running inline code out of commands with a known project other than the busiest project.
+    /// P3: commands running inline code out of commands with a known project other than this model's busiest project.
     public let inlineOutsideBusiestProject: MetricRatio
     /// P4: inline Python commands per purpose. Commands without a classified purpose are left out.
     public let inlinePythonPurposes: [InlineScriptPurpose: Int]
@@ -144,22 +144,31 @@ public enum ModelMetricsQuery {
             steps[try id(row), default: []].append(Double(count))
         }
 
-        let busiestProject = try String.fetchOne(db, sql: """
-            SELECT projectKey FROM shellCommand WHERE projectKey IS NOT NULL
-            GROUP BY projectKey ORDER BY COUNT(*) DESC, projectKey LIMIT 1
-            """)
+        // P3 compares each model with its own busiest project, so one model's main project does not set another's.
         var commands: [ModelMetrics.ID: CommandTotals] = [:]
         for row in try Row.fetchAll(db, sql: """
+            WITH projectCommands AS (
+                SELECT provider, model, projectKey, COUNT(*) AS commands FROM shellCommand
+                WHERE projectKey IS NOT NULL GROUP BY provider, model, projectKey
+            ), busiest AS (
+                SELECT provider, model, projectKey AS busiestKey FROM (
+                    SELECT provider, model, projectKey,
+                           ROW_NUMBER() OVER (PARTITION BY provider, model ORDER BY commands DESC, projectKey) AS position
+                    FROM projectCommands
+                ) WHERE position = 1
+            )
             SELECT provider, model, COUNT(*) AS commands,
                    SUM(searchProgram = 'grep') AS grep, SUM(searchProgram = 'ripgrep') AS ripgrep,
                    SUM(pipesIntoHeadOrTail) AS headOrTail, SUM(runsGitStatus) AS gitStatus,
                    SUM(runsGitCommit AND succeeded = 1) AS gitCommit,
                    SUM(inlineInterpreter = 'python') AS python, SUM(inlineInterpreter = 'javascript') AS javascript,
                    SUM(runsSavedScript) AS savedScript,
-                   SUM(projectKey IS NOT NULL AND projectKey IS NOT ?) AS otherProject,
-                   SUM(projectKey IS NOT NULL AND projectKey IS NOT ? AND inlineInterpreter != 'none') AS otherProjectInline
-            FROM shellCommand GROUP BY provider, model
-            """, arguments: [busiestProject, busiestProject]) {
+                   SUM(projectKey IS NOT NULL AND projectKey IS NOT busiestKey) AS otherProject,
+                   SUM(projectKey IS NOT NULL AND projectKey IS NOT busiestKey AND inlineInterpreter != 'none')
+                       AS otherProjectInline
+            FROM shellCommand LEFT JOIN busiest USING (provider, model)
+            GROUP BY provider, model
+            """) {
             commands[try id(row)] = CommandTotals(
                 commands: row["commands"], grep: row["grep"], ripgrep: row["ripgrep"], headOrTail: row["headOrTail"],
                 gitStatus: row["gitStatus"], gitCommit: row["gitCommit"], python: row["python"],
