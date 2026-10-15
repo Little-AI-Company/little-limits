@@ -1,6 +1,6 @@
 # Product scope
 
-AI Usage Stats has one purpose: show the available Claude and Codex usage state for several accounts in a small native macOS menu bar panel.
+AI Usage Stats shows the available Claude and Codex usage state for several accounts in a small native macOS menu bar panel, and keeps a local record of that usage that the user owns. The [usage analytics plan](USAGE-ANALYTICS-PLAN.md) defines the history, forecast, and model behavior features.
 
 ## Information to show
 
@@ -11,6 +11,10 @@ The management window opens to Home. Its two-week or month calendar places each 
 Show monetary API credit balances and expiry separately from subscription limits. Show Codex credit units separately from dollars. Earned Codex limit resets are a count with their own expiry, not a purchased credit balance. Never infer remaining prepaid dollars from token totals, API costs, or a subscription usage percentage.
 
 Unknown, unsupported, failed, and stale readings must remain recognizable. A missing percentage is not zero. A reset time is not an account billing date. A credit expiry is not a quota reset time.
+
+## Usage history
+
+The app records every successful quota reading and reads local Claude Code and Codex logs on this Mac. Home shows a remaining-quota forecast; the Models page shows per-model behavior. History stays in a local database. Logs yield derived facts only: counts, lengths, categories, and argument-free program names. Prompts, replies, tool output, file contents, and command text are never stored. Behavior metrics are grouped by model, never by account. Gaps in history remain gaps.
 
 ## Sources and account isolation
 
@@ -32,9 +36,9 @@ The [research reports](research/) record source details and limits. Treat provid
 
 ## Keep the product small
 
-Use AppKit, SwiftPM, and system frameworks. Require macOS 14 and Swift 6. Keep refresh work from blocking the main actor, avoid overlapping work, and keep the closed panel inexpensive. Redraw when displayed state changes. Use no continuous animation, telemetry, updater framework, or recurring GitHub Actions. Use the system browser for the experimental subscription sign-in and an isolated browser session for Console credits. Keep account, settings, and monitoring controls native.
+Use AppKit, SwiftPM, and system frameworks. New analytics pages may use SwiftUI and Swift Charts inside the AppKit window. The only package dependencies are GRDB and facebook/zstd, pinned exactly. Require macOS 14 and Swift 6. Keep refresh work from blocking the main actor, avoid overlapping work, and keep the closed panel inexpensive. Redraw when displayed state changes. Use no continuous animation, telemetry, updater framework, or recurring GitHub Actions. Use the system browser for the experimental subscription sign-in and an isolated browser session for Console credits. Keep account, settings, and monitoring controls native.
 
-Monitoring is read-only. Exclude model conversations, model-request probes, buying credits, changing plans, consuming earned resets, replacing a user's CLI login, and general spending analytics. Broader features require a separate product decision.
+Monitoring is read-only. Exclude storing model conversations, model-request probes, buying credits, changing plans, consuming earned resets, replacing a user's CLI login, and general spending analytics. Broader features require a separate product decision.
 
 ## Success criteria
 
@@ -43,4 +47,4 @@ Monitoring is read-only. Exclude model conversations, model-request probes, buyi
 - Credits and expiry use the provider's actual units and retain their source date.
 - A missing field, expired reading, or failed connection remains visible without fabricated values.
 - Native keyboard navigation, accessibility, and menu-bar behavior work in the packaged app.
-- Local build and packaging work without external package dependencies.
+- Local build and packaging work with only the pinned GRDB and zstd packages.
