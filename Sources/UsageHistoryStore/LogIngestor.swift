@@ -102,7 +102,12 @@ public actor LogIngestor {
         // Recorded only after a scan with no failures, so an interrupted or failed reclassification runs again.
         if summary.filesFailed == 0, completedClassifierVersion != CommandClassifier.version {
             do {
+                // A log missing from this scan keeps its older facts. Dropping its saved position means it is read,
+                // and reclassified, if it comes back.
+                let discovered = Set((claudeFiles + codexFiles).map(\.positionKey))
+                let missing = positions.keys.filter { !discovered.contains($0) }
                 try database.pool.write { db in
+                    _ = try SourceFilePosition.deleteAll(db, keys: missing)
                     try db.execute(sql: "DELETE FROM completedClassifierVersion")
                     try db.execute(sql: "INSERT INTO completedClassifierVersion (version) VALUES (?)",
                                    arguments: [CommandClassifier.version])

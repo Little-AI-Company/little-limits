@@ -157,6 +157,29 @@ private func rowCounts(_ database: HistoryDatabase) throws -> [Int] {
     #expect(await ingestor.ingest(codexAccounts: []).filesUnchanged == 1)
 }
 
+@Test func aLogMissingDuringReclassificationIsReadWhenItReturns() async throws {
+    let home = try temporaryHome()
+    defer { try? FileManager.default.removeItem(at: home) }
+    let log = home.appendingPathComponent(".claude/projects/-work-app/s1.jsonl")
+    let parked = home.appendingPathComponent("parked.jsonl")
+    try write(claudeSession, to: log)
+    let database = try HistoryDatabase(url: home.appendingPathComponent("history.sqlite"))
+    let ingestor = LogIngestor(database: database, homeDirectory: home)
+    _ = await ingestor.ingest(codexAccounts: [])
+    try await database.pool.write { db in
+        try db.execute(sql: "UPDATE shellCommand SET searchProgram = 'none'")
+        try db.execute(sql: "UPDATE completedClassifierVersion SET version = 0")
+    }
+
+    // The log is away while the reclassification completes, then returns unchanged at the same path.
+    try FileManager.default.moveItem(at: log, to: parked)
+    _ = await ingestor.ingest(codexAccounts: [])
+    try FileManager.default.moveItem(at: parked, to: log)
+    let returned = await ingestor.ingest(codexAccounts: [])
+    #expect(returned.filesRead == 1)
+    #expect(try await database.pool.read(ShellCommandRecord.fetchAll).map(\.searchProgram) == [.grep])
+}
+
 @Test func anUnreadableLogFolderKeepsReclassificationPending() async throws {
     let home = try temporaryHome()
     let project = home.appendingPathComponent(".claude/projects/-work-app")
