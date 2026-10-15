@@ -110,13 +110,17 @@ private struct Invocation {
             switch Self.identity(of: first).program {
             case "sudo":
                 words.removeFirst()
-                skipOptions(&words, takingArguments: ["-u", "-g", "-h", "-p", "-C", "-D", "-r", "-t", "-T", "-U"])
+                skipOptions(&words, takingArguments: [
+                    "-u", "--user", "-g", "--group", "-h", "--host", "-p", "--prompt", "-C", "--close-from",
+                    "-D", "--chdir", "-R", "--chroot", "-r", "--role", "-t", "--type", "-T", "--command-timeout",
+                    "-U", "--other-user"
+                ])
             case "env":
                 words.removeFirst()
-                skipOptions(&words, takingArguments: ["-u", "-C", "-S"])
+                skipOptions(&words, takingArguments: ["-u", "--unset", "-C", "--chdir", "-S", "--split-string"])
             case "time":
                 words.removeFirst()
-                skipOptions(&words, takingArguments: ["-f", "-o"])
+                skipOptions(&words, takingArguments: ["-f", "--format", "-o", "--output"])
             default:
                 break stripping
             }
@@ -172,13 +176,15 @@ private struct Invocation {
             subcommand = gitSubcommand(arguments)
             allowed = ["status", "commit", "diff", "log", "add", "push", "pull", "checkout", "switch", "rebase", "grep"]
         case "npm":
-            subcommand = arguments.first { !$0.text.hasPrefix("-") }?.text
+            subcommand = firstOperand(arguments, optionsTakingArguments: ["--prefix", "-w", "--workspace"])
             allowed = ["run", "test"]
         case "swift":
-            subcommand = arguments.first { !$0.text.hasPrefix("-") }?.text
+            subcommand = firstOperand(arguments, optionsTakingArguments: [])
             allowed = ["build", "test"]
         case "cargo":
-            subcommand = arguments.first { !$0.text.hasPrefix("-") && !$0.text.hasPrefix("+") }?.text
+            // `+toolchain` selects a toolchain and is not the subcommand.
+            subcommand = firstOperand(arguments.drop { $0.text.hasPrefix("+") },
+                                      optionsTakingArguments: ["--config", "-Z", "--color", "-C"])
             allowed = ["build", "test"]
         default:
             return nil
@@ -206,9 +212,13 @@ private func skipOptions(_ words: inout ArraySlice<ShellWord>, takingArguments: 
 
 /// Skips git global options such as `-C dir` and `-c name=value`.
 private func gitSubcommand(_ arguments: ArraySlice<ShellWord>) -> String? {
-    let optionsTakingArguments: Set<String> = [
+    firstOperand(arguments, optionsTakingArguments: [
         "-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--config-env"
-    ]
+    ])
+}
+
+/// The first word that is neither an option nor the separate value of an option, such as `dir` in `-C dir`.
+private func firstOperand(_ arguments: ArraySlice<ShellWord>, optionsTakingArguments: Set<String>) -> String? {
     var remaining = arguments
     while let argument = remaining.popFirst() {
         if optionsTakingArguments.contains(argument.text) {
@@ -337,7 +347,10 @@ private func pythonOperand(_ arguments: ArraySlice<ShellWord>) -> InterpreterOpe
 
 private func nodeOperand(_ arguments: ArraySlice<ShellWord>) -> InterpreterOperand {
     let codeOptions: Set<String> = ["-e", "--eval", "-p", "--print"]
-    let optionsTakingArguments: Set<String> = ["-r", "--require", "--import", "--loader", "-C", "--conditions"]
+    let optionsTakingArguments: Set<String> = [
+        "-r", "--require", "--import", "--loader", "--experimental-loader", "-C", "--conditions", "--input-type",
+        "--env-file", "--title"
+    ]
     var remaining = arguments
     while let argument = remaining.popFirst() {
         let text = argument.text

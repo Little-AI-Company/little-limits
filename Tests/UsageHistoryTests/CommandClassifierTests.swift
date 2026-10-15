@@ -60,6 +60,10 @@ let classifierCases: [ClassifierCase] = [
                    "FOO=1 sudo -u admin env -i BAR=2 time -p rg x", search: .ripgrep, sequence: "rg"),
     ClassifierCase("allow-listed build tools", "swift build -c release; npm run lint || cargo test --all",
                    sequence: "swift build; npm run || cargo test"),
+    ClassifierCase("sudo long option value is not the program", "sudo --user git rg needle", search: .ripgrep,
+                   sequence: "rg"),
+    ClassifierCase("cargo option value is not the subcommand", "cargo +nightly --config test build",
+                   sequence: "cargo build"),
     ClassifierCase("conditional keyword", "if grep -q x f; then echo y; fi", search: .grep,
                    sequence: "grep; echo"),
 
@@ -91,6 +95,8 @@ let classifierCases: [ClassifierCase] = [
                    purpose: .other, lines: 1, sequence: "python3.12"),
 
     // JavaScript and saved scripts.
+    ClassifierCase("node option value is not a script", "node --input-type module -e 'console.log(1)'",
+                   interpreter: .javascript, lines: 1, sequence: "node"),
     ClassifierCase("node -e", "node -e 'console.log(1)\nconsole.log(2)'", interpreter: .javascript, lines: 2,
                    sequence: "node"),
     ClassifierCase("node heredoc", "node - <<'EOF'\nconsole.log(require('fs').readdirSync('.'))\nEOF",
