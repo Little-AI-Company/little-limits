@@ -64,6 +64,22 @@ private func overview(_ entries: [(AccountProfile, AccountSnapshot?)]) -> UsageO
     #expect(pools[0].unknownAccountIDs == [stale.0.id])
 }
 
+@Test func inactiveModelWindowIsOutsideItsPool() {
+    func fable(used: Double, active: Bool?) -> UsageWindow {
+        UsageWindow(id: "seven_day_fable_5", title: "7 days (Fable 5)", utilizationPercent: used,
+                    resetsAt: now.addingTimeInterval(day), isActive: active)
+    }
+    let active = account(.claude, [window("seven_day", used: 20), fable(used: 30, active: true)])
+    let inactive = account(.claude, [window("seven_day", used: 20), fable(used: 100, active: false)])
+    let pools = overview([active, inactive]).providers[0].scopedWeekly
+    #expect(pools.count == 1)
+    #expect(pools[0].countedAccountIDs == [active.0.id])
+    #expect(pools[0].unknownAccountIDs.isEmpty)
+    #expect(pools[0].capacityPercent == 100)
+    // A window reported only inactive creates no pool.
+    #expect(overview([inactive]).providers[0].scopedWeekly.isEmpty)
+}
+
 @Test func nextResetIsTheEarliestResetThatReturnsQuota() {
     let unused = account(.claude, [window("seven_day", used: 0, resetsIn: hour)])
     let later = account(.claude, [window("seven_day", used: 76, resetsIn: 2 * day)])

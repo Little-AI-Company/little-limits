@@ -148,10 +148,15 @@ public struct ProviderQuotaOverview: Equatable, Sendable {
         weekly = QuotaPool(provider: provider, scopeName: nil,
                            remainingPercent: weeklyUsed.isEmpty ? nil : weeklyUsed.reduce(0) { $0 + 100 - $1.used },
                            countedAccountIDs: weeklyUsed.map(\.id), unknownAccountIDs: weeklyUnknown)
-        // A scoped pool covers only accounts whose reading, current or not, has that window.
+        // A scoped pool covers accounts whose latest reading, current or not, reports that window active. An account
+        // that never reported it, or reported it inactive, is outside the pool rather than unknown.
+        func activeScopedWindow(_ account: UsageOverviewAccount, named name: String) -> UsageWindow? {
+            account.snapshot?.windows.first { $0.isActive != false && $0.weeklyScopeName == name }
+        }
         var scopeNames: [String] = []
         for account in members {
-            for name in (account.snapshot?.windows ?? []).compactMap(\.weeklyScopeName) where !scopeNames.contains(name) {
+            let names = (account.snapshot?.windows ?? []).filter { $0.isActive != false }.compactMap(\.weeklyScopeName)
+            for name in names where !scopeNames.contains(name) {
                 scopeNames.append(name)
             }
         }
@@ -160,7 +165,7 @@ public struct ProviderQuotaOverview: Equatable, Sendable {
             var unknown: [UUID] = []
             var remaining = 0.0
             for account in members {
-                guard let window = account.snapshot?.windows.first(where: { $0.weeklyScopeName == name }) else { continue }
+                guard let window = activeScopedWindow(account, named: name) else { continue }
                 if account.snapshot?.isCurrent(at: now) == true, let used = measured(window) {
                     counted.append(account.id)
                     remaining += 100 - used
