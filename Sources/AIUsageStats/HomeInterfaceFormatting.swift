@@ -360,8 +360,10 @@ enum HomeInterfaceFormatting {
         pool.scopeName.map { "Weekly · \($0)" } ?? "Weekly"
     }
 
-    /// `90% of 300% left`, or `Unknown` when no account has a current reading. Never `0%` for unknown.
+    /// `90% of 300% left`, `Unknown` when no account has a current reading (never `0%`), or `Not supported`
+    /// when no account reports the window.
     static func poolValue(_ pool: QuotaPool) -> String {
+        if pool.countedAccountIDs.isEmpty, pool.unknownAccountIDs.isEmpty { return "Not supported" }
         guard let remaining = pool.remainingPercent else { return "Unknown" }
         return "\(percentText(remaining)) of \(Int(pool.capacityPercent))% left"
     }
@@ -455,12 +457,12 @@ enum HomeInterfaceFormatting {
 
     /// Vocabulary names: "5-hour", "Weekly", model-scoped "Weekly · Fable 5".
     static func scopeLabel(_ window: UsageWindow) -> String {
-        if let scoped = modelScope(in: window.title) {
+        if let scoped = window.modelScope {
             return "\(baseName(scoped.base, duration: window.windowDurationMinutes)) · \(scoped.name)"
         }
-        if let named = namedMeter(window.title) {
+        if let named = window.namedMeter {
             let duration = window.windowDurationMinutes.map(durationLabel) ?? baseName(named.suffix, duration: nil)
-            return isOrdinaryCodexMeter(window) ? duration : "\(duration) · \(named.prefix)"
+            return window.isOrdinaryCodexMeter ? duration : "\(duration) · \(named.prefix)"
         }
         if let minutes = window.windowDurationMinutes { return durationLabel(minutes) }
         return InterfaceFormatting.usageTitle(window)
@@ -790,7 +792,12 @@ enum HomeInterfaceFormatting {
         case .authentication: return "Sign-in required"
         case .unavailable: return "Unavailable"
         case .absent: return absentStatus(account)
-        case .historical: return staleText(account, now: now)
+        case .historical:
+            // A passed model reset makes the row historical, but the general windows can still decide usability.
+            if case .exhausted(let usableAt) = AccountUsability(snapshot: account.snapshot, now: now) {
+                return "\(staleText(account, now: now)) · \(usableText(usableAt, now: now))"
+            }
+            return staleText(account, now: now)
         case .current:
             let active = account.snapshot?.currentWindows ?? []
             if case .exhausted(let usableAt) = AccountUsability(snapshot: account.snapshot, now: now) {
@@ -864,33 +871,9 @@ enum HomeInterfaceFormatting {
     /// The part of the scope that tells a calendar event apart in a narrow day column: the model or meter
     /// name for a scoped window, otherwise the whole scope.
     static func calendarScope(_ window: UsageWindow) -> String {
-        if let scoped = modelScope(in: window.title) { return scoped.name }
-        if let named = namedMeter(window.title), !isOrdinaryCodexMeter(window) { return named.prefix }
+        if let scoped = window.modelScope { return scoped.name }
+        if let named = window.namedMeter, !window.isOrdinaryCodexMeter { return named.prefix }
         return scopeLabel(window)
-    }
-
-    private static func isOrdinaryCodexMeter(_ window: UsageWindow) -> Bool {
-        window.id == "codex_primary" || window.id == "codex_secondary"
-    }
-
-    private static func modelScope(in title: String) -> (base: String, name: String)? {
-        guard let open = title.lastIndex(of: "("), let close = title.lastIndex(of: ")"), open < close else { return nil }
-        let name = title[title.index(after: open)..<close].trimmingCharacters(in: .whitespacesAndNewlines)
-        let base = title[..<open].trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty, !base.isEmpty else { return nil }
-        return (base, name)
-    }
-
-    private static func hasNamedMeterPrefix(_ title: String) -> Bool {
-        namedMeter(title) != nil
-    }
-
-    private static func namedMeter(_ title: String) -> (prefix: String, suffix: String)? {
-        guard let colon = title.firstIndex(of: ":") else { return nil }
-        let prefix = title[..<colon].trimmingCharacters(in: .whitespacesAndNewlines)
-        let suffix = title[title.index(after: colon)...].trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !prefix.isEmpty, !suffix.isEmpty else { return nil }
-        return (prefix, suffix)
     }
 
     private static func baseName(_ base: String, duration: Int?) -> String {

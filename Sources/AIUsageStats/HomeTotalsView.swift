@@ -55,6 +55,8 @@ final class HomeTotalsView: NSView {
     private func providerView(_ provider: Provider?) -> NSView {
         guard let provider else { return NSGridCell.emptyContentView }
         let name = HomeText.label(provider.title, size: 12, weight: .semibold)
+        // Each value already names its provider, so VoiceOver does not read the name twice.
+        name.setAccessibilityElement(false)
         guard let image = ProviderIcons.images[provider] else { return name }
         let icon = HomePassImageView(image: image)
         icon.contentTintColor = .labelColor

@@ -12,8 +12,11 @@ extension UsageWindow {
     /// A reported duration decides first; the provider's window identifiers and names decide when none was reported.
     /// Model-scoped and named meters are never the general window.
     public var role: UsageWindowRole {
-        if Self.modelScope(in: title) != nil { return .other }
-        if Self.namedMeter(in: title) != nil, !isOrdinaryCodexMeter { return .other }
+        if modelScope != nil { return .other }
+        if namedMeter != nil, !isOrdinaryCodexMeter { return .other }
+        // Claude reports a scoped weekly limit without its model as `limit_<n>_weekly_scoped` titled `7 days`;
+        // it limits part of the account, so it is never the general weekly window.
+        if id.hasSuffix("_weekly_scoped") { return .other }
         if let minutes = windowDurationMinutes {
             if minutes == 300 { return .session }
             if minutes == 10_080 { return .weekly }
@@ -36,14 +39,14 @@ extension UsageWindow {
         if let windowDurationMinutes, windowDurationMinutes > 0 { return windowDurationMinutes }
         if id == "five_hour" { return 300 }
         if id == "seven_day" || id.hasPrefix("seven_day_") { return 10_080 }
-        let base = Self.modelScope(in: title)?.base ?? Self.namedMeter(in: title)?.suffix ?? title
+        let base = modelScope?.base ?? namedMeter?.suffix ?? title
         return Self.durationMinutes(named: base)
     }
 
     /// The model or meter name of a weekly window other than the account's general one, such as `Fable 5`.
     public var weeklyScopeName: String? {
         guard role == .other, durationMinutes == 10_080 else { return nil }
-        return Self.modelScope(in: title)?.name ?? Self.namedMeter(in: title)?.prefix
+        return modelScope?.name ?? namedMeter?.prefix
     }
 
     /// Measured zero use with no reset time: nothing is used, so no reset is pending. A missing time with any
@@ -52,9 +55,11 @@ extension UsageWindow {
         isActive != false && resetsAt == nil && utilizationPercent == 0
     }
 
-    private var isOrdinaryCodexMeter: Bool { id == "codex_primary" || id == "codex_secondary" }
+    /// Codex's own 5-hour and weekly meters, which keep a `Codex:` prefix when several meters are reported.
+    public var isOrdinaryCodexMeter: Bool { id == "codex_primary" || id == "codex_secondary" }
 
-    private static func modelScope(in title: String) -> (base: String, name: String)? {
+    /// The window name and model of a model-scoped title: `7 days (Fable 5)` is (`7 days`, `Fable 5`).
+    public var modelScope: (base: String, name: String)? {
         guard let open = title.lastIndex(of: "("), let close = title.lastIndex(of: ")"), open < close else { return nil }
         let name = title[title.index(after: open)..<close].trimmingCharacters(in: .whitespacesAndNewlines)
         let base = title[..<open].trimmingCharacters(in: .whitespacesAndNewlines)
@@ -62,7 +67,8 @@ extension UsageWindow {
         return (base, name)
     }
 
-    private static func namedMeter(in title: String) -> (prefix: String, suffix: String)? {
+    /// The meter name and window of a named meter title: `Spark: 7 days` is (`Spark`, `7 days`).
+    public var namedMeter: (prefix: String, suffix: String)? {
         guard let colon = title.firstIndex(of: ":") else { return nil }
         let prefix = title[..<colon].trimmingCharacters(in: .whitespacesAndNewlines)
         let suffix = title[title.index(after: colon)...].trimmingCharacters(in: .whitespacesAndNewlines)
@@ -150,6 +156,9 @@ public struct ProviderQuotaOverview: Equatable, Sendable {
             let window = account.snapshot?.windows.first { $0.isActive != false && $0.role == .weekly }
             if let window, let used = currentUsed(window, in: account) {
                 weeklyUsed.append((account.id, window, used))
+            } else if window == nil, account.snapshot?.isFresh(at: now) == true {
+                // A fresh reading with no active weekly window reports none: outside the total, not unknown.
+                continue
             } else {
                 weeklyUnknown.append(account.id)
             }

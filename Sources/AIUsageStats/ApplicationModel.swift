@@ -184,7 +184,10 @@ final class ApplicationModel {
             if !Task.isCancelled, profiles.contains(where: { $0.id == id }) {
                 snapshots[id] = snapshot
                 // A read can update the saved email or plan, as Refresh All reloads after reading.
-                if let loaded = try? await service.load() { profiles = loaded }
+                do {
+                    profiles = try await service.load()
+                    message = nil
+                } catch { message = "Could not reload accounts: \(error.localizedDescription)" }
             }
             isRefreshing = false
             refreshTask = nil

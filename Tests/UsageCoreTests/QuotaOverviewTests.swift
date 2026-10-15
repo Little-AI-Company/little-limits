@@ -61,6 +61,21 @@ private func overview(_ entries: [(AccountProfile, AccountSnapshot?)]) -> UsageO
     #expect(provider.scopedWeekly[0].unknownAccountIDs == [passedSession.0.id])
 }
 
+@Test func currentReadingWithoutWeeklyWindowIsOutsideTheTotal() {
+    let counted = account(.codex, [window("codex_secondary", title: "7 days", used: 40, minutes: 10_080)])
+    let sessionOnly = account(.codex, [window("codex_primary", title: "5 hours", used: 10, minutes: 300)])
+    let inactiveWeekly = account(.claude, [UsageWindow(id: "seven_day", title: "7 days", utilizationPercent: 0,
+                                                       resetsAt: nil, isActive: false)])
+    let staleSessionOnly = account(.codex, [window("codex_primary", title: "5 hours", used: 10, minutes: 300)], readAgo: 600)
+    let codex = overview([counted, sessionOnly, staleSessionOnly]).providers[0].weekly
+    #expect(codex.countedAccountIDs == [counted.0.id])
+    #expect(codex.unknownAccountIDs == [staleSessionOnly.0.id])
+    let claude = overview([inactiveWeekly]).providers[0].weekly
+    #expect(claude.countedAccountIDs.isEmpty && claude.unknownAccountIDs.isEmpty)
+    // A scoped weekly limit without a model name is not the general weekly window.
+    #expect(UsageWindow(id: "limit_2_weekly_scoped", title: "7 days", utilizationPercent: 100, resetsAt: nil).role == .other)
+}
+
 @Test func scopedWeeklyTotalCoversOnlyAccountsReportingThatModel() {
     let personal = account(.claude, [window("seven_day", used: 20), window("seven_day_fable_5", title: "7 days (Fable 5)", used: 16)])
     let stale = account(.claude, [window("seven_day", used: 20), window("seven_day_fable_5", title: "7 days (Fable 5)", used: 0)],
