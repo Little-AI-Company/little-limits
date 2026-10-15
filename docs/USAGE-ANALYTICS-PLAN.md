@@ -67,14 +67,14 @@ Phase 1 uses data the app already has. Phase 2 adds quota history. Phase 3 adds 
 |---|---|---|---|---|
 | Q1 | Total remaining across accounts | "90% / 600% remaining" | Sum of (100 - used) over each account's 7-day window | 1 |
 | Q2 | Total per model each week | "7-day Fable 5 584%" | Same sum over existing `seven_day_*` windows | 1 |
-| Q3 | Time until an exhausted account is usable | "back in 8h 58m" in red | Latest reset time among the account's windows at 100% used | 1 |
+| Q3 | Time until an exhausted account is usable | "back in 8h 58m" in red | Latest reset among the account's general 5-hour and 7-day windows at 100% used. A model-scoped window at 100% limits only that model and does not make the account unusable | 1 |
 | Q4 | Pace indicator | "Ahead of pace", "Under pace" | Used % compared with the elapsed share of the window | 1 |
-| Q5 | Next reset and its gain | "+24% in 1d 4h", "Next reset +100% Tue 9:59 PM" | Earliest reset across accounts; gain is that account's used % | 1 |
+| Q5 | Next reset and its gain | "+24% in 1d 4h", "Next reset +100% Tue 9:59 PM" | Earliest general 7-day reset across counted accounts; gain is that account's 7-day used % | 1 |
 | Q6 | Sort accounts | "Ledger" and "Default" menus | Sort by soonest usable or most remaining. No grouping modes | 1 |
 | Q7 | Window rows with relative and absolute reset, dimmed when none pending | Per-account rows | Mostly exists. Verify "no reset pending" is its own state | 1 |
 | Q8 | Resets remaining | "Resets remaining: --" | Exists for Codex in the Home table. Verify placement | 1 |
 | Q9 | Refresh one account | "Refresh quota" | Add a native Refresh control on the account page. `UsageService.refreshAccount(id:)` exists; the UI has only Refresh All | 1 |
-| Q10 | Last seen | "Last seen Oct 13, 1:00 PM" | Last time the reading changed, from history. Not the last fetch | 2 |
+| Q10 | Last seen | "Last seen Oct 13, 1:00 PM" | Time of the latest successful reading, from history | 2 |
 | Q11 | Drain rate | "~7.7% per hour" | Slope of total remaining over a recent period, ignoring reset jumps | 2 |
 | Q12 | Remaining chart with projection | Solid history, dashed projection, "Now" line | History table plus a line chart | 2 |
 | Q13 | Time the total reaches zero | "Pool reaches 0% Fri 4:56 AM" | Step forward hourly: subtract drain rate, add reset gains | 2 |
