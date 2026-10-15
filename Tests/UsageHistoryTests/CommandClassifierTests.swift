@@ -109,8 +109,16 @@ let classifierCases: [ClassifierCase] = [
                    "GITHUB_TOKEN=ghp_abc123SECRET curl -H 'Authorization: Bearer sk-ant-api03-SECRET' https://api.example.com | head",
                    pipesIntoHeadOrTail: true, sequence: "curl | head"),
     ClassifierCase("local script path is a placeholder", "./scripts/deploy-acme-prod.sh --token=hunter2",
-                   sequence: "<path>"),
+                   sequence: "<other>"),
     ClassifierCase("expanded program is a placeholder", "$EDITOR ~/private/notes.txt", sequence: "<other>"),
+    ClassifierCase("unlisted program is a placeholder", "hunter2 --login && ls", sequence: "<other> && ls"),
+    ClassifierCase("case patterns are not programs",
+                   "case \"$token\" in\nhunter2|ghp_live_SECRET) echo matched;;\n(*) rg x | head;;\nesac",
+                   search: .ripgrep, pipesIntoHeadOrTail: true, sequence: "echo; rg | head"),
+    ClassifierCase("one-line case with several arms", "case $1 in start) make;; hunter2|stop) kill 1;; esac; ls",
+                   sequence: "make; kill; ls"),
+    ClassifierCase("case inside a command substitution",
+                   "mode=$(case $x in hunter2|b) echo y;; esac) && ls", sequence: "ls"),
     ClassifierCase("empty command", "  \n", sequence: ""),
 ]
 
@@ -120,8 +128,8 @@ func classifiesCommand(_ testCase: ClassifierCase) {
 }
 
 @Test func programSequenceNeverContainsArgumentText() {
-    let secrets = ["ghp_abc123SECRET", "sk-ant-api03-SECRET", "deploy-acme-prod", "hunter2", "private", "notes",
-                   "api.example.com", "Sources/App.swift", "a.txt", "msg"]
+    let secrets = ["ghp_abc123SECRET", "sk-ant-api03-SECRET", "ghp_live_SECRET", "deploy-acme-prod", "hunter2",
+                   "private", "notes", "api.example.com", "Sources/App.swift", "a.txt", "msg"]
     for testCase in classifierCases {
         let sequence = CommandClassifier.classify(testCase.command).programSequence
         for secret in secrets {

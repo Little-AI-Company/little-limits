@@ -84,9 +84,10 @@ public enum CommandClassifier {
 
 /// One command after wrappers are stripped, with its program identified.
 private struct Invocation {
-    /// The program name when it is a literal, safe name. Nil for expansions and unrecognized paths.
+    /// The program name when it is a literal name on the allow list. Nil otherwise.
     let program: String?
-    /// The program sequence entry: a safe program name or placeholder, an allow-listed subcommand, and input markers.
+    /// The program sequence entry: an allow-listed program name or `<other>`, an allow-listed subcommand, and
+    /// input markers.
     let display: String
     let arguments: ArraySlice<ShellWord>
     let command: ParsedCommand
@@ -155,15 +156,12 @@ private struct Invocation {
         return nil
     }
 
+    /// Only allow-listed names are kept. Any other word, such as a script path, an expansion, or a mistyped
+    /// secret, becomes `<other>`. A path keeps its last component when that is an allow-listed program.
     private static func identity(of word: ShellWord) -> (program: String?, display: String) {
-        guard word.isLiteral, !word.text.isEmpty else { return (nil, "<other>") }
-        if word.text.contains("/") {
-            let name = String(word.text.split(separator: "/").last ?? "")
-            return isKnownProgram(name) ? (name, name) : (nil, "<path>")
-        }
-        guard word.text.unicodeScalars.count <= 40,
-              word.text.unicodeScalars.allSatisfy(isProgramNameScalar) else { return (nil, "<other>") }
-        return (word.text, word.text)
+        guard word.isLiteral, let name = word.text.split(separator: "/").last.map(String.init),
+              isAllowListedProgram(name) else { return (nil, "<other>") }
+        return (name, name)
     }
 
     private static func allowListedSubcommand(program: String?, arguments: ArraySlice<ShellWord>) -> String? {
@@ -196,7 +194,7 @@ private let shellKeywords: Set<String> = [
 ]
 
 /// Reserved words whose remaining words are names, values, or patterns rather than a program.
-private let compoundHeaderKeywords: Set<String> = ["for", "case", "select", "function"]
+private let compoundHeaderKeywords: Set<String> = ["for", "select", "function"]
 
 private func skipOptions(_ words: inout ArraySlice<ShellWord>, takingArguments: Set<String>) {
     while let option = words.first, option.text.hasPrefix("-") {
@@ -231,20 +229,41 @@ private func isPythonName(_ name: String) -> Bool {
     }
 }
 
-/// Programs recognized by name when invoked through a path, such as `/usr/bin/env` or `.venv/bin/python3`.
-private func isKnownProgram(_ name: String) -> Bool {
-    let names: Set<String> = [
-        "grep", "egrep", "fgrep", "rg", "git", "head", "tail", "node", "npm", "swift", "cargo",
-        "sudo", "env", "time", "bash", "sh", "zsh", "cat"
-    ]
-    return names.contains(name) || isPythonName(name)
-}
+/// Programs whose names may be stored. Any other program is stored as `<other>`.
+private let allowListedPrograms: Set<String> = [
+    // Shells and shell builtins.
+    "sh", "bash", "zsh", "fish", "dash", "cd", "pwd", "echo", "printf", "test", "[", "true", "false", "export",
+    "source", ".", "exec", "exit", "read", "set", "unset", "type", "command", "wait", "trap", "pushd", "popd",
+    "which",
+    // Wrappers and process control.
+    "sudo", "env", "time", "timeout", "nohup", "xargs", "watch", "kill", "killall", "pkill", "pgrep", "ps",
+    "top", "lsof", "sleep",
+    // Files and text.
+    "ls", "cat", "head", "tail", "wc", "sort", "uniq", "cut", "tr", "tee", "diff", "cmp", "comm", "paste",
+    "column", "basename", "dirname", "realpath", "readlink", "stat", "file", "du", "df", "find", "fd", "tree",
+    "mkdir", "rmdir", "rm", "cp", "mv", "touch", "chmod", "chown", "ln", "date", "seq", "mktemp", "shasum",
+    "base64", "xxd", "od", "hexdump", "strings", "less", "patch", "ditto",
+    // Search and transformation.
+    "grep", "egrep", "fgrep", "rg", "ag", "sed", "awk", "gawk", "jq", "yq", "perl",
+    // Archives.
+    "tar", "zip", "unzip", "gzip", "gunzip", "zstd", "xz",
+    // Network.
+    "curl", "wget", "ssh", "scp", "rsync",
+    // Version control and build tools.
+    "git", "gh", "make", "cmake", "ninja",
+    // Languages and package managers. Python names are matched separately.
+    "pip", "pip3", "uv", "uvx", "pytest", "node", "npm", "npx", "pnpm", "yarn", "bun", "deno", "tsc", "ruby",
+    "gem", "bundle", "swift", "swiftc", "xcodebuild", "xcrun", "cargo", "rustc", "rustup", "go", "java",
+    "clang", "gcc", "docker", "brew",
+    // macOS.
+    "open", "osascript", "defaults", "plutil", "sqlite3", "pbcopy", "pbpaste", "launchctl", "log", "mdfind",
+    "sw_vers", "uname", "codesign", "lipo", "otool", "hdiutil",
+    // Coding agents.
+    "claude", "codex",
+]
 
-private func isProgramNameScalar(_ scalar: Unicode.Scalar) -> Bool {
-    switch scalar {
-    case "a"..."z", "A"..."Z", "0"..."9", ".", "_", "+", "-", "[", "]": true
-    default: false
-    }
+private func isAllowListedProgram(_ name: String) -> Bool {
+    allowListedPrograms.contains(name) || isPythonName(name)
 }
 
 private extension Character {
@@ -688,6 +707,8 @@ private final class ShellParser {
         var command = ParsedCommand()
         var redirectionAwaitingTarget: Redirection?
         var depth = 0
+        /// `case` statements whose `esac` has not been read. Their patterns are skipped, never parsed as commands.
+        var openCaseCount = 0
 
         func separate(_ separator: Separator) {
             if !command.isEmpty { elements.append(.command(command)) }
@@ -708,8 +729,12 @@ private final class ShellParser {
                 while let next = current, next != "\n" { index += 1 }
             case ";":
                 index += 1
-                if current == ";" || current == "&" { index += 1 }
+                // `;;`, `;&`, and `;;&` end a `case` arm. The next pattern follows.
+                let endsCaseArm = current == ";" || current == "&"
+                if endsCaseArm { index += 1 }
+                if endsCaseArm, current == "&" { index += 1 }
                 separate(.sequence)
+                if endsCaseArm, openCaseCount > 0, !skipCasePattern() { openCaseCount -= 1 }
             case "|":
                 index += 1
                 if current == "|" {
@@ -744,7 +769,7 @@ private final class ShellParser {
                     if !command.isEmpty { elements.append(.command(command)) }
                     return elements
                 } else {
-                    // An unmatched parenthesis ends a `case` pattern. The pattern is not a command.
+                    // An unmatched parenthesis is a syntax error. Drop the partial command so its words are not used.
                     command = ParsedCommand()
                     redirectionAwaitingTarget = nil
                 }
@@ -771,13 +796,73 @@ private final class ShellParser {
                     }
                 } else if word.isUnquoted, word.text.allSatisfy(\.isASCIIDigit), current == "<" || current == ">" {
                     // A file descriptor number, as in `2>&1`.
+                } else if word.isUnquoted, word.text == "case", isInCommandPosition(command) {
+                    skipCaseSubject()
+                    separate(.group)
+                    if skipCasePattern() { openCaseCount += 1 }
                 } else {
+                    if word.isUnquoted, word.text == "esac", openCaseCount > 0, isInCommandPosition(command) {
+                        // The last arm may omit `;;`.
+                        openCaseCount -= 1
+                    }
                     command.words.append(word)
                 }
             }
         }
         if !command.isEmpty { elements.append(.command(command)) }
         return elements
+    }
+
+    /// True when the next word would be the program, after any reserved words such as `then` or `do`.
+    private func isInCommandPosition(_ command: ParsedCommand) -> Bool {
+        command.redirections.isEmpty && command.words.allSatisfy { $0.isUnquoted && shellKeywords.contains($0.text) }
+    }
+
+    /// Skips the word after `case` through the `in` keyword.
+    private func skipCaseSubject() {
+        var hasSubject = false
+        while let scalar = current {
+            switch scalar {
+            case " ", "\t", "\r", "\n":
+                index += 1
+            default:
+                let start = index
+                let word = readWord()
+                if index == start { index += 1 }
+                if hasSubject, word.isUnquoted, word.text == "in" { return }
+                hasSubject = true
+            }
+        }
+    }
+
+    /// Skips one `case` pattern list, such as `(a|b)`, through its closing parenthesis. Pattern text can hold any
+    /// value, so it never becomes a command. Returns false when `esac` ends the statement instead.
+    private func skipCasePattern() -> Bool {
+        var isAtPatternStart = true
+        while let scalar = current {
+            switch scalar {
+            case " ", "\t", "\r":
+                index += 1
+            case "\n":
+                index += 1
+                readHereDocumentBodies()
+            case "#" where isAtPatternStart:
+                while let next = current, next != "\n" { index += 1 }
+            case "(", "|":
+                index += 1
+                isAtPatternStart = false
+            case ")":
+                index += 1
+                return true
+            default:
+                let start = index
+                let word = readWord()
+                if index == start { index += 1 }
+                if isAtPatternStart, word.isUnquoted, word.text == "esac" { return false }
+                isAtPatternStart = false
+            }
+        }
+        return false
     }
 
     private func addRedirection(_ kind: RedirectionKind, to command: ParsedCommand) -> Redirection {
