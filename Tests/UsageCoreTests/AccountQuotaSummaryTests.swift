@@ -20,7 +20,7 @@ private func generalWindow(_ id: String, used: Double?, active: Bool? = nil) -> 
     quotaWindow(id, used: used, active: active)
 }
 
-private func modelWindow(used: Double) -> UsageWindow {
+private func modelWindow(used: Double?) -> UsageWindow {
     UsageWindow(id: "limit_fable_weekly", title: "7 days (Fable 5)", utilizationPercent: used,
                 resetsAt: observationDate.addingTimeInterval(3_600), windowDurationMinutes: 10_080)
 }
@@ -133,6 +133,14 @@ func quotaSummaryDoesNotPresentRetainedFailedReadings(_ state: SnapshotState, _ 
     #expect(lowest?.windowTitle == "seven_day")
     #expect(AccountQuotaSummary.lowestLastKnown(accountIDs: [untimed], snapshots: snapshots, now: observationDate) == nil)
     #expect(AccountQuotaSummary.lowestLastKnown(accountIDs: [UUID()], snapshots: snapshots, now: observationDate) == nil)
+}
+
+@Test func unmeasuredModelWindowDoesNotMakeGeneralReadingOutdated() {
+    let snapshots = [accountID: quotaSnapshot([
+        generalWindow("five_hour", used: 1), generalWindow("seven_day", used: 25), modelWindow(used: nil)
+    ])]
+    let current = AccountQuotaSummary.lowestCurrent(accountIDs: [accountID], snapshots: snapshots, now: observationDate)
+    #expect(current?.remainingPercent == 75)
 }
 
 /// MENU-16: a model-scoped limit restricts only that model, so it never drives the status item number.
