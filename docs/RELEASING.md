@@ -16,7 +16,7 @@ lipo -archs "dist/Limits Left.app/Contents/MacOS/UsageCapture"
 open -n "dist/Limits Left.app"
 ```
 
-The script builds all Release products, embeds `AIUsageStats` and the `UsageCapture` helper, generates `Resources/AppIcon.icns` if absent or older than `assets/app-icon.png` (`assets/app-icon.png` is composed from `assets/branding/nervous-gauge-artwork.png` with `swift scripts/compose_app_icon.swift`, which places the artwork in the macOS 824 px rounded-square grid), copies the license, metadata, and generated SwiftPM provider-icon resource bundle, signs the helper and bundle with the selected local identity, verifies the signature, and creates a ZIP using `ditto`.
+The script builds all Release products, embeds `AIUsageStats` and the `UsageCapture` helper, builds the app icons (see [App icons](#app-icons)), copies the license, metadata, and generated SwiftPM provider-icon resource bundle, signs the helper and bundle with the selected local identity, verifies the signature, and creates a ZIP using `ditto`.
 
 Use the same existing code-signing certificate for successive development builds. `CODE_SIGN_IDENTITY` overrides the identity stored as a single line in the ignored `.local-signing-identity` file. List available identities with `security find-identity -v -p codesigning`, then select the intended personal development identity by its certificate hash. This file contains only a public certificate identifier, never a private key or credential. Packaging does not create certificates, change Keychain trust, or edit private-key access controls.
 
@@ -35,6 +35,24 @@ UNIVERSAL=1 scripts/package_app.sh
 `VERSION` must have three numeric components, `BUILD_NUMBER` must be positive, and `UNIVERSAL` must be `0` or `1`. Packaging replaces the previous app and same-version archive in the selected output directory. Quit a running development instance before replacing it.
 
 Universal compilation targets Apple silicon and Intel. Record actual runtime checks separately; do not infer Intel or macOS 14 execution from a successful build on another machine.
+
+## App icons
+
+The bundle icon is Enamel. Night is an alternate that the running app shows when the person picks it in Settings; see [NATIVE-DESIGN.md](NATIVE-DESIGN.md). Both masters are 1024 px PNGs already placed on the macOS icon grid by `assets/branding/explorations/icon-variations/compose_icon.sh`.
+
+| Output | 64 to 1024 px slots | 16 and 32 px slots |
+| --- | --- | --- |
+| `Resources/AppIcon.icns` (bundle icon, `CFBundleIconFile`) | `assets/app-icon.png` (Enamel) | `assets/branding/app-icon/enamel-small.png` |
+| `Resources/AppIconNight.icns` | `assets/branding/app-icon/night.png` | the same Night master |
+
+`scripts/create_app_icon.sh <master.png> <small_master.png> <output.icns>` resizes each slot with `sips` into an `AppIcon.iconset` and runs `iconutil`. The small master is the simplified Small size drawing, which keeps the bubble, needle, and drop readable where the detailed master blurs; it fills `icon_16x16`, `icon_16x16@2x`, and `icon_32x32`. Packaging rebuilds an `.icns` when it is missing or older than one of its masters, then copies both into `Contents/Resources`. The output is byte-for-byte reproducible from the same masters. To inspect a packaged icon:
+
+```sh
+iconutil -c iconset -o /tmp/AppIcon.iconset "dist/Limits Left.app/Contents/Resources/AppIcon.icns"
+sips -g pixelWidth /tmp/AppIcon.iconset/*.png
+```
+
+`assets/app-icon.png` is also the reference image of the current icon. The website favicons and the wordmark lockups in `assets/branding/wordmark/` were made from the earlier flat artwork and are rebuilt separately.
 
 ## Provider menu icons
 

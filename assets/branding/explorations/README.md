@@ -1,6 +1,6 @@
 # Limits Left brand explorations
 
-Explorations for the rename to Limits Left. The current icon stays as it is: `assets/app-icon.png`, `Resources/AppIcon.icns`, and the files in `assets/branding/` are unchanged. Nothing here is wired into the app or the site yet. The owner picks the icon.
+Explorations for the rename to Limits Left. The owner chose Enamel as the app icon, with Small size for the 16 and 32 px slots, and Night as an alternate people can pick in Settings. `assets/app-icon.png` and `assets/branding/app-icon/` hold the shipped copies; [docs/RELEASING.md](../../../docs/RELEASING.md#app-icons) describes how they are built into the app.
 
 ![Contact sheet: the current icon and five variations on the macOS grid, a size ladder at 16, 32, 64, and 128 px, and the wordmark lockup in light and dark](contact-sheet.png)
 
@@ -33,7 +33,7 @@ At 16 and 32 px no detailed version reads well, as row 2 of the contact sheet sh
 
 ### Building it at every icon size
 
-A macOS `.icns` holds 16, 32, 128, 256, and 512 pt sizes, each at 1x and 2x. Planned source for each slot:
+A macOS `.icns` holds 16, 32, 128, 256, and 512 pt sizes, each at 1x and 2x. Source for each slot:
 
 | Slot | Pixels | Source master |
 | --- | --- | --- |

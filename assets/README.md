@@ -2,7 +2,7 @@
 
 The branding files were generated with the built-in ImageGen tool on October 9, 2026.
 
-- `app-icon.png`: 1254 × 1254 PNG. Black square background with an original white two-row usage indicator.
+- `app-icon.png`: 1024 × 1024 PNG. The Enamel app icon, the bundle icon since October 16, 2026, and the master for its 64 to 1024 px slots. It is `branding/explorations/icon-variations/enamel.png`; see `branding/explorations/README.md` for how it was made. `branding/app-icon/` holds the Small size master for the 16 and 32 px slots and the Night alternate. The icon prompt below describes the first icon, which has been replaced.
 - `repository-header.png`: 2172 × 724 PNG. Black background with the same usage indicator, the title "AI Usage Stats", and the line "Claude. Codex. One menu."
 
 Both outputs were inspected visually. The header text matches the requested spelling and punctuation. The mark follows minimal monochrome design conventions and does not reproduce the Vercel triangle.

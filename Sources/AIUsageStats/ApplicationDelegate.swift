@@ -20,6 +20,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private var accountsLoaded = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppIconChoice(defaults: .standard).apply()
         installMenu()
         statusMenu.delegate = self
         statusMenu.autoenablesItems = false
@@ -54,6 +55,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             if CommandLine.arguments.contains("--show-home") || CommandLine.arguments.contains("--show-accounts") {
                 showAccounts(nil)
             }
+            if CommandLine.arguments.contains("--show-settings") { showSettings(nil) }
+            if CommandLine.arguments.contains("--show-about") { showAbout(nil) }
             if CommandLine.arguments.contains("--show-menu") || CommandLine.arguments.contains("--show-panel") {
                 // Let AppKit finish placing the status item before opening the real menu.
                 try? await Task.sleep(for: .milliseconds(200))
@@ -270,6 +273,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let hasOpenWindow = isAccountsWindowOpen || accounts?.window?.attachedSheet != nil
         let policy: NSApplication.ActivationPolicy = hasOpenWindow ? .regular : .accessory
         if NSApp.activationPolicy() != policy { NSApp.setActivationPolicy(policy) }
+    }
+    /// The standard About panel shows the bundle icon unless it is given one, so pass the icon chosen in Settings.
+    @objc private func showAbout(_ sender: Any?) {
+        NSApp.orderFrontStandardAboutPanel(options: [.applicationIcon: NSApp.applicationIconImage as Any])
     }
     @objc private func showSettings(_ sender: Any?) {
         presentAccountsWindow(sender, presentation: .settings)
@@ -491,7 +498,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let menu = NSMenu()
         let app = NSMenuItem()
         let appMenu = makeApplicationMenu()
-        appMenu.insertItem(NSMenuItem(title: "About Limits Left", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: ""), at: 0)
+        let about = NSMenuItem(title: "About Limits Left", action: #selector(showAbout(_:)), keyEquivalent: "")
+        about.target = self
+        appMenu.insertItem(about, at: 0)
         appMenu.insertItem(.separator(), at: 1)
         // The standard Hide group sits above Quit, as in other Mac apps. The status menu does not get it.
         let quitIndex = appMenu.numberOfItems - 1
