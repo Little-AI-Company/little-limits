@@ -493,7 +493,7 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         let time = Calendar.current.isDateInToday(fetchedAt)
             ? fetchedAt.formatted(date: .omitted, time: .shortened)
             : fetchedAt.formatted(.dateTime.month(.abbreviated).day().hour().minute())
-        return "Stale · last read \(time)"
+        return "Stale · last read \(time). Choose Refresh Account to read it again."
     }
 
     private func setSubtitle(_ subtitle: String) {
@@ -542,16 +542,21 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
                     details.append("\(title) resets: \(window.resetsAt.map(InterfaceFormatting.exactDate) ?? "Reset time unknown")")
                 }
             }
+            var expiryLines: [String: Int] = [:]
             for credit in snapshot.credits {
                 if let date = credit.expiresAt {
-                    details.append("\(InterfaceFormatting.compactCreditTitle(credit)) expires: \(InterfaceFormatting.exactDate(date))")
+                    let line = "\(InterfaceFormatting.compactCreditTitle(credit)) expires: \(InterfaceFormatting.exactDate(date))"
+                    expiryLines[line, default: 0] += 1
+                    if expiryLines[line] == 1 { details.append(line) }
                 }
                 if let asOf = credit.asOf, credit.source == .manual {
                     details.append("\(InterfaceFormatting.compactCreditTitle(credit)) confirmed: \(InterfaceFormatting.exactDate(asOf))")
                 }
             }
             if model.isAwaitingCodexSignIn(id) { details.append("Status: \(Self.codexSignInWait)") }
-            else if let detail = snapshot.detail { details.append("Error: \(detail)") }
+            else if let detail = snapshot.detail {
+                details.append("\(snapshot.state == .stale ? "Status" : "Error"): \(detail)")
+            }
         }
         if let message = model.consoleMessages[id] { details.append("API Credits error: \(message)") }
         let text = details.joined(separator: "\n")

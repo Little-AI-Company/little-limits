@@ -176,7 +176,7 @@ enum InterfaceFormatting {
     }
 
     /// One summary for the earned reset count and its nearest expiry, in Home's words: `2 available`,
-    /// `Next expires in 12d`. A count the grants, the observation, or a failed refresh have outdated reads `Last known 2`.
+    /// `Next expires in 12d`. A count the grants, the observation, or a failed refresh have outdated reads `Last known 2 available`.
     /// Per-grant expiry stays in the detail.
     static func earnedResets(_ credits: [CreditBalance], isCurrentReading: Bool = true, now: Date = Date()) -> EarnedResetsSummary? {
         let summary = credits.first { $0.id == "quota_reset_credits" }
@@ -192,7 +192,7 @@ enum InterfaceFormatting {
         let observed = summary?.asOf ?? now
         let grantExpired = grants.contains { $0.expiresAt.map { $0 > observed && $0 <= now } == true }
         let oldObservation = summary?.asOf.map { now.timeIntervalSince($0) >= 300 || $0 > now } == true
-        let value = grantExpired || oldObservation || !isCurrentReading ? "Last known \(count)" : "\(count) available"
+        let value = grantExpired || oldObservation || !isCurrentReading ? "Last known \(count) available" : "\(count) available"
         var lines = ["Earned resets: \(value)"]
         for grant in grants.sorted(by: { ($0.expiresAt ?? .distantFuture) < ($1.expiresAt ?? .distantFuture) }) {
             lines.append(grant.expiresAt.map { "\(compactExpiry($0, now: now)) · \(exactDate($0))" }
