@@ -6,8 +6,8 @@
   <title>AI Usage Stats</title>
   <meta name="description" content="See how much of your Claude and Codex limits are left, on every account, right from your Mac's menu bar. Keep a private history of how you use them, stored only on your Mac.">
   <meta name="color-scheme" content="light dark">
-  <meta name="theme-color" content="#FFFAF2" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#1D1420" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F5F2F7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1E1724" media="(prefers-color-scheme: dark)">
 
   <meta property="og:type" content="website">
   <meta property="og:title" content="AI Usage Stats">
@@ -40,7 +40,6 @@
           <li><a href="#how-it-works">How it works</a></li>
           <li><a href="#privacy">Privacy</a></li>
           <li><a href="#install">Install</a></li>
-          <li><a href="#faq">FAQ</a></li>
           <li><a href="https://github.com/ParkerRex/ai-usage-stats">GitHub</a></li>
         </ul>
       </nav>
@@ -50,90 +49,72 @@
   <main id="main">
     <section class="hero" aria-labelledby="hero-title">
       <div class="wrap">
-        <img class="hero-icon" src="images/app-icon-256.png" width="128" height="128" alt="AI Usage Stats app icon: a nervous speech-bubble fuel gauge">
-        <h1 id="hero-title">See how much of your Claude and Codex limits are left, on every account, right from your Mac's menu bar.</h1>
-        <p class="lead">Keep a private history of how you use them, stored only on your Mac.</p>
-        <div class="actions">
-          <a class="button" href="https://github.com/ParkerRex/ai-usage-stats/releases/latest">Download for Mac</a>
-          <code class="command" aria-label="Homebrew install command">brew install --cask parkerrex/tap/ai-usage-stats</code>
+        <div class="gauge">
+          <svg class="gauge-art" viewBox="0 0 1000 630" aria-hidden="true" focusable="false">
+            <path class="gauge-bubble" d="M100 500 A400 400 0 0 1 900 500 Q900 550 850 550 L235 550 L112 616 L150 540 Q100 530 100 500 Z"/>
+            <path class="gauge-empty" d="M146 500 A354 354 0 0 1 171 367"/>
+            <g class="gauge-ticks">
+              <line x1="206" y1="330" x2="178" y2="314"/>
+              <line x1="500" y1="160" x2="500" y2="128"/>
+              <line x1="794" y1="330" x2="822" y2="314"/>
+            </g>
+            <line class="gauge-needle" x1="500" y1="500" x2="293" y2="425"/>
+            <circle class="gauge-pivot" cx="500" cy="500" r="28"/>
+            <path class="gauge-drop" d="M860 200 C884 236 894 256 894 276 A34 34 0 0 1 826 276 C826 256 836 236 860 200 Z"/>
+          </svg>
+          <h1 id="hero-title"><span>How much Claude</span> <span>and Codex is left,</span> <span>on every account,</span> <span>in your Mac's menu bar.</span></h1>
         </div>
-        <p class="facts">Version 0.2.0 · macOS 14 or later · Apple silicon and Intel · Signed and notarized by Apple</p>
-        <img class="shot shot-wide" src="images/home-1600.png" srcset="images/home-800.png 800w, images/home-1600.png 1600w" sizes="(min-width: 1112px) 1080px, calc(100vw - 32px)" width="1600" height="975" alt="The Home window: weekly totals across accounts and a forecast chart of remaining weekly quota, with the account list in the sidebar">
+        <div class="hero-copy">
+          <p class="lead">See every account's remaining quota and reset times at a glance. Keep a private history of how you use them, stored only on your Mac.</p>
+          <div class="actions">
+            <a class="button" href="https://github.com/ParkerRex/ai-usage-stats/releases/latest">Download for Mac</a>
+            <code class="command" aria-label="Homebrew install command">brew install --cask parkerrex/tap/ai-usage-stats</code>
+          </div>
+          <p class="requirements">Version 0.2.0 for macOS 14 or later, on Apple silicon and Intel. Signed and notarized by Apple.</p>
+        </div>
+        <img class="shot shot-hero" src="images/home-1600.png" srcset="images/home-800.png 800w, images/home-1600.png 1600w" sizes="(min-width: 1112px) 1080px, calc(100vw - 32px)" width="1600" height="975" alt="The Home window: weekly totals across accounts and a forecast chart of remaining weekly quota, with the account list in the sidebar">
       </div>
     </section>
 
-    <section id="how-it-works" class="band" aria-labelledby="how-title">
+    <section id="how-it-works" class="section" aria-labelledby="how-title">
       <div class="wrap">
         <h2 id="how-title">How it works</h2>
-        <ol class="steps">
-          <li>
+
+        <div class="row">
+          <div class="row-text">
             <h3>Glance at the menu bar</h3>
             <p>A number shows how much quota is left. By default it is the lowest number for Claude and for Codex. Pick the accounts you use and each one gets its own number.</p>
-          </li>
-          <li>
             <h3>Click for every account</h3>
-            <p>The menu lists each account's 5-hour, weekly, and model limits, and when each one resets.</p>
-          </li>
-          <li>
-            <h3>Open Home</h3>
-            <p>One table for all accounts, a calendar of upcoming resets, weekly totals, pace, and a forecast.</p>
-          </li>
-          <li>
-            <h3>Open Models</h3>
-            <p>See how each Claude and Codex model behaves in your own work.</p>
-          </li>
-        </ol>
-      </div>
-    </section>
-
-    <section class="feature" aria-labelledby="menu-title">
-      <div class="wrap split">
-        <div class="split-text">
-          <h2 id="menu-title">Every account in one menu</h2>
-          <p>Keep several Claude and Codex accounts side by side without touching your everyday logins.</p>
-          <ul class="points">
-            <li>5-hour, weekly, and model limits for each account, with when each one resets.</li>
-            <li>With two or more accounts of one provider, the menu also shows their weekly total and next reset.</li>
-            <li>Readings refresh every 5 minutes, or when you choose Refresh All. Old readings say Last known, so you never mistake them for live numbers.</li>
-          </ul>
+            <p>The menu lists each account's 5-hour, weekly, and model limits, and when each one resets. With two or more accounts of one provider, it also shows their weekly total and next reset.</p>
+            <p>Readings refresh every 5 minutes, or when you choose Refresh All. Old readings say Last known, so you never mistake them for live numbers.</p>
+          </div>
+          <img class="shot shot-menu" src="images/status-menu-661.png" srcset="images/status-menu-330.png 330w, images/status-menu-661.png 661w" sizes="330px" width="661" height="800" loading="lazy" decoding="async" alt="The menu bar menu listing each account's remaining quota and reset times">
         </div>
-        <img class="shot shot-menu" src="images/status-menu-661.png" srcset="images/status-menu-330.png 330w, images/status-menu-661.png 661w" sizes="330px" width="661" height="800" loading="lazy" decoding="async" alt="The menu bar menu listing each account's remaining quota and reset times">
-      </div>
-    </section>
 
-    <section class="feature" aria-labelledby="home-title">
-      <div class="wrap">
-        <h2 id="home-title">Weekly totals, pace, and a forecast</h2>
-        <div class="columns">
-          <div>
-            <h3>Weekly totals</h3>
-            <p>With two or more accounts of one provider, Home adds up the weekly quota left across them. It shows when the next reset comes and how much it gives back. Claude and Codex totals are always kept apart.</p>
+        <div class="row">
+          <div class="row-text">
+            <h3>Open Home for totals, pace, and a forecast</h3>
+            <p>Home adds up the weekly quota left across accounts of one provider and shows when the next reset comes and how much it gives back. Each account's weekly cell says whether it is ahead of or under pace.</p>
+            <p>The forecast shows how fast your weekly total is going down, when it would reach 0%, and a chart of the next 1 or 7 days. Gaps in the history stay gaps. Claude and Codex are always kept apart.</p>
           </div>
-          <div>
-            <h3>Pace</h3>
-            <p>Each account's weekly cell says whether it is ahead of or under pace.</p>
+          <img class="shot" src="images/forecast-1260.png" srcset="images/forecast-630.png 630w, images/forecast-1260.png 1260w" sizes="(min-width: 900px) 700px, calc(100vw - 32px)" width="1260" height="300" loading="lazy" decoding="async" alt="A Codex forecast: drain rate about 1.8% per hour, the pool reaching 0% today at 19:02, and a chart of weekly quota left over two weeks">
+        </div>
+
+        <div class="row">
+          <div class="row-text">
+            <h3>Open Models to compare models</h3>
+            <p>See how each Claude and Codex model behaves in your own work: output speed, steps per turn, thinking share, parallel tool calls, and the shell commands it runs, such as grep instead of rg, piping into head or tail, or inline Python and JavaScript.</p>
           </div>
-          <div>
-            <h3>Forecast</h3>
-            <p>Home keeps each reading and shows how fast your weekly total is going down, when it would reach 0%, and a chart of the next 1 or 7 days. Gaps in the history stay gaps.</p>
-          </div>
+          <img class="shot" src="images/models-1600.png" srcset="images/models-800.png 800w, images/models-1600.png 1600w" sizes="(min-width: 900px) 700px, calc(100vw - 32px)" width="1600" height="975" loading="lazy" decoding="async" alt="The Models page: per-model bars for requests, output speed, steps per turn, thinking share, parallel tool calls, and shell command habits">
         </div>
       </div>
     </section>
 
-    <section class="feature" aria-labelledby="models-title">
-      <div class="wrap">
-        <h2 id="models-title">See how each model works for you</h2>
-        <p class="section-lead">The Models page compares Claude and Codex models using your own logs: output speed, steps per turn, thinking share, parallel tool calls, and the shell commands each one runs, such as grep instead of rg, piping into head or tail, or inline Python and JavaScript.</p>
-        <img class="shot shot-wide" src="images/models-1600.png" srcset="images/models-800.png 800w, images/models-1600.png 1600w" sizes="(min-width: 1112px) 1080px, calc(100vw - 32px)" width="1600" height="975" loading="lazy" decoding="async" alt="The Models page: per-model bars for requests, output speed, steps per turn, thinking share, parallel tool calls, and shell command habits">
-      </div>
-    </section>
-
-    <section id="privacy" class="band" aria-labelledby="privacy-title">
+    <section id="privacy" class="section" aria-labelledby="privacy-title">
       <div class="wrap">
         <h2 id="privacy-title">Your data stays on your Mac</h2>
-        <p class="section-lead">The forecast and the Models page come from a history the app keeps on your Mac. Nothing in it is uploaded.</p>
-        <dl class="facts-grid">
+        <p class="section-lead">The forecast and the Models page come from a history the app keeps on your Mac. Nothing in it is uploaded. The app only reads usage. It never buys credits, changes plans, or sends AI requests to check your usage, and it has no tracking or telemetry.</p>
+        <dl class="ledger">
           <div>
             <dt>What it reads</dt>
             <dd>Claude Code logs in <code>~/.claude/projects</code> and Codex logs in <code>~/.codex/sessions</code> and <code>~/.codex/archived_sessions</code>. It reads them in the background after each refresh and skips files that have not changed.</dd>
@@ -146,102 +127,72 @@
             <dt>What it never stores</dt>
             <dd>Prompts, replies, tool output, file contents, command text, or folder names.</dd>
           </div>
-          <div>
-            <dt>Read-only monitoring</dt>
-            <dd>It only reads usage. It never buys credits, changes plans, or sends AI requests to check your usage.</dd>
-          </div>
-          <div>
-            <dt>No telemetry</dt>
-            <dd>The app has no tracking or telemetry.</dd>
-          </div>
-          <div>
-            <dt>Where it lives</dt>
-            <dd><code class="path">~/Library/Application Support/AI Usage Stats/history.sqlite</code>. It is kept until you delete it. To clear it, quit the app and delete the files whose names start with <code>history.sqlite</code>.</dd>
-          </div>
         </dl>
-        <p class="more"><a href="https://github.com/ParkerRex/ai-usage-stats#your-usage-history">Read the full list of what the history keeps</a></p>
+        <p class="ledger-note">The history lives in <code class="path">~/Library/Application Support/AI Usage Stats/history.sqlite</code> until you delete it. To clear it, quit the app and delete the files whose names start with <code>history.sqlite</code>. <a href="https://github.com/ParkerRex/ai-usage-stats#your-usage-history">Read the full list of what the history keeps</a>.</p>
       </div>
     </section>
 
-    <section id="install" class="feature" aria-labelledby="install-title">
+    <section id="install" class="section" aria-labelledby="install-title">
       <div class="wrap">
         <h2 id="install-title">Install</h2>
-        <div class="columns two">
+        <div class="pair">
           <div>
             <h3>With Homebrew</h3>
             <pre class="code-block"><code>brew install --cask parkerrex/tap/ai-usage-stats</code></pre>
             <h3>Or download it</h3>
-            <p>Get the <code>AI-Usage-Stats-0.2.0.zip</code> file from the <a href="https://github.com/ParkerRex/ai-usage-stats/releases/latest">latest release</a>, unzip it, and drag AI Usage Stats into your Applications folder.</p>
-            <p>The app is signed and notarized by Apple, so it opens without security warnings.</p>
+            <p>Get <code>AI-Usage-Stats-0.2.0.zip</code> from the <a href="https://github.com/ParkerRex/ai-usage-stats/releases/latest">latest release</a>, unzip it, and drag AI Usage Stats into your Applications folder. The app is signed and notarized by Apple, so it opens without security warnings.</p>
+            <h3>You need</h3>
+            <p>macOS 14 or later on an Apple silicon or Intel Mac. Codex accounts need the <a href="https://github.com/openai/codex">Codex CLI</a> or the ChatGPT desktop app installed.</p>
           </div>
           <div>
-            <h3>Requirements</h3>
-            <ul class="points">
-              <li>macOS 14 or later.</li>
-              <li>Apple silicon or Intel Mac.</li>
-              <li>Codex accounts need the <a href="https://github.com/openai/codex">Codex CLI</a> or the ChatGPT desktop app installed.</li>
-            </ul>
             <h3>Set it up</h3>
-            <ol class="numbered">
+            <ol class="setup">
               <li>Open AI Usage Stats from Applications. A small gauge icon appears in your menu bar.</li>
               <li>Click it, choose <strong>Add Claude Account…</strong>, then sign in and approve on claude.ai in your browser.</li>
-              <li>Add a Codex account from the window with the + button, using your current Codex login or a different one.</li>
-              <li>Open Show in Menu Bar to pick the accounts you care about.</li>
+              <li>Choose <strong>Open AI Usage Stats</strong>, click <strong>+</strong> below the sidebar, and pick Codex. Use your current Codex login or sign in with a different account.</li>
+              <li>Open <strong>Show in Menu Bar</strong> and check the accounts you care about.</li>
             </ol>
           </div>
         </div>
       </div>
     </section>
 
-    <section id="faq" class="band" aria-labelledby="faq-title">
+    <section id="faq" class="section" aria-labelledby="faq-title">
       <div class="wrap">
         <h2 id="faq-title">Questions</h2>
-        <div class="faq">
+        <dl class="faq">
           <div>
-            <h3>Does it send my data anywhere?</h3>
-            <p>Your usage history is stored only on your Mac, and nothing in it is uploaded. The app has no tracking or telemetry. To show your quota, it reads your usage from Claude and from the Codex CLI.</p>
-          </div>
-          <div>
-            <h3>Does it use my quota?</h3>
-            <p>No. It never sends AI requests to check your usage. It only reads usage, and it never buys credits or changes plans.</p>
+            <dt>Does it send my data anywhere?</dt>
+            <dd>Your usage history is stored only on your Mac, and nothing in it is uploaded. The app has no tracking or telemetry. To show your quota, it reads your usage from Claude and from the Codex CLI.</dd>
           </div>
           <div>
-            <h3>Which accounts does it support?</h3>
-            <p>Claude and Codex subscription accounts, as many as you like, side by side. Adding one does not change your everyday logins. You can also connect Claude API credits to a Claude account.</p>
+            <dt>Does it use my quota?</dt>
+            <dd>No. It never sends AI requests to check your usage. It only reads usage, and it never buys credits or changes plans.</dd>
           </div>
           <div>
-            <h3>Are the numbers official?</h3>
-            <p>Claude usage and API credits come from endpoints Anthropic hasn't documented, so they can change without notice. Codex usage comes from the Codex CLI.</p>
+            <dt>Which accounts does it support?</dt>
+            <dd>Claude and Codex subscription accounts, several side by side, without touching your everyday logins. You can also connect Claude API credits to a Claude account.</dd>
           </div>
           <div>
-            <h3>Why does it ask for Keychain access?</h3>
-            <p>On first launch, macOS may ask whether the app may read the sign-ins it saved.</p>
+            <dt>Are the numbers official?</dt>
+            <dd>Claude usage and API credits come from endpoints Anthropic hasn't documented, so they can change without notice. Codex usage comes from the Codex CLI.</dd>
           </div>
           <div>
-            <h3>Is it free and open source?</h3>
-            <p>Yes. Releases are free to download, and the source is on <a href="https://github.com/ParkerRex/ai-usage-stats">GitHub</a> under the <a href="https://github.com/ParkerRex/ai-usage-stats/blob/main/LICENSE">MIT license</a>.</p>
+            <dt>Why does it ask for Keychain access?</dt>
+            <dd>On first launch, macOS may ask whether the app may read the sign-ins it saved.</dd>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="closing" aria-labelledby="closing-title">
-      <div class="wrap closing-row">
-        <img src="images/talking-gauge-480.png" width="240" height="240" loading="lazy" decoding="async" alt="A speech-bubble fuel gauge with its needle near empty">
-        <div>
-          <h2 id="closing-title">Know before you run out.</h2>
-          <div class="actions">
-            <a class="button" href="https://github.com/ParkerRex/ai-usage-stats/releases/latest">Download for Mac</a>
-            <code class="command" aria-label="Homebrew install command">brew install --cask parkerrex/tap/ai-usage-stats</code>
+          <div>
+            <dt>Is it free and open source?</dt>
+            <dd>Yes. Releases are free to download, and the source is on <a href="https://github.com/ParkerRex/ai-usage-stats">GitHub</a> under the <a href="https://github.com/ParkerRex/ai-usage-stats/blob/main/LICENSE">MIT license</a>.</dd>
           </div>
-        </div>
+        </dl>
       </div>
     </section>
   </main>
 
   <footer class="site-footer">
     <div class="wrap footer-row">
-      <p>AI Usage Stats. Copyright 2026 Parker Rex. <a href="https://github.com/ParkerRex/ai-usage-stats/blob/main/LICENSE">MIT licensed</a>. Not affiliated with Anthropic or OpenAI.</p>
+      <p>Copyright 2026 Parker Rex. <a href="https://github.com/ParkerRex/ai-usage-stats/blob/main/LICENSE">MIT licensed</a>. Not affiliated with Anthropic or OpenAI.</p>
       <ul class="footer-links">
         <li><a href="https://github.com/ParkerRex/ai-usage-stats">GitHub</a></li>
         <li><a href="https://github.com/ParkerRex/ai-usage-stats/releases">Releases</a></li>
