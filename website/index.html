@@ -3,28 +3,114 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AI Usage Stats</title>
-  <meta name="description" content="See how much of your Claude and Codex limits are left, on every account, right from your Mac's menu bar. Keep a private history of how you use them, stored only on your Mac.">
+  <title>AI Usage Stats: Claude and Codex limits on your Mac</title>
+  <meta name="description" content="See how much of your Claude and Codex limits are left, on every account, from your Mac&#x27;s menu bar. Free, open source, and private: history stays on your Mac.">
+  <link rel="canonical" href="https://SITE_ORIGIN/">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#F5F2F7" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1E1724" media="(prefers-color-scheme: dark)">
 
   <meta property="og:type" content="website">
-  <meta property="og:title" content="AI Usage Stats">
-  <meta property="og:description" content="How much Claude and Codex is left, on every account, in your Mac's menu bar.">
-  <meta property="og:image" content="images/social-preview.png">
+  <meta property="og:site_name" content="AI Usage Stats">
+  <meta property="og:url" content="https://SITE_ORIGIN/">
+  <meta property="og:title" content="AI Usage Stats: Claude and Codex limits on your Mac">
+  <meta property="og:description" content="See how much of your Claude and Codex limits are left, on every account, from your Mac&#x27;s menu bar. Free, open source, and private: history stays on your Mac.">
+  <meta property="og:image" content="https://SITE_ORIGIN/images/social-preview.png">
   <meta property="og:image:width" content="1280">
   <meta property="og:image:height" content="640">
   <meta property="og:image:alt" content="AI Usage Stats app icon, a nervous speech-bubble fuel gauge, beside the app name and the Homebrew install command">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="AI Usage Stats">
-  <meta name="twitter:description" content="How much Claude and Codex is left, on every account, in your Mac's menu bar.">
-  <meta name="twitter:image" content="images/social-preview.png">
+  <meta name="twitter:title" content="AI Usage Stats: Claude and Codex limits on your Mac">
+  <meta name="twitter:description" content="See how much of your Claude and Codex limits are left, on every account, from your Mac&#x27;s menu bar. Free, open source, and private: history stays on your Mac.">
+  <meta name="twitter:image" content="https://SITE_ORIGIN/images/social-preview.png">
+  <meta name="twitter:image:alt" content="AI Usage Stats app icon, a nervous speech-bubble fuel gauge, beside the app name and the Homebrew install command">
 
   <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="images/favicon-64.png">
   <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
   <link rel="stylesheet" href="styles.css">
+
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "AI Usage Stats",
+  "url": "https://SITE_ORIGIN/",
+  "description": "A macOS menu bar app that shows how much of your Claude and Codex limits are left, on every account, and keeps a private usage history on your Mac.",
+  "operatingSystem": "macOS 14+",
+  "applicationCategory": "UtilitiesApplication",
+  "softwareVersion": "0.2.0",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "downloadUrl": "https://github.com/ParkerRex/ai-usage-stats/releases/latest",
+  "license": "https://github.com/ParkerRex/ai-usage-stats/blob/main/LICENSE",
+  "codeRepository": "https://github.com/ParkerRex/ai-usage-stats",
+  "image": "https://SITE_ORIGIN/images/social-preview.png",
+  "author": {
+    "@type": "Person",
+    "name": "Parker Rex"
+  }
+}
+  </script>
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Does it send my data anywhere?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Your usage history is stored only on your Mac, and nothing in it is uploaded. The app has no tracking or telemetry. To show your quota, it reads your usage from Claude and from the Codex CLI."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does it use my quota?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. It never sends AI requests to check your usage. It only reads usage, and it never buys credits or changes plans."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Which accounts does it support?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Claude and Codex subscription accounts, several side by side, without touching your everyday logins. You can also connect Claude API credits to a Claude account."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Are the numbers official?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Claude usage and API credits come from endpoints Anthropic hasn't documented, so they can change without notice. Codex usage comes from the Codex CLI."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why does it ask for Keychain access?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "On first launch, macOS may ask whether the app may read the sign-ins it saved."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is it free and open source?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Releases are free to download, and the source is on GitHub under the MIT license."
+      }
+    }
+  ]
+}
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>

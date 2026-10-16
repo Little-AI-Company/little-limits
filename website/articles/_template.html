@@ -2,7 +2,7 @@
 <!--
   Article template. To publish an article:
   1. Copy this file to articles/<article-slug>.html (lowercase words joined by hyphens).
-  2. Replace every ARTICLE_ placeholder below, and the canonical URL once the domain exists.
+  2. Replace every ARTICLE_ placeholder below (title, description, ARTICLE_SLUG, and ARTICLE_DATE_ISO as YYYY-MM-DD, including the JSON-LD fields). Keep https://SITE_ORIGIN.
   3. Remove the robots noindex line.
   4. Add a link to the new file in articles/index.html.
   See website/README.md for the full steps.
@@ -12,23 +12,83 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ARTICLE_TITLE | AI Usage Stats</title>
-  <meta name="description" content="ARTICLE_DESCRIPTION: one or two plain sentences, under 160 characters.">
+  <meta name="description" content="ARTICLE_DESCRIPTION: one or two plain sentences, 140 to 160 characters.">
   <meta name="robots" content="noindex">
-  <link rel="canonical" href="https://example.com/articles/ARTICLE_SLUG">
+  <link rel="canonical" href="https://SITE_ORIGIN/articles/ARTICLE_SLUG.html">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#F5F2F7" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1E1724" media="(prefers-color-scheme: dark)">
 
   <meta property="og:type" content="article">
+  <meta property="og:site_name" content="AI Usage Stats">
+  <meta property="og:url" content="https://SITE_ORIGIN/articles/ARTICLE_SLUG.html">
   <meta property="og:title" content="ARTICLE_TITLE">
   <meta property="og:description" content="ARTICLE_DESCRIPTION">
-  <meta property="og:image" content="../images/social-preview.png">
+  <meta property="og:image" content="https://SITE_ORIGIN/images/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="AI Usage Stats app icon, a nervous speech-bubble fuel gauge, beside the app name and the Homebrew install command">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="ARTICLE_TITLE">
+  <meta name="twitter:description" content="ARTICLE_DESCRIPTION">
+  <meta name="twitter:image" content="https://SITE_ORIGIN/images/social-preview.png">
+  <meta name="twitter:image:alt" content="AI Usage Stats app icon, a nervous speech-bubble fuel gauge, beside the app name and the Homebrew install command">
+  <meta property="article:published_time" content="ARTICLE_DATE_ISO">
+  <meta property="article:author" content="Parker Rex">
 
   <link rel="icon" type="image/png" sizes="32x32" href="../images/favicon-32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="../images/favicon-64.png">
   <link rel="apple-touch-icon" href="../images/apple-touch-icon.png">
   <link rel="stylesheet" href="../styles.css">
+
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "ARTICLE_TITLE",
+  "description": "ARTICLE_DESCRIPTION",
+  "datePublished": "ARTICLE_DATE_ISO",
+  "dateModified": "ARTICLE_DATE_ISO",
+  "mainEntityOfPage": "https://SITE_ORIGIN/articles/ARTICLE_SLUG.html",
+  "image": "https://SITE_ORIGIN/images/social-preview.png",
+  "author": {
+    "@type": "Person",
+    "name": "Parker Rex",
+    "url": "https://github.com/ParkerRex"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "AI Usage Stats",
+    "url": "https://SITE_ORIGIN/"
+  }
+}
+  </script>
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "AI Usage Stats",
+      "item": "https://SITE_ORIGIN/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Articles",
+      "item": "https://SITE_ORIGIN/articles/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "ARTICLE_TITLE",
+      "item": "https://SITE_ORIGIN/articles/ARTICLE_SLUG.html"
+    }
+  ]
+}
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>

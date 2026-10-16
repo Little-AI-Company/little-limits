@@ -1,0 +1,24 @@
+# AI Usage Stats
+
+> A free, open source macOS menu bar app that shows how much of your Claude and Codex limits are left, on every account, with reset times. It keeps a private usage history on your Mac. Version 0.2.0, for macOS 14 or later, on Apple silicon and Intel. MIT license.
+
+AI Usage Stats only reads usage. It never buys credits, changes plans, or sends AI requests to check your usage, and it has no tracking or telemetry. The history stores derived facts only (quota readings, model names, times, token counts), never prompts, replies, or command text. Claude usage comes from endpoints Anthropic has not documented, so it can change without notice. Not affiliated with Anthropic or OpenAI.
+
+Install: `brew install --cask parkerrex/tap/ai-usage-stats`, or download from the latest release.
+
+## Pages
+
+- [Home](https://SITE_ORIGIN/): what the app does, privacy, install steps, and common questions
+- [Articles](https://SITE_ORIGIN/articles/): guides to Claude and Codex usage limits
+
+## Articles
+
+- [Claude usage limits explained](https://SITE_ORIGIN/articles/claude-usage-limits-explained.html): what the 5-hour and weekly Claude limits mean
+- [When does the Claude limit reset?](https://SITE_ORIGIN/articles/claude-limit-reset-time.html): how to find your Claude reset time
+- [Codex usage limits](https://SITE_ORIGIN/articles/codex-usage-limits.html): how Codex limits work and how to check what is left
+- [Track Claude Code and Codex usage on Mac](https://SITE_ORIGIN/articles/track-claude-code-and-codex-usage-on-mac.html): see both in the menu bar
+
+## Source
+
+- [GitHub repository](https://github.com/ParkerRex/ai-usage-stats): source code and README
+- [Latest release](https://github.com/ParkerRex/ai-usage-stats/releases/latest): signed and notarized downloads
