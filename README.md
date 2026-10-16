@@ -1,8 +1,9 @@
-<p align="center">
-  <img src="assets/app-icon.png" width="128" height="128" alt="Limits Left app icon: a nervous speech-bubble fuel gauge">
-</p>
-
-<h1 align="center">Limits Left</h1>
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/branding/wordmark/limits-left-lockup-dark.svg">
+    <img src="assets/branding/wordmark/limits-left-lockup.svg" height="96" alt="Limits Left: the app icon, a nervous speech-bubble fuel gauge, beside the name">
+  </picture>
+</h1>
 
 <p align="center">
   See how much of your Claude and Codex limits are left, on every account, right from your Mac's menu bar. Keep a private history of how you use them, stored only on your Mac.
