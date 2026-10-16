@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Codex usage limits and resets: how to check | AI Usage Stats</title>
+  <meta name="description" content="What OpenAI says about Codex usage limits by plan, the five-hour and weekly windows, and how to check what is left and when it resets.">
+  <link rel="canonical" href="https://SITE_ORIGIN/articles/codex-usage-limits.html">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#F5F2F7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1E1724" media="(prefers-color-scheme: dark)">
+
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Codex usage limits: how to check what's left and when it resets">
+  <meta property="og:description" content="What OpenAI says about Codex usage limits by plan, the five-hour and weekly windows, and how to check what is left and when it resets.">
+  <meta property="og:url" content="https://SITE_ORIGIN/articles/codex-usage-limits.html">
+  <meta property="og:image" content="../images/social-preview.png">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../images/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="../images/favicon-64.png">
+  <link rel="apple-touch-icon" href="../images/apple-touch-icon.png">
+  <link rel="stylesheet" href="../styles.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Codex usage limits: how to check what's left and when it resets",
+    "description": "What OpenAI says about Codex usage limits by plan, the five-hour and weekly windows, and how to check what is left and when it resets.",
+    "datePublished": "2026-10-16",
+    "dateModified": "2026-10-16",
+    "inLanguage": "en",
+    "mainEntityOfPage": "https://SITE_ORIGIN/articles/codex-usage-limits.html",
+    "author": {
+      "@type": "Person",
+      "name": "Parker Rex",
+      "url": "https://github.com/ParkerRex"
+    },
+    "about": [
+      { "@type": "SoftwareApplication", "name": "Codex", "creator": { "@type": "Organization", "name": "OpenAI" } }
+    ],
+    "citation": [
+      "https://developers.openai.com/codex/pricing",
+      "https://developers.openai.com/codex/cli/slash-commands",
+      "https://developers.openai.com/codex/reference/slash-commands"
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-row">
+      <a class="brand" href="../">
+        <img src="../images/favicon-64.png" width="28" height="28" alt="">
+        <span>AI Usage Stats</span>
+      </a>
+      <nav aria-label="Primary">
+        <ul class="nav-list">
+          <li><a href="../#how-it-works">How it works</a></li>
+          <li><a href="../#privacy">Privacy</a></li>
+          <li><a href="../#install">Install</a></li>
+          <li><a href="./">Articles</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <article class="wrap article">
+      <header class="article-header">
+        <h1>Codex usage limits: how to check what's left and when it resets</h1>
+        <p class="article-summary">Codex usage limits depend on your ChatGPT plan, the model, and the size of each task. To see what is left and when it resets, open the Codex usage dashboard or type <code>/status</code> in the Codex CLI.</p>
+        <p class="article-date">Published <time datetime="2026-10-16">October 16, 2026</time></p>
+      </header>
+
+      <div class="prose">
+        <p>Codex is OpenAI's coding agent. It is included in the ChatGPT Free, Go, Plus, Pro, Business, Edu, and Enterprise plans, and most plans have an allowance that runs out and comes back. This guide covers what OpenAI publishes about Codex usage limits, how to check your own numbers, and what OpenAI does not say. Everything here comes from <a href="https://developers.openai.com/codex/pricing">OpenAI's Codex pricing page</a> and the <a href="https://developers.openai.com/codex/cli/slash-commands">Codex CLI command reference</a>, as of October 2026. OpenAI changes these limits often, so check the linked pages for the current version.</p>
+
+        <h2>What the Codex limits are</h2>
+        <p>OpenAI does not publish one fixed number of messages per plan. It says the number of messages you can send <a href="https://developers.openai.com/codex/pricing#what-are-the-usage-limits-for-my-plan">depends on the model, the size and complexity of your tasks, and whether you run them locally or in the cloud</a>. Long sessions that need more context use much more of the allowance per message than small scripts do.</p>
+        <p>There are two windows to know about:</p>
+        <ul>
+          <li><strong>Five-hour window.</strong> OpenAI gives estimates of local messages per five-hour period for Plus and Standard Business. It says Pro plans currently have no five-hour limit.</li>
+          <li><strong>Weekly window.</strong> OpenAI says only that weekly limits "may also apply." The pricing page does not list weekly numbers for any plan.</li>
+        </ul>
+
+        <h3>Codex limits by plan</h3>
+        <ul>
+          <li><strong>Plus ($20 a month) and Standard Business.</strong> Estimated local messages per five hours: GPT-6 Astra 5 to 45, GPT-6.1 Sol 15 to 160, GPT-6 Sol 15 to 150, and GPT-6 Luna 350 to 3,000. OpenAI calls these estimates, not fixed message limits.</li>
+          <li><strong>Pro ($100, $200, or $500 a month).</strong> No five-hour limit at present. OpenAI links to a separate <a href="https://help.openai.com/en/articles/9793128-about-chatgpt-pro-plans">comparison of Pro plans and usage limits</a> in its help center.</li>
+          <li><strong>Free and Go.</strong> The pricing page describes these plans for "quick" and "lightweight" coding tasks. It gives no message estimates.</li>
+          <li><strong>Enterprise and Edu.</strong> Workspaces with flexible pricing have no fixed rate limits, and usage scales with credits. Workspaces without flexible pricing have the same per-seat limits as Plus for most features.</li>
+        </ul>
+        <p>Source: <a href="https://developers.openai.com/codex/pricing#what-are-the-usage-limits-for-my-plan">Codex pricing, "What are the usage limits for my plan?"</a>, as of October 2026.</p>
+
+        <h3>What uses the allowance faster</h3>
+        <ul>
+          <li>Local messages and cloud chats share one allowance, and cloud tasks may use more of it than local messages.</li>
+          <li>Fast mode uses included usage at 2.5 times the Standard rate. Ultrafast mode on GPT-6 Astra and GPT-6.1 Sol uses it at 8 times the Standard rate.</li>
+          <li>Image generation uses included limits about 3 to 5 times faster on average.</li>
+          <li>Codex reviews run locally or outside GitHub count toward your general limits. Only reviews that run through GitHub count as separate Code Review usage.</li>
+          <li>ChatGPT Work inside ChatGPT shares the same usage limits as Codex.</li>
+        </ul>
+        <p>Source: <a href="https://developers.openai.com/codex/pricing">Codex pricing</a>, as of October 2026.</p>
+
+        <h2>How to check Codex usage</h2>
+        <p>OpenAI names two places to see your <a href="https://developers.openai.com/codex/pricing#where-can-i-see-my-current-usage-limits">current usage limits</a>:</p>
+        <ol>
+          <li><strong>The usage dashboard</strong> at <a href="https://chatgpt.com/codex/settings/usage">chatgpt.com/codex/settings/usage</a>. You must be signed in. OpenAI points to this page for current limits and reset times.</li>
+          <li><strong>The <code>/status</code> command</strong> in an active Codex CLI session. The pricing page says it shows your remaining limits. The command reference describes it as showing <a href="https://developers.openai.com/codex/cli/slash-commands#inspect-the-session-with-status">session configuration and token usage</a>, and the app's command list says it shows <a href="https://developers.openai.com/codex/reference/slash-commands">the chat ID, context usage, and rate limits</a>.</li>
+        </ol>
+        <p>The Codex CLI has two more commands that help:</p>
+        <ul>
+          <li><a href="https://developers.openai.com/codex/cli/slash-commands#view-account-usage-with-usage"><code>/usage</code></a> opens a menu where you can show token activity or redeem an available earned reset. Type <code>/usage daily</code>, <code>/usage weekly</code>, or <code>/usage cumulative</code> to go straight to one view. It needs a ChatGPT sign-in. OpenAI does not explain how a reset is earned.</li>
+          <li><a href="https://developers.openai.com/codex/cli/slash-commands#configure-footer-items-with-statusline"><code>/statusline</code></a> lets you add rate limits to the footer of the CLI, so they stay on screen while you work. The choice is saved to <code>tui.status_line</code> in <code>config.toml</code>.</li>
+        </ul>
+        <p>In the ChatGPT desktop app, <code>/usage</code> opens usage and billing settings when you are signed in with ChatGPT, per the <a href="https://developers.openai.com/codex/reference/slash-commands">app's slash command reference</a>.</p>
+
+        <h2>When Codex limits reset</h2>
+        <p>OpenAI's documentation does not publish a reset schedule. It does not say whether the weekly window starts on a fixed day, rolls from your first use, or works some other way. It sends you to the usage dashboard for your own reset times. If you need an exact time, read it there or in <code>/status</code>, and do not rely on a rule from a third-party guide.</p>
+        <p>OpenAI also suggests checking the dashboard every week or two to understand your pace and remaining capacity.</p>
+
+        <h2>What happens when you hit a Codex limit</h2>
+        <p>Per <a href="https://developers.openai.com/codex/pricing#what-happens-when-you-hit-usage-limits">OpenAI's pricing FAQ</a>:</p>
+        <ul>
+          <li>If you reach the limit during an active turn, the agent can keep working on that turn, subject to fair use limits.</li>
+          <li>Plus and Pro users can buy more credits instead of upgrading the plan.</li>
+          <li>Business, Edu, and Enterprise workspaces with flexible pricing can buy more workspace credits.</li>
+          <li>Anyone can run extra local chats with an API key. That usage is billed at standard API rates, not from the plan.</li>
+        </ul>
+
+        <h2>How to make the allowance last</h2>
+        <p>OpenAI's <a href="https://developers.openai.com/codex/pricing#what-can-i-do-to-make-my-usage-limits-last-longer">own tips</a> are to keep prompts precise, give only the files that matter, ask for the output length you need, keep <code>AGENTS.md</code> files small, and turn off MCP servers you are not using, since each server adds context to every message. Picking a smaller model for routine work also helps, because the five-hour estimates differ a lot by model.</p>
+
+        <h2>See every Codex account at once with AI Usage Stats</h2>
+        <p><code>/status</code> shows one signed-in account, and only while a CLI session is open. AI Usage Stats is a free, open source Mac menu bar app that keeps the number in view for every Codex account you add. It shows how much quota is left on each account and when it resets, says whether each account is ahead of or under pace, adds up the weekly quota left when you have two or more accounts, and forecasts when that weekly total would reach 0%. It reads Codex usage from the Codex CLI and your local Codex logs, and it keeps its history only on your Mac. See <a href="../#how-it-works">how it works</a> and <a href="../#privacy">what it stores</a>.</p>
+        <figure>
+          <img src="../images/forecast-1260.png" srcset="../images/forecast-630.png 630w, ../images/forecast-1260.png 1260w" sizes="(min-width: 900px) 680px, calc(100vw - 32px)" width="1260" height="300" loading="lazy" decoding="async" alt="AI Usage Stats forecast of Codex usage limits: weekly quota left over two weeks, a drain rate of about 1.8% per hour, and the time the pool would reach 0%">
+        </figure>
+        <p>AI Usage Stats is an independent project and is not affiliated with or endorsed by OpenAI. Codex is a product of OpenAI.</p>
+
+        <h2>FAQ</h2>
+        <h3>Does Codex have a weekly limit?</h3>
+        <p>OpenAI says weekly limits may apply, but it does not publish weekly numbers for any plan. Your usage dashboard shows your own limits.</p>
+        <h3>Is Codex plan usage the same as OpenAI API usage?</h3>
+        <p>No. Plan usage comes from your ChatGPT plan. When you use Codex with an API key, you pay standard API rates instead, and OpenAI says not to use API token prices to estimate how many tasks a plan includes.</p>
+        <h3>Does Codex Pro have a five-hour limit?</h3>
+        <p>Not at present. OpenAI's pricing page says Pro plans currently have no five-hour limit.</p>
+        <h3>Where do I see when my Codex limit resets?</h3>
+        <p>In the <a href="https://chatgpt.com/codex/settings/usage">Codex usage dashboard</a>, or with <code>/status</code> in the Codex CLI.</p>
+      </div>
+
+      <aside class="article-install" aria-labelledby="install-title">
+        <h2 id="install-title">Try AI Usage Stats</h2>
+        <p>See how much of your Claude and Codex limits are left, on every account, from your Mac's menu bar. Free and open source, for macOS 14 or later.</p>
+        <div class="actions">
+          <a class="button" href="https://github.com/ParkerRex/ai-usage-stats/releases/latest">Download for Mac</a>
+          <code class="command" aria-label="Homebrew install command">brew install --cask parkerrex/tap/ai-usage-stats</code>
+        </div>
+      </aside>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-row">
+      <p>Copyright 2026 Parker Rex. <a href="https://github.com/ParkerRex/ai-usage-stats/blob/main/LICENSE">MIT licensed</a>. Not affiliated with Anthropic or OpenAI.</p>
+      <ul class="footer-links">
+        <li><a href="./">Articles</a></li>
+        <li><a href="https://github.com/ParkerRex/ai-usage-stats">GitHub</a></li>
+        <li><a href="https://github.com/ParkerRex/ai-usage-stats/releases">Releases</a></li>
+        <li><a href="https://github.com/ParkerRex/ai-usage-stats/blob/main/LICENSE">License</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
