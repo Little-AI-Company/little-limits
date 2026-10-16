@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>When do Claude limits reset? How to find your reset time | AI Usage Stats</title>
+  <meta name="description" content="Claude's session limit resets every five hours, and the weekly limit at a fixed time set for your account. See where to find your reset time.">
+  <link rel="canonical" href="https://SITE_ORIGIN/articles/claude-limit-reset-time.html">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#F5F2F7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1E1724" media="(prefers-color-scheme: dark)">
+
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://SITE_ORIGIN/articles/claude-limit-reset-time.html">
+  <meta property="og:title" content="When do Claude limits reset? How to find your reset time">
+  <meta property="og:description" content="Claude's session limit resets every five hours, and the weekly limit at a fixed time set for your account. See where to find your reset time.">
+  <meta property="og:image" content="../images/social-preview.png">
+  <meta property="article:published_time" content="2026-10-16">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../images/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="../images/favicon-64.png">
+  <link rel="apple-touch-icon" href="../images/apple-touch-icon.png">
+  <link rel="stylesheet" href="../styles.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "When do Claude limits reset? How to find your reset time",
+    "description": "Claude's session limit resets every five hours, and the weekly limit at a fixed time set for your account. See where to find your reset time.",
+    "datePublished": "2026-10-16",
+    "dateModified": "2026-10-16",
+    "inLanguage": "en",
+    "mainEntityOfPage": "https://SITE_ORIGIN/articles/claude-limit-reset-time.html",
+    "image": "https://SITE_ORIGIN/images/social-preview.png",
+    "author": {
+      "@type": "Person",
+      "name": "Parker Rex"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "AI Usage Stats",
+      "url": "https://SITE_ORIGIN/"
+    },
+    "about": [
+      { "@type": "Thing", "name": "Claude usage limits" },
+      { "@type": "SoftwareApplication", "name": "Claude Code" }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-row">
+      <a class="brand" href="../">
+        <img src="../images/favicon-64.png" width="28" height="28" alt="">
+        <span>AI Usage Stats</span>
+      </a>
+      <nav aria-label="Primary">
+        <ul class="nav-list">
+          <li><a href="../#how-it-works">How it works</a></li>
+          <li><a href="../#privacy">Privacy</a></li>
+          <li><a href="../#install">Install</a></li>
+          <li><a href="./">Articles</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <article class="wrap article">
+      <header class="article-header">
+        <h1>When do Claude limits reset? How to find your reset time</h1>
+        <p class="article-summary">Claude's session limit resets every five hours, and the weekly limit on Pro and Max resets at a fixed day and time assigned to your account. Your exact reset time is in Settings &gt; Usage, and in Claude Code's <code>/usage</code> command.</p>
+        <p class="article-date">Published <time datetime="2026-10-16">October 16, 2026</time></p>
+      </header>
+
+      <div class="prose">
+        <p>This guide explains when Claude limits reset and where to see your own Claude limit reset time. Every fact comes from Anthropic's help center or Claude Code documentation, as of October 2026. Anthropic changes its plans and limits from time to time, so check the linked pages for the current rules. Where Anthropic's pages say nothing, this guide says so.</p>
+
+        <h2>The short answer</h2>
+        <ul>
+          <li><strong>Session limit:</strong> resets every five hours. This applies to paid plans and to the Free plan (<a href="https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work">usage limits</a>, <a href="https://support.claude.com/en/articles/8114491-get-started-with-claude">Free plan</a>).</li>
+          <li><strong>Weekly limit:</strong> on Pro and Max, resets at a fixed time each week that is assigned to your account (<a href="https://support.claude.com/en/articles/8325606-what-is-the-pro-plan">Pro plan</a>, <a href="https://support.claude.com/en/articles/11049741-what-is-the-max-plan">Max plan</a>).</li>
+          <li><strong>One pool:</strong> claude.ai, Claude Desktop, and Claude Code all count toward the same limits (<a href="https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work">usage limits</a>).</li>
+        </ul>
+        <p>For what the limits are and what uses them up, see <a href="/articles/claude-usage-limits-explained.html">Claude usage limits explained</a>.</p>
+
+        <h2>How the 5-hour limit resets</h2>
+        <p>Anthropic's plan pages say your session-based usage limit resets every five hours (<a href="https://support.claude.com/en/articles/8325606-what-is-the-pro-plan">Pro plan</a>). The Claude Code documentation calls this a rolling five-hour window (<a href="https://code.claude.com/docs/en/statusline">status line docs</a>).</p>
+        <p>What starts the five-hour clock is not stated. As of October 2026, no Anthropic page we found says whether the window begins with your first message, on a fixed schedule, or some other way. Many third-party guides say it starts with your first message, but they do not cite Anthropic for it. The safe approach is to read the reset time Claude shows you, instead of working it out yourself.</p>
+
+        <h2>How the weekly limit resets</h2>
+        <p>Pro and Max plans also have a weekly usage limit that applies across all models. Anthropic says the weekly limit resets at a fixed time each week that is assigned to your account. Your reset day and time stay the same no matter when you start using Claude or when your subscription began, and you get your full weekly allowance each cycle (<a href="https://support.claude.com/en/articles/8325606-what-is-the-pro-plan">Pro plan</a>, <a href="https://support.claude.com/en/articles/11049741-what-is-the-max-plan">Max plan</a>).</p>
+        <p>So the weekly reset is not a rolling seven days from your first prompt. Anthropic does not publish how the day and time are assigned, so check your own account instead of assuming a shared schedule.</p>
+        <p>Usage counts against the session and weekly limits at the same time. Claude Code's docs note that one burst of heavy work can use up the weekly limit before the session window resets (<a href="https://code.claude.com/docs/en/errors">error reference</a>).</p>
+
+        <h2>Model limits</h2>
+        <p>Some plans have extra limits for one model. Max plans have a separate weekly limit for Fable (<a href="https://support.claude.com/en/articles/11145838-use-claude-code-with-your-pro-or-max-plan">Claude Code with Pro or Max</a>). Claude Code can also show an Opus or Sonnet limit. Those apply only to that model family, so switching models with <code>/model</code> keeps you working. The session and weekly limits apply to all models, so switching does not help there (<a href="https://code.claude.com/docs/en/errors">error reference</a>).</p>
+
+        <h2>How to see your reset time in Claude</h2>
+        <p>On the web or in Claude Desktop, open <strong>Settings &gt; Usage</strong>. Anthropic says this is where you can see your next reset time (<a href="https://support.claude.com/en/articles/8325606-what-is-the-pro-plan">Pro plan</a>).</p>
+        <p>When you hit a limit without usage credits turned on, the message names the reset. The help center lists messages in the form <code>5-hour limit reached - resets [time]</code> and <code>You've reached your weekly limit. It resets [day] at [time].</code> (<a href="https://support.claude.com/en/articles/12466728-troubleshoot-claude-error-messages">error messages</a>).</p>
+
+        <h2>How to see your reset time in Claude Code</h2>
+        <ul>
+          <li><strong>Run <code>/usage</code>.</strong> On a subscription it shows your plan usage bars, and the docs say to run it to see your plan limits and when they reset (<a href="https://code.claude.com/docs/en/costs">costs docs</a>, <a href="https://code.claude.com/docs/en/errors">error reference</a>). <code>/cost</code> and <code>/stats</code> open the same screen (<a href="https://code.claude.com/docs/en/commands">commands</a>).</li>
+          <li><strong>Read the limit message.</strong> It ends with the reset time, for example <code>You've hit your session limit · resets 3:45pm</code> or <code>You've hit your weekly limit · resets Mon 12:00am</code>. Claude Code blocks new requests until that time (<a href="https://code.claude.com/docs/en/errors">error reference</a>).</li>
+          <li><strong>Watch for warnings.</strong> Before a window runs out, Claude Code can warn you, with a message such as <code>You've used 85% of your session limit · resets 3:45pm</code> (<a href="https://code.claude.com/docs/en/errors">error reference</a>).</li>
+          <li><strong>Add it to your status line.</strong> For Pro and Max subscribers, the status line script receives <code>rate_limits.five_hour.resets_at</code> and <code>rate_limits.seven_day.resets_at</code>, given in Unix epoch seconds. The fields appear only after the first response in a session (<a href="https://code.claude.com/docs/en/statusline">status line docs</a>).</li>
+        </ul>
+        <p>If a limit stops Claude Code in the middle of a task, version 2.1.234 or later can wait in the open session and continue on its own after the reset. It shows the reset time while it waits (<a href="https://code.claude.com/docs/en/interactive-mode">interactive mode</a>).</p>
+
+        <h2>One-time limit resets are separate</h2>
+        <p>Anthropic sometimes gives eligible plans a one-time limit reset. When you use one, it sets either your five-hour session limit or your weekly limit back to full right away. It does not move your schedule: your weekly limit still resets on its usual day and time. You can use it from Settings &gt; Usage on the web or in Claude Desktop, but not from Claude Mobile or from Claude Code (<a href="https://support.claude.com/en/articles/17007452-what-is-a-limit-reset">limit resets</a>).</p>
+
+        <h2>What Anthropic's pages do not say</h2>
+        <ul>
+          <li>What starts the five-hour window.</li>
+          <li>How the weekly reset day and time are chosen for an account, or whether you can change them.</li>
+          <li>Exact message or token counts per window. Anthropic says the amount you can send varies with message length, files, conversation length, and the model or feature you use (<a href="https://support.claude.com/en/articles/8325606-what-is-the-pro-plan">Pro plan</a>).</li>
+          <li>Whether the Free plan has a weekly limit. Its help page mentions only the five-hour session limit (<a href="https://support.claude.com/en/articles/8114491-get-started-with-claude">Free plan</a>).</li>
+        </ul>
+
+        <h2>See every account's reset time in one place</h2>
+        <p>If you use more than one Claude account, each has its own reset times. AI Usage Stats is a free, open source Mac menu bar app that shows the 5-hour, weekly, and model limits for each Claude and Codex account, with when each one resets. Its Home window adds a calendar of upcoming resets, weekly totals, pace, and a forecast of when your weekly quota would run out. See <a href="../#how-it-works">how it works</a> and <a href="../#privacy">what it stores</a>.</p>
+        <figure>
+          <img class="shot shot-menu" src="../images/status-menu-661.png" srcset="../images/status-menu-330.png 330w, ../images/status-menu-661.png 661w" sizes="330px" width="661" height="800" loading="lazy" decoding="async" alt="AI Usage Stats menu listing each account's remaining quota and its Claude limit reset time">
+        </figure>
+        <p>AI Usage Stats is an independent project and is not affiliated with or endorsed by Anthropic.</p>
+
+        <h2>Frequently asked questions</h2>
+        <h3>Does Claude reset every day?</h3>
+        <p>Anthropic does not describe a daily reset. The session limit resets every five hours, and the weekly limit resets at a fixed time assigned to your account (<a href="https://support.claude.com/en/articles/11049741-what-is-the-max-plan">Max plan</a>).</p>
+        <h3>Does Claude Code have its own reset time?</h3>
+        <p>No. Claude and Claude Code share the same limits, so they share the same reset times (<a href="https://support.claude.com/en/articles/11145838-use-claude-code-with-your-pro-or-max-plan">Claude Code with Pro or Max</a>).</p>
+        <h3>Does upgrading reset my limits?</h3>
+        <p>Anthropic says that when you upgrade, the new plan's limits apply right away (<a href="https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work">usage limits</a>). It does not say whether that changes your reset time.</p>
+        <h3>Can I keep working before the reset?</h3>
+        <p>On paid plans, you can turn on usage credits, and your work continues on those credits instead of stopping (<a href="https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work">usage limits</a>).</p>
+      </div>
+
+      <aside class="article-install" aria-labelledby="install-title">
+        <h2 id="install-title">Try AI Usage Stats</h2>
+        <p>See how much of your Claude and Codex limits are left, on every account, from your Mac's menu bar. Free and open source, for macOS 14 or later.</p>
+        <div class="actions">
+          <a class="button" href="https://github.com/ParkerRex/ai-usage-stats/releases/latest">Download for Mac</a>
+          <code class="command" aria-label="Homebrew install command">brew install --cask parkerrex/tap/ai-usage-stats</code>
+        </div>
+      </aside>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-row">
+      <p>Copyright 2026 Parker Rex. <a href="https://github.com/ParkerRex/ai-usage-stats/blob/main/LICENSE">MIT licensed</a>. Not affiliated with Anthropic or OpenAI.</p>
+      <ul class="footer-links">
+        <li><a href="./">Articles</a></li>
+        <li><a href="https://github.com/ParkerRex/ai-usage-stats">GitHub</a></li>
+        <li><a href="https://github.com/ParkerRex/ai-usage-stats/releases">Releases</a></li>
+        <li><a href="https://github.com/ParkerRex/ai-usage-stats/blob/main/LICENSE">License</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
