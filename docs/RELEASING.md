@@ -52,7 +52,7 @@ iconutil -c iconset -o /tmp/AppIcon.iconset "dist/Limits Left.app/Contents/Resou
 sips -g pixelWidth /tmp/AppIcon.iconset/*.png
 ```
 
-The README and website use `assets/app-icon.png` as the current icon image.
+`assets/app-icon.png` is also the reference image of the current icon. The website favicons and the wordmark lockups in `assets/branding/wordmark/` were made from the earlier flat artwork and are rebuilt separately.
 
 ## Provider menu icons
 
