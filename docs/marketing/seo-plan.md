@@ -1,6 +1,6 @@
 # SEO plan for the product website
 
-Status: plan, written 2026-10-16. The site in `website/` is not deployed yet and has no domain. The product may be renamed; see [Renaming](#renaming).
+Status: plan, written 2026-10-16. The product is being renamed from AI Usage Stats to **Limits Left**, with the subtitle "Usage limits for Claude and Codex, in your Mac's menu bar", at **limitsleft.com**. The site in `website/` is not deployed yet. The repository stays at github.com/ParkerRex/ai-usage-stats. See [Name and domain](#name-and-domain).
 
 This plan follows the vendored skills `seo-plan`, `seo-cluster`, `seo-sxo`, and `seo-geo` (see [`.agents/skills/CLAUDE-SEO-VENDOR.md`](../../.agents/skills/CLAUDE-SEO-VENDOR.md)). It had no paid keyword data. Search demand comes from autocomplete and forum research on 2026-10-16 and from web searches on the same day. There are no search volumes, so priorities below are judgments, not measurements. Replace them with Search Console data once the site is live.
 
@@ -40,7 +40,7 @@ What the results looked like on 2026-10-16:
 
 ## Keyword clusters
 
-Four hubs. Each query has one owning page, so pages do not compete with each other. Slugs never contain the product name, so a rename does not change any URL.
+Four hubs. Each query has one owning page, so pages do not compete with each other. Slugs never contain the product name, so a later rename would not change any URL.
 
 ### Hub 1: Claude limits (informational)
 
@@ -61,7 +61,7 @@ Four hubs. Each query has one owning page, so pages do not compete with each oth
 
 | Page | Status | Owns these queries |
 | --- | --- | --- |
-| Home `/` (hub) | Live in repo | the product name, claude and codex usage menu bar app |
+| Home `/` (hub) | Live in repo | limits left, limits left mac, limitsleft.com, claude and codex usage menu bar app |
 | `/articles/track-claude-code-and-codex-usage-on-mac` | Being written | claude usage tracker mac, claude usage menu bar mac, claude usage monitor mac, codex usage tracker mac, claude codex usage monitor, claude code usage tracker, claude code usage monitor, claude code usage dashboard, claude usage widget mac |
 | `/articles/track-multiple-claude-and-codex-accounts` | Backlog | multiple claude accounts usage, claude usage across accounts, two claude max accounts |
 | `/articles/ccusage-alternative` | Backlog | ccusage alternative, ccusage gui, ccusage mac app |
@@ -97,8 +97,8 @@ Changes to the home page (small, all static):
 
 | Change | Why |
 | --- | --- |
-| Title becomes "AI Usage Stats: Claude and Codex usage in your Mac menu bar" (or the new name) | The current title is only the product name, so it says nothing to someone searching for the job |
-| Add `<link rel="canonical">` once the domain exists | Prevents the Pages preview URL from competing |
+| Title becomes "Limits Left: Usage limits for Claude and Codex, in your Mac's menu bar" | The current title is only the product name, so it says nothing to someone searching for the job. The subtitle carries the descriptive words |
+| Add `<link rel="canonical" href="https://limitsleft.com/">` | Prevents the Pages preview URL from competing |
 | Add `SoftwareApplication` JSON-LD: name, `operatingSystem` "macOS 14 or later", `applicationCategory` "DeveloperApplication", `offers` price 0, `license`, `downloadUrl`, `softwareVersion`, author, `sameAs` the GitHub repository | Entity clarity for search and answer engines. A JSON-LD block is data, not a script, so it does not run and the `script-src 'none'` policy does not block it. Check for console errors after adding it |
 | Add a short "Guides" list in the body linking the hub articles | Today articles are linked only from the footer |
 | Keep the FAQ as visible text. Do not add `FAQPage` markup for rich results | FAQ rich results were retired in May 2026 per the vendored `seo-plan` notes; the visible Q and A still helps readers and answer engines |
@@ -113,7 +113,7 @@ In priority order. "Why it can win" is a judgment from the results seen on 2026-
 | 2 | `/articles/codexbar-alternatives`: "CodexBar alternatives for Mac" | codexbar alternatives, codexbar alternative | Commercial | CodexBar is well known, so people search for alternatives. Few pages answer it beyond listings | To home, tracking guide, multiple accounts article, apps roundup. From tracking guide, Codex hub |
 | 3 | `/articles/check-claude-code-usage-left`: "How to check how much Claude Code usage you have left" | how to check claude code usage left, claude code /usage | Informational, near commercial | A step guide covering every method (`/usage`, Settings > Usage, status line, menu bar) with screenshots. Many results cover only one method | To Claude limits hub, reset time article, home. From both Claude articles, tracking guide |
 | 4 | `/articles/track-multiple-claude-and-codex-accounts`: "Track usage across several Claude and Codex accounts" | multiple claude accounts usage, claude usage across accounts | Commercial | Multi-account with combined weekly totals is the app's clearest difference. Other multi-account tools switch logins; this one only watches | To home, tracking guide, forecast article, CodexBar page. From home "Guides", tracking guide |
-| 5 | `/privacy`: "What AI Usage Stats reads and stores" | trust page | Trust | Turns the README's history section into a page that comparison pages and answer engines can cite. Few competitors say exactly what they store | To log files article, home. From home privacy section, every comparison page |
+| 5 | `/privacy`: "What Limits Left reads and stores" | trust page | Trust | Turns the README's history section into a page that comparison pages and answer engines can cite. Few competitors say exactly what they store | To log files article, home. From home privacy section, every comparison page |
 | 6 | `/articles/codex-limit-reset-time`: "When do Codex limits reset?" | codex limit reset, codex limit reset time, codex /status | Informational | Mirror of the Claude reset article. OpenAI's reset rules changed in 2026 (the Plus 5-hour limit came back on 2026-08-25, per press reports), so dated pages are scarce. Split it from the Codex hub only if the hub does not already rank for these queries | To Codex hub, home, check usage article. From Codex hub |
 | 7 | `/articles/claude-usage-apps-for-mac`: "Apps that show Claude usage in the Mac menu bar, compared" | best claude usage tracker mac, claude usage apps mac, claude usage widget mac | Commercial | A roundup with one criteria table: price, open source, providers, multiple accounts, how it signs in (copied cookie, OAuth, CLI), notarized. Disclose at the top that we make one of the apps | To home, ccusage page, CodexBar page, privacy. From tracking guide |
 | 8 | `/articles/claude-code-and-codex-log-files`: "Where Claude Code and Codex keep their logs, and how long" | claude code logs location, claude code history deleted after 30 days, codex session logs location | Informational | Exact paths and the 30-day default cleanup ([Claude Code data retention](https://code.claude.com/docs/en/data-usage#data-retention)) are specific, citable facts. Leads into why a local history is useful | To privacy, Models comparison, home. From privacy, ccusage page |
@@ -125,7 +125,7 @@ In priority order. "Why it can win" is a judgment from the results seen on 2026-
 
 Comparison pages (items 1, 2, 7) are the most likely to convert and the most likely to go wrong.
 
-- Say at the top that the page is written by the maker of AI Usage Stats.
+- Say at the top that the page is written by the maker of Limits Left.
 - Describe each competitor from its own site or README, link to it, and date the check. Facts seen on 2026-10-16:
   - ccusage ([ccusage.com](https://ccusage.com/)): free, MIT, a command-line tool that reads local logs from many coding tools (Claude Code, Codex, and more) and reports tokens and estimated cost. It does not show provider-reported quota left.
   - CodexBar ([github.com/steipete/CodexBar](https://github.com/steipete/CodexBar)): free, MIT, macOS 14 or later, a menu bar app covering many providers (its repository image says 105) with session and weekly windows, local cost estimates, widgets, and a command-line tool. Also has a Linux app.
@@ -139,7 +139,7 @@ Comparison pages (items 1, 2, 7) are the most likely to convert and the most lik
 
 | Weeks after launch | Work |
 | --- | --- |
-| 0 to 2 | Domain, robots.txt, sitemap.xml, llms.txt, home page changes, the four articles, Search Console and Bing setup |
+| 0 to 2 | limitsleft.com on Cloudflare Pages, the rename, robots.txt, sitemap.xml, llms.txt, home page changes, the four articles, Search Console and Bing setup |
 | 2 to 6 | Backlog 1 to 4 |
 | 6 to 12 | Backlog 5 to 8 |
 | 12 to 24 | Backlog 9 and 10; decide on 11 from data; first quarterly recheck of all dated facts |
@@ -160,9 +160,9 @@ About one page every one to two weeks. Each page needs something first-hand (a r
 | --- | --- |
 | `website/robots.txt` | Allow all, and name the sitemap. Allow the search crawlers that decide citations: `OAI-SearchBot` (ChatGPT search), `Claude-SearchBot` (Claude search), `PerplexityBot`. Training crawlers (`GPTBot`, `ClaudeBot`, `Google-Extended`, `CCBot`) are a separate choice; allowing them suits an open source project that wants to be known |
 | `website/sitemap.xml` | Home, Articles list, each published article, privacy page, with `lastmod`. Leave out `404.html` and `_template.html` |
-| Canonical links | Every page, on the final domain. Replace `https://example.com` in articles |
+| Canonical links | Every page, on `https://limitsleft.com`. Replace `https://example.com` in the article template and articles |
 | `noindex` | Keep it on the template and on drafts. Remove it when an article is published (the README steps already say this) |
-| Social image | Absolute URLs for `og:image` and `twitter:image` once the domain exists |
+| Social image | Absolute URLs on `https://limitsleft.com` for `og:image` and `twitter:image`. Regenerate `social-preview.png` with the new name |
 | Speed | Already fast: static, no scripts, sized images. Keep it that way |
 
 ## GEO and AI answers
@@ -173,7 +173,7 @@ Google's own guidance (in the vendored `seo-geo` skill) is that optimizing for A
 
 Keep these facts identical on the home page, the README, the privacy page, and `llms.txt`. Answer engines repeat what is stated plainly and consistently.
 
-- AI Usage Stats is a free, open source (MIT) macOS menu bar app that shows how much Claude and Codex subscription quota is left on every account.
+- Limits Left (formerly AI Usage Stats) is a free, open source (MIT) macOS menu bar app that shows how much Claude and Codex subscription quota is left on every account.
 - It runs on macOS 14 or later, on Apple silicon and Intel, and is signed and notarized by Apple.
 - Install with `brew install --cask parkerrex/tap/ai-usage-stats` or from GitHub Releases.
 - It shows 5-hour, weekly, and model limits with reset times, and combines weekly quota across accounts of the same provider.
@@ -204,7 +204,7 @@ Free tools that need nothing on the page:
 
 | Tool | Setup | What to watch |
 | --- | --- | --- |
-| Google Search Console | Domain property, verified with a DNS TXT record in Cloudflare. Submit `sitemap.xml` | Impressions, clicks, and position by query and page; indexed pages; which queries land on which page (to catch two pages competing) |
+| Google Search Console | Domain property for limitsleft.com, verified with a DNS TXT record in Cloudflare. Submit `sitemap.xml` | Impressions, clicks, and position by query and page; indexed pages; which queries land on which page (to catch two pages competing) |
 | Bing Webmaster Tools | Import the site from Search Console. Submit the sitemap | Same, for Bing, which also feeds Copilot and other assistants |
 | GitHub | Repository Insights > Traffic, and release asset download counts (command below) | Visits referred by the site, downloads per release, stars |
 | Manual AI check | See above | Citations and accuracy |
@@ -232,16 +232,32 @@ Review once a month: queries with many impressions and low click rate (rewrite t
 | Thin or generic content | Every page needs first-hand material. Do not publish pages that only restate other guides |
 | Two pages competing for one query | Each query has one owning page (tables above). Check Search Console monthly |
 | Over-claiming | No widget, no Windows, no auto account switching, no API cost tracking beyond connected Claude API credits. Say so where readers expect it |
-| Rename after launch | See below |
+| Brand confusion with the old name | See below |
 
-## Renaming
+## Name and domain
 
-If the product will be renamed, do it before buying the domain and before setting up Search Console. Choose a name and domain without "Claude" or "Codex".
+The owner chose **Limits Left** and **limitsleft.com**. The subtitle is "Usage limits for Claude and Codex, in your Mac's menu bar". The name contains neither "Claude" nor "Codex", so it meets the trademark rule above.
 
-If it is renamed after launch:
+### How the name supports the "limits" queries
 
-1. Keep the same paths. Slugs already avoid the product name.
-2. Move the old domain to the new one with 301 redirects for every path (a Cloudflare redirect rule or a `_redirects` file).
-3. Use Search Console's Change of Address tool, and add the new domain in Bing.
-4. Say "formerly AI Usage Stats" on the home page, README, and `llms.txt` for at least a year, so search and answer engines connect the two names.
-5. Update the GitHub repository name (GitHub redirects the old URL), the Homebrew cask, JSON-LD, and the citable facts in one change.
+- The biggest query groups are about limits: "claude usage limits", "claude limit reset time", "codex usage limits", "codex limit reset". The brand says the same word people search, so a result titled "When does the Claude weekly limit reset? | Limits Left" reads as one subject, not as an ad for an unrelated product. That tends to help click rate.
+- The name alone does not rank a page. Google does not give a ranking boost for a keyword in a domain name. The articles still have to answer the query.
+- Put the subtitle words in the home page title, H1, description, and JSON-LD `description`. The name says "limits"; the subtitle says "Claude", "Codex", "Mac", and "menu bar", which the commercial queries need.
+- Article titles end with "| Limits Left". Do not add "limits" to titles a second time just because the brand has it.
+
+### Brand searches
+
+- "Limits Left" is a plain English phrase. A web search on 2026-10-16 found no app with that exact name (closest: "Left - Countdown Tools" for iPhone and "Limit" by Freedom). Brand queries will still mix with general ones, so the home page should rank for "limits left mac", "limits left app", and "limitsleft", not for the bare phrase alone.
+- Use the name the same way everywhere: "Limits Left", two words, both capitalized. The domain is the one-word form.
+- Register the name where people look: the GitHub repository description and website field (set to limitsleft.com), the Homebrew cask description, release notes, and the app's About window.
+- In Search Console, filter queries that contain "limits left" or "limitsleft" to track brand demand separately from topic demand.
+
+### Moving off the old name
+
+The site has not launched under the old name, so there is no domain to redirect. But the GitHub repository, the Homebrew cask (`parkerrex/tap/ai-usage-stats`), release files (`AI-Usage-Stats-<version>.zip`), and early mentions use "AI Usage Stats".
+
+1. Change the name in the app, README, website, social image, JSON-LD, citable facts, and `llms.txt` in one release, so readers never see two names for one product without an explanation.
+2. Say "formerly AI Usage Stats" once on the home page, in the README, and in `llms.txt` for at least a year, so search and answer engines connect the two names. Add the old name as `alternateName` in the `SoftwareApplication` JSON-LD.
+3. The repository stays github.com/ParkerRex/ai-usage-stats. Use it as the `sameAs` link. If the cask or release file names change later, keep the old cask name working and update the install command on every page together.
+4. Keep the same article paths. Slugs avoid the product name.
+5. If the domain ever changes again: 301 redirects for every path, Search Console's Change of Address tool, and the new domain added in Bing.
