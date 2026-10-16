@@ -437,7 +437,7 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
                                        timing: InterfaceFormatting.compactCreditTiming(credit, now: now),
                                        detail: InterfaceFormatting.creditDetail(credit, now: now))
         }
-        if let earned = InterfaceFormatting.earnedResets(credits, now: now) {
+        if let earned = InterfaceFormatting.earnedResets(credits, isCurrentReading: snapshot?.state == .available, now: now) {
             creditRows.append(AccountReadingView.Reading(label: "Earned resets", value: earned.value,
                                                          timing: earned.timing, detail: earned.detail))
         }

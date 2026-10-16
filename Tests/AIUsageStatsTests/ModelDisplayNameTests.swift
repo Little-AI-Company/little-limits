@@ -30,5 +30,6 @@ func earnedResetsUseHomeVocabularyWithNextExpiry() throws {
     let summary = try #require(InterfaceFormatting.earnedResets([count, grant, consumed], now: now))
     #expect(summary.value == "2 available")
     #expect(summary.timing == "Next expires in 1d 0h")
+    #expect(InterfaceFormatting.earnedResets([count, grant], isCurrentReading: false, now: now)?.value == "Last known 2")
     #expect(InterfaceFormatting.earnedResets([], now: now) == nil)
 }
