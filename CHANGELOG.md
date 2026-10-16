@@ -30,7 +30,7 @@ The app is now called Limits Left. This release also brings a new icon, a more a
 
 ### Changed
 
-- **Name:** AI Usage Stats is now Limits Left. Your accounts, sign-ins, settings, and usage history stay. With Homebrew, `brew upgrade` moves you to the new name.
+- **Name:** AI Usage Stats is now Limits Left. Your accounts, sign-ins, settings, and usage history stay. With Homebrew, `brew update && brew upgrade --cask` moves you to the new name. If you installed by hand, quit **AI Usage Stats** and move it to the Trash after you install Limits Left.
 
 ## 0.2.0 (2026-10-15)
 

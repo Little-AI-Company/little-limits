@@ -92,7 +92,7 @@ One or two sentences: the main news of this version.
 - Each bullet starts with its place in bold and a colon: **Home:**, **Menu bar number:**, **Models:**, **Settings:**. Then one to three sentences.
 - A change to something new in the same version is part of that new item, not a fix.
 - No PR numbers, branch names, commit types, build numbers, or file names.
-- Do not write about the install command or the cask name. The website and README own those.
+- Do not repeat the install command. The website and README own it. When a release changes how people upgrade, as the rename did, say what to do in one bullet, with the same commands as the GitHub release notes.
 
 ### Good and bad
 
