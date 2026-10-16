@@ -11,7 +11,8 @@ func missingObservationDoesNotPresentRetainedPercentagesAsHistory() {
         #expect(line.primary.hasPrefix("Unknown"))
         #expect(!line.primary.contains("70%"))
         #expect(!line.primary.contains("Last known"))
-        #expect(row.updatedPrimary == "No reading")
+        #expect(row.updatedPrimary == "Unavailable")
+        #expect(row.status == "Observation time unknown")
     }
 }
 
@@ -24,7 +25,7 @@ func partialQuotaKeepsKnownValuesAndIndependentEarnedResets() {
     #expect(homeLines(row.session)[0].primary == "63% left")
     #expect(homeLines(row.weekly)[0].primary == "Unknown")
     #expect(homeLines(row.earned)[0].primary == "2 available")
-    #expect(row.updatedPrimary != "No reading")
+    #expect(row.updatedPrimary != "Unavailable")
     #expect(row.status == "Some usage unknown")
 }
 
@@ -97,6 +98,9 @@ func outdatedAndMissingReadingsUseOneWording() {
     #expect(line.primary == "80% left")
     #expect(line.secondary == nil)
     #expect(signIn.status == "Sign-in required")
+    // HOME-30: the last read time stays, so the age of the last known values is visible.
+    #expect(signIn.updatedPrimary == homeReadingNow.formatted(.dateTime.hour().minute()))
+    #expect(signIn.updatedSecondary == "Not refreshed")
     // A Claude account never reports earned resets, in any reading state.
     let claude = AccountProfile(provider: .claude, label: "Studio", source: .demo, providerEmail: "studio@example.invalid")
     let claudeSignIn = AccountSnapshot(profileID: claude.id, fetchedAt: homeReadingNow, windows: [homeWindow(used: 20)],

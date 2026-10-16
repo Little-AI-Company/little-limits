@@ -153,7 +153,9 @@ private final class HomeForecastBlockView: NSView {
 }
 
 /// Pooled remaining over time: a solid line for each unbroken history run, a dashed projection from Now, and a Now
-/// rule. The scale is fixed from 0 to the counted accounts times 100%. No animation.
+/// rule. Lines use the primary label color, which keeps at least 3:1 against the window in every accent and contrast
+/// setting; the graphite accent under Increase Contrast measured 2.36:1. The scale is fixed from 0 to the counted
+/// accounts times 100%. No animation.
 struct HomeForecastChart: View {
     let model: HomeForecastChartModel?
 
@@ -164,7 +166,7 @@ struct HomeForecastChart: View {
                     ForEach(run, id: \.date) { point in
                         LineMark(x: .value("Time", point.date), y: .value("Remaining", point.remainingPercent),
                                  series: .value("Line", "History \(index)"))
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(Color.primary)
                             .lineStyle(StrokeStyle(lineWidth: 1.5))
                             .accessibilityLabel("History, \(dateText(point.date, model: model))")
                             .accessibilityValue(valueText(point.remainingPercent, model: model))
@@ -173,7 +175,7 @@ struct HomeForecastChart: View {
                 ForEach(model.projection, id: \.date) { point in
                     LineMark(x: .value("Time", point.date), y: .value("Remaining", point.remainingPercent),
                              series: .value("Line", "Projection"))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Color.primary)
                         .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
                         .accessibilityLabel("Projection, \(dateText(point.date, model: model))")
                         .accessibilityValue(valueText(point.remainingPercent, model: model))

@@ -36,6 +36,41 @@ func homeTableShowsEveryRowAndColumnAtTheMinimumWidth() async throws {
     #expect(!home.windowSubtitle.isEmpty)
 }
 
+/// HOME-28: Home renders its readings after accounts load. From a sidebar control, the key view loop then
+/// reaches the account table and the calendar events instead of returning to the sidebar.
+@Test @MainActor
+func keyViewLoopReachesHomeReadingsAfterAccountsLoad() async throws {
+    _ = NSApplication.shared
+    let model = ApplicationModel(isDemo: true)
+    let home = HomeViewController(model: model)
+    var loaded = false
+    home.isAccountLoadComplete = { loaded }
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 780),
+                          styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    let sidebar = NSTableView(frame: NSRect(x: 0, y: 0, width: 260, height: 780))
+    let content = NSView(frame: window.contentLayoutRect)
+    home.view.frame = NSRect(x: 260, y: 0, width: 1020, height: 780)
+    content.addSubview(sidebar)
+    content.addSubview(home.view)
+    window.contentView = content
+    home.render()
+    window.recalculateKeyViewLoop()
+    await model.load()
+    loaded = true
+    home.render()
+    window.contentView?.layoutSubtreeIfNeeded()
+    var loop: [NSView] = []
+    var next = sidebar.nextKeyView
+    while let view = next, view !== sidebar, loop.count < 500 {
+        loop.append(view)
+        next = view.nextKeyView
+    }
+    #expect(loop.contains { ($0 as? NSTableView)?.accessibilityLabel() == "Account usage" })
+    #expect(loop.contains { String(describing: type(of: $0)) == "UsageEventButton" })
+}
+
 /// HOME-12: at seven 96 pt columns, the narrowest the calendar draws before it scrolls, every event in
 /// 2 Weeks and Month is two whole single-line rows. The reset time and the percentage keep their full
 /// width, no line is cut vertically, and events in one day never overlap.
