@@ -110,7 +110,7 @@ The app was published as AI Usage Stats through 0.2.0. The next release ships as
 - Bundle ID `com.parkerrex.ai-usage-stats`. Saved Keychain sign-ins, preferences, the login item, and the Claude Platform WebKit data are bound to it.
 - The Keychain service `AI Usage Stats Claude OAuth`, which holds saved Claude sign-ins.
 - The data folder `~/Library/Application Support/AI Usage Stats` and the helper at `~/Library/Application Support/AI Usage Stats/UsageCapture`. Usage history lives in the folder, and Claude status-line configurations point to the helper.
-- Swift target, product, module, and executable names (`AIUsageStats`, `UsageCore`, and the others), and the GitHub repository `ParkerRex/ai-usage-stats`.
+- Swift target, product, module, and executable names (`AIUsageStats`, `UsageCore`, and the others). The GitHub repository is now `ParkerRex/limits-left`; GitHub redirects the old `ParkerRex/ai-usage-stats` URLs, including release downloads, as long as no new repository takes that name.
 
 Release steps for 0.2.1, in addition to [Public release](#public-release):
 

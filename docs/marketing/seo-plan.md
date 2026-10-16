@@ -1,6 +1,6 @@
 # SEO plan for the product website
 
-Status: plan, written 2026-10-16. The product is being renamed from AI Usage Stats to **Limits Left**, with the subtitle "Usage limits for Claude and Codex, in your Mac's menu bar", at **limitsleft.com**. The site in `website/` is not deployed yet. The repository stays at github.com/ParkerRex/ai-usage-stats. See [Name and domain](#name-and-domain).
+Status: plan, written 2026-10-16. The product is being renamed from AI Usage Stats to **Limits Left**, with the subtitle "Usage limits for Claude and Codex, in your Mac's menu bar", at **limitsleft.com**. The site in `website/` is not deployed yet. The repository stays at github.com/ParkerRex/limits-left. See [Name and domain](#name-and-domain).
 
 This plan follows the vendored skills `seo-plan`, `seo-cluster`, `seo-sxo`, and `seo-geo` (see [`.agents/skills/CLAUDE-SEO-VENDOR.md`](../../.agents/skills/CLAUDE-SEO-VENDOR.md)). It had no paid keyword data. Search demand comes from autocomplete and forum research on 2026-10-16 and from web searches on the same day. There are no search volumes, so priorities below are judgments, not measurements. Replace them with Search Console data once the site is live.
 
@@ -212,7 +212,7 @@ Free tools that need nothing on the page:
 Downloads per release:
 
 ```sh
-gh api repos/ParkerRex/ai-usage-stats/releases --jq '.[] | {tag_name, downloads: [.assets[].download_count]}'
+gh api repos/ParkerRex/limits-left/releases --jq '.[] | {tag_name, downloads: [.assets[].download_count]}'
 ```
 
 Homebrew publishes aggregate install counts, including casks from public third-party taps ([Homebrew analytics](https://docs.brew.sh/Analytics)). Look for `parkerrex/tap/ai-usage-stats` in the [30-day cask install feed](https://formulae.brew.sh/api/analytics/cask-install/30d.json). It was not listed on 2026-10-16 (the same tap's `parkerrex/tap/mac-stats` was), so it may not have counted installs yet. Users who turned Homebrew analytics off are never counted, so treat the number as a lower bound.
@@ -258,6 +258,6 @@ The site has not launched under the old name, so there is no domain to redirect.
 
 1. Change the name in the app, README, website, social image, JSON-LD, citable facts, and `llms.txt` in one release, so readers never see two names for one product without an explanation.
 2. Say "formerly AI Usage Stats" once on the home page, in the README, and in `llms.txt` for at least a year, so search and answer engines connect the two names. Add the old name as `alternateName` in the `SoftwareApplication` JSON-LD.
-3. The repository stays github.com/ParkerRex/ai-usage-stats. Use it as the `sameAs` link. If the cask or release file names change later, keep the old cask name working and update the install command on every page together.
+3. The repository stays github.com/ParkerRex/limits-left. Use it as the `sameAs` link. If the cask or release file names change later, keep the old cask name working and update the install command on every page together.
 4. Keep the same article paths. Slugs avoid the product name.
 5. If the domain ever changes again: 301 redirects for every path, Search Console's Change of Address tool, and the new domain added in Bing.
