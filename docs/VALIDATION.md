@@ -930,3 +930,19 @@ Product source `6d0bec3e` (tag `v0.2.0`, main after #37), version 0.2.0, build 3
 Before packaging, the Release app from main `11aec82` ran on this Mac with real accounts and logs: the first ingestion read 987 of 988 log files into a fresh `history.sqlite`, storing 85,294 responses and 42,646 commands, recorded completed classifier version 2, and peaked at about 269 MB resident memory. Demo-mode Home and Models windows were captured for the owner.
 
 Not verified: a `brew install --cask` on a clean account, Intel runtime, macOS 14 and 15 runtime, and the manual checks listed under "Usage history waves 0 to 2" (keyboard navigation, VoiceOver, the Home range pop-up, and Refresh Account on a live account).
+
+## Enamel app icon and Night option, October 16, 2026
+
+Source `d74db9c` on branch `feat/enamel-icon` (main `dc763c7` plus this change). macOS 27.0.1, Apple silicon. Packaged with `scripts/package_app.sh` and the local Apple Development identity.
+
+| Command or check | Result |
+| --- | --- |
+| `swift build -j 2 --build-tests`, `swift test -j 2 --skip-build`, `swift build -c release -j 2` | Built; all tests passed, including the two `AppIconChoice` tests. |
+| `scripts/create_app_icon.sh` run twice on the same masters | Identical `AppIcon.icns` bytes. |
+| `iconutil -c iconset` on the bundle's `AppIcon.icns` | Ten slots, 16 to 1024 px. The 16 and 32 px slots come from the Small size master. |
+| `codesign --verify --deep --strict` on the packaged app | Valid. `Contents/Resources` holds `AppIcon.icns` and `AppIconNight.icns`. |
+| `NSWorkspace.setIcon(_:forFile:)` with Night on a copy of a packaged app | Returned true, added `com.apple.FinderInfo` and an `Icon` file with a resource fork at the bundle root, and `codesign --verify --deep --strict` then failed: "resource fork, Finder information, or similar detritus not allowed". Not used. |
+| `--demo-home --show-settings --show-about` | Settings shows App icon set to Enamel with its icon; About shows Enamel. |
+| Same flags plus `-AppIconChoice night` | Settings shows Night selected; About shows Night. `NSRunningApplication.icon` seen from another process still reports Enamel, the bundle icon. Nothing was written to user defaults. |
+
+Not verified: the Dock and app switcher showing Night (the Dock on this Mac hides automatically, and the session had no keyboard or accessibility control to open the app switcher), choosing an item in the pop-up with the mouse or keyboard, VoiceOver output, and macOS 14 and 15 runtime. AppKit documents that `applicationIconImage` updates the Dock tile while the app runs.
