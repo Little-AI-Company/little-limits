@@ -417,7 +417,7 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         usageReadings.render(windows.isEmpty
             ? [AccountReadingView.Reading(label: "Usage", value: "Unavailable", timing: "",
                                           detail: awaitingSignIn ? Self.codexSignInWait
-                                              : snapshot?.detail ?? "No usage reading yet. Choose Refresh All to read usage.")]
+                                              : snapshot?.detail ?? "No usage reading yet. Choose Refresh Account to read usage.")]
             : windows.map { usage in
                 // The same value and timing as the status menu, so an outdated reading never passes for current.
                 let title = InterfaceFormatting.usageTitle(usage)
@@ -468,7 +468,7 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
                     recovery = recoveryButton
                 }
                 if !snapshot.windows.isEmpty { message += " Readings below are last known." }
-            case .unavailable: message = "Unavailable. Choose Refresh All to try again."
+            case .unavailable: message = "Unavailable. Choose Refresh Account to try again."
             case .stale: message = staleMessage(snapshot.fetchedAt)
             case .available:
                 if snapshot.fetchedAt.map({ now.timeIntervalSince($0) >= 300 }) == true
@@ -476,7 +476,7 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
                     message = staleMessage(snapshot.fetchedAt)
                 } else if snapshot.fetchedAt == nil && !snapshot.windows.isEmpty { message = "Last read time unknown." }
             }
-        } else { message = "No usage reading yet. Choose Refresh All to read usage." }
+        } else { message = "No usage reading yet. Choose Refresh Account to read usage." }
         if message.isEmpty && model.consoleMessages[profile.id] != nil { message = "API Credits need attention. See Connection Details." }
         if message.isEmpty && !(model.pendingManualCredits[profile.id] ?? []).isEmpty { message = "Manual balances need confirmation." }
         attention.stringValue = message
@@ -489,7 +489,7 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
     }
 
     private func staleMessage(_ fetchedAt: Date?) -> String {
-        guard let fetchedAt else { return "Stale. Choose Refresh All to check usage." }
+        guard let fetchedAt else { return "Stale. Choose Refresh Account to check usage." }
         let time = Calendar.current.isDateInToday(fetchedAt)
             ? fetchedAt.formatted(date: .omitted, time: .shortened)
             : fetchedAt.formatted(.dateTime.month(.abbreviated).day().hour().minute())
