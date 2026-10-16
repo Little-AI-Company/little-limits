@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ParkerRex/ai-usage-stats/releases/latest">Download</a> ·
+  <a href="https://github.com/ParkerRex/limits-left/releases/latest">Download</a> ·
   <code>brew install --cask parkerrex/tap/ai-usage-stats</code> ·
   macOS 14 or later · Apple silicon and Intel
 </p>
@@ -59,7 +59,7 @@ The forecast and the Models page come from a history the app keeps on your Mac. 
 brew install --cask parkerrex/tap/ai-usage-stats
 ```
 
-**Or download it:** get the `Limits-Left-<version>.zip` file from the [latest release](https://github.com/ParkerRex/ai-usage-stats/releases/latest), unzip it, and drag **Limits Left** into your Applications folder.
+**Or download it:** get the `Limits-Left-<version>.zip` file from the [latest release](https://github.com/ParkerRex/limits-left/releases/latest), unzip it, and drag **Limits Left** into your Applications folder.
 
 The app is signed and notarized by Apple, so it opens without security warnings.
 
@@ -90,8 +90,8 @@ The app is signed and notarized by Apple, so it opens without security warnings.
 You need Xcode 27 or later, which includes Swift 6 and the macOS 27 SDK the source uses.
 
 ```sh
-git clone https://github.com/ParkerRex/ai-usage-stats.git
-cd ai-usage-stats
+git clone https://github.com/ParkerRex/limits-left.git
+cd limits-left
 scripts/package_app.sh
 open "dist/Limits Left.app"
 ```

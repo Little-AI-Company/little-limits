@@ -20,5 +20,5 @@ Install: `brew install --cask parkerrex/tap/ai-usage-stats`, or download from th
 
 ## Source
 
-- [GitHub repository](https://github.com/ParkerRex/ai-usage-stats): source code and README
-- [Latest release](https://github.com/ParkerRex/ai-usage-stats/releases/latest): signed and notarized downloads
+- [GitHub repository](https://github.com/ParkerRex/limits-left): source code and README
+- [Latest release](https://github.com/ParkerRex/limits-left/releases/latest): signed and notarized downloads
