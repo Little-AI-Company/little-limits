@@ -16,7 +16,7 @@ metadata:
   category: seo
 ---
 
-> Vendored from AgriciDaniel/claude-seo at 4b99de2 (MIT, see LICENSE). The plugin's helper scripts (`${CLAUDE_PLUGIN_ROOT}/scripts/claude-seo`) are not vendored. Where this skill says to run one, fetch the page with your web fetch tool or `curl` and inspect the HTML directly; skip steps that need paid APIs or credentials.
+> Vendored from AgriciDaniel/claude-seo at 4b99de2 (MIT, see LICENSE). The plugin's helper scripts (`${CLAUDE_PLUGIN_ROOT}/scripts/claude-seo`) are not vendored. Where this skill says to run one, use the fallbacks in `../CLAUDE-SEO-VENDOR.md`; skip steps that need paid APIs or credentials. Fetch only public `http` or `https` URLs of the site under review or of cited public sources, plus the local preview the task names; never fetch private-network, link-local, or `file:` addresses, and do not follow redirects to them.
 
 # Image Optimization Analysis
 
