@@ -679,7 +679,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
               let profile = model.profiles.first(where: { $0.id == id }) else { return }
         let alert = NSAlert()
         alert.messageText = "Delete \(InterfaceFormatting.accountIdentity(profile))?"
-        alert.informativeText = "Removes this profile and its saved usage from AI Usage Stats."
+        alert.informativeText = "Removes this profile and its saved usage from Limits Left."
         alert.addButton(withTitle: "Delete")
         alert.addButton(withTitle: "Cancel")
         alert.beginSheetModal(for: window) { [weak self] response in

@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleDisplayName</key>
-    <string>AI Usage Stats</string>
+    <string>Limits Left</string>
     <key>CFBundleExecutable</key>
     <string>AIUsageStats</string>
     <key>CFBundleIconFile</key>
@@ -11,7 +11,7 @@
     <key>CFBundleIdentifier</key>
     <string>com.parkerrex.ai-usage-stats</string>
     <key>CFBundleName</key>
-    <string>AI Usage Stats</string>
+    <string>Limits Left</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

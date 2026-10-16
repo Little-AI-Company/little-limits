@@ -52,7 +52,7 @@ enum ClaudeCaptureInstallation {
     static func install(profileID: UUID, configurationURL: URL, helperURL: URL,
                         storageDirectory: URL) throws -> CaptureInstallation {
         guard FileManager.default.isExecutableFile(atPath: helperURL.path) else {
-            throw UsageError.invalidConfiguration("Usage capture helper is missing. Open the packaged AI Usage Stats app.")
+            throw UsageError.invalidConfiguration("Usage capture helper is missing. Open the packaged Limits Left app.")
         }
         let settingsURL = configurationURL.appendingPathComponent("settings.json").resolvingSymlinksInPath()
         var settings: [String: Any] = [:]

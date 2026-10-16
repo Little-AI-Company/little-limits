@@ -16,6 +16,7 @@ public enum UsageError: Error, LocalizedError, Sendable {
 }
 
 public enum UsagePaths {
+    /// Keeps the folder name from before the rename to Limits Left, so existing history and the installed helper stay in place.
     public static var applicationSupport: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/AI Usage Stats", isDirectory: true)

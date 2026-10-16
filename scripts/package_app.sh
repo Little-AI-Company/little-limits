@@ -60,7 +60,7 @@ fi
 mkdir -p "$output_directory"
 temporary_directory="$(mktemp -d "$output_directory/.package.XXXXXX")"
 trap 'rm -rf "$temporary_directory"' EXIT
-application="$temporary_directory/AI Usage Stats.app"
+application="$temporary_directory/Limits Left.app"
 mkdir -p "$application/Contents/MacOS" "$application/Contents/Resources"
 install -m 755 "$binary_directory/AIUsageStats" "$application/Contents/MacOS/AIUsageStats"
 install -m 755 "$binary_directory/UsageCapture" "$application/Contents/MacOS/UsageCapture"
@@ -90,12 +90,12 @@ if [[ "$distribution" == 1 && -n "${NOTARY_PROFILE:-}" ]]; then
     spctl --assess --type execute --verbose=2 "$application"
 fi
 
-destination="$output_directory/AI Usage Stats.app"
+destination="$output_directory/Limits Left.app"
 if [[ -e "$destination" ]]; then
     rm -rf "$destination"
 fi
 mv "$application" "$destination"
-archive="$output_directory/AI-Usage-Stats-$version.zip"
+archive="$output_directory/Limits-Left-$version.zip"
 ditto -c -k --keepParent "$destination" "$archive"
 printf 'Packaged %s\nArchive: %s\n' "$destination" "$archive"
 if [[ "$distribution" != 1 ]]; then

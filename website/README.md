@@ -1,6 +1,6 @@
 # Product website
 
-A static site for AI Usage Stats. There is no build step, no JavaScript, and no external fonts, scripts, analytics, or trackers.
+A static site for Limits Left, usage limits for Claude and Codex in your Mac's menu bar. There is no build step, no JavaScript, and no external fonts, scripts, analytics, or trackers.
 
 | Path | Purpose |
 | --- | --- |
@@ -70,7 +70,7 @@ Keep titles under 60 characters and descriptions between 140 and 160.
 
 ## Update for each release
 
-The hero names the current version: "Version 0.2.0 for macOS 14 or later" in `index.html`. Change it when a new version is released. Download instructions name the file as `AI-Usage-Stats-<version>.zip` and link to the latest release, so they need no change.
+The hero names the current version: "Version 0.2.0 for macOS 14 or later" in `index.html`. Change it when a new version is released. Download instructions name the file as `Limits-Left-<version>.zip` and link to the latest release, so they need no change.
 
 ## Add an article
 

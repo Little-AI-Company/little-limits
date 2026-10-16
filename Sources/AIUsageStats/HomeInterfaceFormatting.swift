@@ -211,7 +211,7 @@ enum HomeInterfaceFormatting {
     static let addAccountMessage = "Add a Claude or Codex account to see remaining quota and reset times."
     static let loadingMessage = "Loading accounts…"
     static let loadErrorTitle = "Accounts Could Not Be Loaded"
-    static let loadErrorMessage = "AI Usage Stats could not read its saved account list. Saved accounts were not changed. Choose Retry Loading Accounts to try again."
+    static let loadErrorMessage = "Limits Left could not read its saved account list. Saved accounts were not changed. Choose Retry Loading Accounts to try again."
     static let sessionColumnHelp = "Remaining quota for the 5-hour window. A window is placed here only when its reported duration is 5 hours, or when its name says 5 hours and no duration was reported."
     static let weeklyColumnHelp = "Remaining quota for the weekly window. Other durations stay in the last quota column."
     static let otherColumnHelp = "Every other reported quota window, including model-scoped limits such as Weekly · Fable 5. Names come from the reading."
