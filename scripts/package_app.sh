@@ -53,9 +53,15 @@ if [[ "$universal" == 1 ]]; then
 fi
 swift build "${build_arguments[@]}"
 binary_directory="$(swift build "${build_arguments[@]}" --show-bin-path)"
-if [[ ! -f Resources/AppIcon.icns || assets/app-icon.png -nt Resources/AppIcon.icns ]]; then
-    scripts/create_app_icon.sh
-fi
+# Enamel is the bundle icon. Night is the alternate the running app can show; see docs/RELEASING.md.
+create_icon_if_outdated() {
+    local master="$1" small_master="$2" output_icon="$3"
+    if [[ ! -f "$output_icon" || "$master" -nt "$output_icon" || "$small_master" -nt "$output_icon" ]]; then
+        scripts/create_app_icon.sh "$master" "$small_master" "$output_icon"
+    fi
+}
+create_icon_if_outdated assets/app-icon.png assets/branding/app-icon/enamel-small.png Resources/AppIcon.icns
+create_icon_if_outdated assets/branding/app-icon/night.png assets/branding/app-icon/night.png Resources/AppIconNight.icns
 
 mkdir -p "$output_directory"
 temporary_directory="$(mktemp -d "$output_directory/.package.XXXXXX")"
@@ -65,7 +71,7 @@ mkdir -p "$application/Contents/MacOS" "$application/Contents/Resources"
 install -m 755 "$binary_directory/AIUsageStats" "$application/Contents/MacOS/AIUsageStats"
 install -m 755 "$binary_directory/UsageCapture" "$application/Contents/MacOS/UsageCapture"
 cp Resources/Info.plist "$application/Contents/Info.plist"
-cp Resources/AppIcon.icns "$application/Contents/Resources/AppIcon.icns"
+cp Resources/AppIcon.icns Resources/AppIconNight.icns "$application/Contents/Resources/"
 cp LICENSE "$application/Contents/Resources/LICENSE.txt"
 cp -R "$binary_directory/AIUsageStats_AIUsageStats.bundle" "$application/Contents/Resources/AIUsageStats_AIUsageStats.bundle"
 plutil -replace CFBundleShortVersionString -string "$version" "$application/Contents/Info.plist"

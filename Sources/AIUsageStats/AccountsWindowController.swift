@@ -18,7 +18,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private let home: HomeViewController
     private let models: ModelsViewController
     private let detail: AccountDetailViewController
-    private let settings = GeneralSettingsViewController()
+    private let settings: GeneralSettingsViewController
     private var platform: ClaudePlatformViewController?
     private let splitController = PageCommandSplitViewController()
     private let pageContainer = NSView()
@@ -45,6 +45,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         home = HomeViewController(model: model)
         models = ModelsViewController(model: model)
         detail = AccountDetailViewController(model: model)
+        settings = GeneralSettingsViewController(storesIconChoice: !model.isDemo)
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: Self.windowDefaultSize),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
