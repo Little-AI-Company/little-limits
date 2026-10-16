@@ -150,6 +150,15 @@ func periodCommandRevealsTheResetCalendar() async throws {
     #expect(!headingShows())
     home.showNextPeriod(nil)
     #expect(headingShows())
+    // Scrolled to the page end, inside a Month calendar taller than the window, the heading is above the view;
+    // choosing Month again still reveals it.
+    home.showMonthPeriod(nil)
+    let clip = scroll.contentView
+    let documentHeight = try #require(scroll.documentView).frame.height
+    clip.scroll(to: NSPoint(x: 0, y: documentHeight - clip.bounds.height))
+    #expect(!headingShows())
+    home.showMonthPeriod(nil)
+    #expect(headingShows())
 }
 
 /// HOME-14, HOME-22: at the minimum window (1020 pt beside a 260 pt sidebar, less margins and a vertical

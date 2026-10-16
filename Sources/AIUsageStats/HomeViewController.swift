@@ -707,9 +707,9 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         view.window?.makeFirstResponder(control)
     }
 
-    /// Moves the Reset Calendar heading to the top of the visible area, without animation, unless the calendar
-    /// already shows its weekday header and a row of days, or all of itself when shorter. A short page that fits
-    /// does not move.
+    /// Moves the Reset Calendar heading to the top of the visible area, without animation, unless the heading
+    /// already shows with the weekday header and a row of days, or all of the calendar when shorter. A short page
+    /// that fits does not move.
     private func revealCalendar() {
         guard let calendarTitle, let document = scroll.documentView else { return }
         view.layoutSubtreeIfNeeded()
@@ -718,11 +718,12 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         var visible = clip.bounds
         visible.origin.y += insets.top
         visible.size.height -= insets.top + insets.bottom
+        let heading = calendarTitle.convert(calendarTitle.bounds, to: document)
         let calendarFrame = calendarView.convert(calendarView.bounds, to: document)
         let shown = visible.intersection(calendarFrame).height
-        // The 24 pt weekday header and one 72 pt month row.
-        if shown >= min(calendarFrame.height, 96) { return }
-        let heading = calendarTitle.convert(calendarTitle.bounds, to: document)
+        // The 24 pt weekday header and one 72 pt month row. A lower row alone does not count: the period and
+        // weekday context are above it.
+        if heading.minY >= visible.minY, shown >= min(calendarFrame.height, 96) { return }
         var target = clip.bounds
         target.origin.y = heading.minY - 8 - insets.top
         target = clip.constrainBoundsRect(target)
