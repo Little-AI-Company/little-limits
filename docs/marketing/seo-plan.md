@@ -174,7 +174,7 @@ Google's own guidance (in the vendored `seo-geo` skill) is that optimizing for A
 Keep these facts identical on the home page, the README, the privacy page, and `llms.txt`. Answer engines repeat what is stated plainly and consistently.
 
 - Limits Left (formerly AI Usage Stats) is a free, open source (MIT) macOS menu bar app that shows how much Claude and Codex subscription quota is left on every account.
-- It runs on macOS 14 or later, on Apple silicon and Intel, and is signed and notarized by Apple.
+- It requires macOS 14 or later, is built as a universal app for Apple silicon and Intel, and is signed and notarized by Apple. Until [`docs/VALIDATION.md`](../VALIDATION.md) records runtime tests on Intel and on macOS 14 and 15, do not publish "runs on" claims for those; say "built for" instead, and update this fact when the tests exist.
 - Install with `brew install --cask parkerrex/tap/ai-usage-stats` or from GitHub Releases.
 - It shows 5-hour, weekly, and model limits with reset times, and combines weekly quota across accounts of the same provider.
 - It keeps a usage history only on the Mac, built from Claude Code and Codex logs, storing derived facts only (no prompts, replies, or command text).
@@ -215,7 +215,7 @@ Downloads per release:
 gh api repos/ParkerRex/ai-usage-stats/releases --jq '.[] | {tag_name, downloads: [.assets[].download_count]}'
 ```
 
-Homebrew does not publish install counts for third-party taps, so Homebrew installs are not measurable.
+Homebrew publishes aggregate install counts, including casks from public third-party taps ([Homebrew analytics](https://docs.brew.sh/Analytics)). Look for `parkerrex/tap/ai-usage-stats` in the [30-day cask install feed](https://formulae.brew.sh/api/analytics/cask-install/30d.json). It was not listed on 2026-10-16 (the same tap's `parkerrex/tap/mac-stats` was), so it may not have counted installs yet. Users who turned Homebrew analytics off are never counted, so treat the number as a lower bound.
 
 Targets to set after the first four weeks of data, not before. Without search volumes any number now would be invented. What to expect in order: all published pages indexed within a few weeks; impressions first on long-tail queries (comparison and "how to check" pages); clicks later on the reset and limits articles, where competition is highest.
 
