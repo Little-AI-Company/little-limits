@@ -232,7 +232,12 @@ struct CodexClient: Sendable {
     }
 
     private static func readLogin(_ connection: CodexConnection) throws -> Login {
-        struct ClientInfo: Encodable { let name = "ai_usage_stats"; let title = "AI Usage Stats"; let version = "0.1.0" }
+        struct ClientInfo: Encodable {
+            let name = "ai_usage_stats"
+            let title = "AI Usage Stats"
+            // The packaged app's version; tests and `swift run` have no bundle version.
+            let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development"
+        }
         struct Initialize: Encodable { let clientInfo = ClientInfo() }
         struct Empty: Codable {}
         struct AccountParameters: Encodable { let refreshToken = false }
