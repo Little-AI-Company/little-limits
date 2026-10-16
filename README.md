@@ -48,7 +48,7 @@ The forecast and the Models page come from a history the app keeps on your Mac. 
 brew install --cask parkerrex/tap/ai-usage-stats
 ```
 
-**Or download it:** get `AI-Usage-Stats-0.1.0.zip` from the [latest release](https://github.com/ParkerRex/ai-usage-stats/releases/latest), unzip it, and drag **AI Usage Stats** into your Applications folder.
+**Or download it:** get the `AI-Usage-Stats-<version>.zip` file from the [latest release](https://github.com/ParkerRex/ai-usage-stats/releases/latest), unzip it, and drag **AI Usage Stats** into your Applications folder.
 
 The app is signed and notarized by Apple, so it opens without security warnings.
 

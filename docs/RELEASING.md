@@ -22,12 +22,12 @@ Use the same existing code-signing certificate for successive development builds
 
 Without a selected identity, packaging falls back to ad hoc signing and prints a warning. Ad hoc code is identified by its changing code hash, which can invalidate a previous Keychain permission after a rebuild. Switching from ad hoc signing to a certificate can also require one explicit permission for existing items. Background checks suppress Keychain dialogs and preserve the saved sign-in when permission is unavailable. An explicit account permission action reads the existing credential without initiating OAuth sign-in or replacing the grant.
 
-Defaults are version `0.1.0`, build `1`, bundle ID `com.parkerrex.ai-usage-stats`, macOS minimum `14.0`, and output directory `dist`. The bundle is a menu bar agent with `LSUIElement` enabled.
+Version and build default to `CFBundleShortVersionString` and `CFBundleVersion` in `Resources/Info.plist`. Raise both for each public release; build numbers only increase (0.1.0 shipped as build 2, 0.2.0 as build 3). Other defaults are bundle ID `com.parkerrex.ai-usage-stats`, macOS minimum `14.0`, and output directory `dist`. The bundle is a menu bar agent with `LSUIElement` enabled.
 
 To override local package values:
 
 ```sh
-VERSION=0.1.1 BUILD_NUMBER=2 scripts/package_app.sh
+VERSION=0.2.1 BUILD_NUMBER=4 scripts/package_app.sh
 OUTPUT_DIRECTORY=/tmp/ai-usage-stats-package scripts/package_app.sh
 UNIVERSAL=1 scripts/package_app.sh
 ```
@@ -59,7 +59,7 @@ Public releases are signed with the Developer ID Application certificate of RAPT
 1. Build the universal, hardened-runtime package from a clean `main`:
 
    ```sh
-   DISTRIBUTION=1 UNIVERSAL=1 VERSION=0.1.0 BUILD_NUMBER=1 \
+   DISTRIBUTION=1 UNIVERSAL=1 \
      CODE_SIGN_IDENTITY='Developer ID Application: RAPTURE ENTERTAINERS, INC. (9FL5S77YVH)' \
      OUTPUT_DIRECTORY="$PWD/dist/release" scripts/package_app.sh
    ```
