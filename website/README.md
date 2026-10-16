@@ -51,21 +51,11 @@ Wrangler asks you to sign in to Cloudflare and to pick or create the Pages proje
 
 `_headers` sets a Content Security Policy that allows only the site's own files and no scripts, plus `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, and `X-Frame-Options`. HTML and CSS are cached for 5 minutes. Files under `/images/` and `/fonts/` are cached for a year, so a changed image needs a new file name (for example `home-v2-1600.png`) and an updated reference in the HTML.
 
-The custom domain is not bought yet. After it is, add it under the Pages project's Custom domains, then run the command under "Set the domain" below.
+Add the custom domain limitsleft.com under the Pages project's Custom domains.
 
 ## Search engine optimization
 
-Every absolute URL (canonical link, Open Graph and Twitter images, JSON-LD, `sitemap.xml`, `robots.txt`, `llms.txt`) uses the placeholder origin `https://SITE_ORIGIN`, because the domain is not bought yet.
-
-### Set the domain
-
-From the repository root, replace the placeholder everywhere with the real origin (macOS `sed`; on Linux drop the `''` after `-i`):
-
-```sh
-grep -rl 'https://SITE_ORIGIN' website | xargs sed -i '' 's#https://SITE_ORIGIN#https://your-domain.example#g'
-```
-
-Then check that `grep -r SITE_ORIGIN website` prints nothing. Run it after the last article is added, or run it again.
+Every absolute URL (canonical link, Open Graph and Twitter images, JSON-LD, `sitemap.xml`, `robots.txt`, `llms.txt`) uses the origin `https://limitsleft.com`. Article addresses have no `.html`, because Cloudflare Pages redirects `.html` addresses to the extensionless ones. Article files keep the `.html` extension on disk.
 
 | File | Purpose |
 | --- | --- |
@@ -86,7 +76,7 @@ The hero names the current version: "Version 0.2.0 for macOS 14 or later" in `in
 
 1. Copy `articles/_template.html` to `articles/<article-slug>.html`. Use lowercase words joined by hyphens, such as `articles/track-claude-limits-on-mac.html`.
 2. Replace every `ARTICLE_` placeholder: the title (in `<title>`, the Open Graph and Twitter tags, the JSON-LD, and `<h1>`), the description (in the meta tags and the JSON-LD), `ARTICLE_SLUG` (in the canonical link and JSON-LD), `ARTICLE_DATE_ISO` as `YYYY-MM-DD` (in the meta tag and JSON-LD), the summary, the visible date (with its `datetime` attribute), and the body.
-3. Keep `https://SITE_ORIGIN` in the canonical link. See "Set the domain".
+3. Use `https://limitsleft.com/articles/<article-slug>` (no `.html`) in the canonical link.
 4. Delete the `<meta name="robots" content="noindex">` line, so search engines can index the article.
 5. Add the article to the top of the list in `articles/index.html`, using the commented example there, and add it to `sitemap.xml` and `llms.txt`. The "No articles yet" line hides itself once the list has an item.
 6. Put any new images in `images/` with `width`, `height`, and `alt` set. Keep claims in line with the repository README.
