@@ -57,6 +57,10 @@ The custom domain is not bought yet. After it is:
 2. Change the `og:image` and `twitter:image` values to absolute URLs on that domain, because some link previews ignore relative image URLs.
 3. Replace `https://example.com` in each article's canonical link with the domain.
 
+## Update for each release
+
+The hero names the current version: "Version 0.2.0 for macOS 14 or later" in `index.html`. Change it when a new version is released. Download instructions name the file as `AI-Usage-Stats-<version>.zip` and link to the latest release, so they need no change.
+
 ## Add an article
 
 1. Copy `articles/_template.html` to `articles/<article-slug>.html`. Use lowercase words joined by hyphens, such as `articles/track-claude-limits-on-mac.html`.
