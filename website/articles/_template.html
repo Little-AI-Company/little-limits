@@ -1,0 +1,101 @@
+<!doctype html>
+<!--
+  Article template. To publish an article:
+  1. Copy this file to articles/<article-slug>.html (lowercase words joined by hyphens).
+  2. Replace every ARTICLE_ placeholder below, and the canonical URL once the domain exists.
+  3. Remove the robots noindex line.
+  4. Add a link to the new file in articles/index.html.
+  See website/README.md for the full steps.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ARTICLE_TITLE | AI Usage Stats</title>
+  <meta name="description" content="ARTICLE_DESCRIPTION: one or two plain sentences, under 160 characters.">
+  <meta name="robots" content="noindex">
+  <link rel="canonical" href="https://example.com/articles/ARTICLE_SLUG">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#F5F2F7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1E1724" media="(prefers-color-scheme: dark)">
+
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="ARTICLE_TITLE">
+  <meta property="og:description" content="ARTICLE_DESCRIPTION">
+  <meta property="og:image" content="../images/social-preview.png">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../images/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="../images/favicon-64.png">
+  <link rel="apple-touch-icon" href="../images/apple-touch-icon.png">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-row">
+      <a class="brand" href="../">
+        <img src="../images/favicon-64.png" width="28" height="28" alt="">
+        <span>AI Usage Stats</span>
+      </a>
+      <nav aria-label="Primary">
+        <ul class="nav-list">
+          <li><a href="../#how-it-works">How it works</a></li>
+          <li><a href="../#privacy">Privacy</a></li>
+          <li><a href="../#install">Install</a></li>
+          <li><a href="./">Articles</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <article class="wrap article">
+      <header class="article-header">
+        <h1>ARTICLE_TITLE</h1>
+        <p class="article-summary">ARTICLE_SUMMARY: the one-sentence answer the reader came for.</p>
+        <p class="article-date">Published <time datetime="2026-01-01">ARTICLE_DATE</time></p>
+      </header>
+
+      <div class="prose">
+        <p>ARTICLE_BODY: write in short paragraphs. Use plain words and active voice. Make only claims the app's README supports.</p>
+
+        <h2>A section heading</h2>
+        <p>Paragraph text. Link to <a href="../#privacy">what the app stores</a> instead of restating it.</p>
+
+        <ul>
+          <li>A list item.</li>
+          <li>Another list item.</li>
+        </ul>
+
+        <figure>
+          <img src="../images/forecast-1260.png" width="1260" height="300" alt="Describe what the image shows.">
+          <figcaption>Optional caption.</figcaption>
+        </figure>
+      </div>
+
+      <aside class="article-install" aria-labelledby="install-title">
+        <h2 id="install-title">Try AI Usage Stats</h2>
+        <p>See how much of your Claude and Codex limits are left, on every account, from your Mac's menu bar. Free and open source, for macOS 14 or later.</p>
+        <div class="actions">
+          <a class="button" href="https://github.com/ParkerRex/ai-usage-stats/releases/latest">Download for Mac</a>
+          <code class="command" aria-label="Homebrew install command">brew install --cask parkerrex/tap/ai-usage-stats</code>
+        </div>
+      </aside>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-row">
+      <p>Copyright 2026 Parker Rex. <a href="https://github.com/ParkerRex/ai-usage-stats/blob/main/LICENSE">MIT licensed</a>. Not affiliated with Anthropic or OpenAI.</p>
+      <ul class="footer-links">
+        <li><a href="./">Articles</a></li>
+        <li><a href="https://github.com/ParkerRex/ai-usage-stats">GitHub</a></li>
+        <li><a href="https://github.com/ParkerRex/ai-usage-stats/releases">Releases</a></li>
+        <li><a href="https://github.com/ParkerRex/ai-usage-stats/blob/main/LICENSE">License</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

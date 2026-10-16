@@ -479,6 +479,168 @@ dd {
   margin: 36px 0 0;
 }
 
+/* Articles */
+
+.article-list-page,
+.article {
+  padding-top: clamp(32px, 6vw, 72px);
+  padding-bottom: var(--space);
+}
+
+.article-list-page h1,
+.article h1,
+.not-found h1 {
+  font-size: clamp(34px, 5vw, 52px);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+.article-list {
+  max-width: 68ch;
+  margin: 40px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.article-list li + li {
+  margin-top: 28px;
+}
+
+.article-list a {
+  font-family: var(--rounded);
+  font-size: 21px;
+  font-weight: 600;
+}
+
+.article-list p {
+  margin-top: 6px;
+  color: var(--ink-soft);
+}
+
+.article-list-empty {
+  margin-top: 40px;
+  color: var(--ink-soft);
+}
+
+.article-list:has(li) + .article-list-empty {
+  display: none;
+}
+
+.article-header,
+.prose,
+.article-install {
+  max-width: 68ch;
+}
+
+.article-summary {
+  margin-top: 16px;
+  font-size: 21px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.article-date {
+  margin-top: 12px;
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
+.prose {
+  margin-top: 40px;
+  font-size: 18px;
+  line-height: 1.65;
+}
+
+.prose > * + * {
+  margin-top: 1em;
+}
+
+.prose h2 {
+  margin-top: 1.8em;
+  font-size: 28px;
+}
+
+.prose h3 {
+  margin-top: 1.5em;
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 1.3em;
+}
+
+.prose li + li {
+  margin-top: 0.4em;
+}
+
+.prose figure {
+  margin: 2em 0;
+}
+
+.prose figure img {
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  box-shadow: var(--shot-shadow);
+}
+
+.prose figcaption {
+  margin-top: 10px;
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
+.prose blockquote {
+  margin-left: 0;
+  padding-left: 1em;
+  border-left: 3px solid var(--coral);
+  color: var(--ink-soft);
+}
+
+.article-install {
+  margin-top: 64px;
+  padding-top: 32px;
+  border-top: 1px solid var(--hairline);
+}
+
+.article-install p {
+  margin-top: 10px;
+  color: var(--ink-soft);
+}
+
+.article-install .actions {
+  justify-content: flex-start;
+  margin-top: 20px;
+}
+
+/* Not found */
+
+.not-found {
+  max-width: 560px;
+  padding-top: clamp(32px, 6vw, 64px);
+  padding-bottom: var(--space);
+  text-align: center;
+}
+
+.not-found-gauge {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  margin: 0 auto 32px;
+}
+
+.gauge-needle-still {
+  stroke: var(--coral);
+  stroke-width: 14;
+  stroke-linecap: round;
+}
+
+.not-found p {
+  margin-top: 12px;
+  color: var(--ink-soft);
+}
+
 /* Footer */
 
 .site-footer {
