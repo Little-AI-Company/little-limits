@@ -47,7 +47,7 @@ final class GeneralSettingsViewController: NSViewController {
         form.column(at: 0).width = 72
         form.column(at: 0).xPlacement = .trailing
         form.column(at: 1).xPlacement = .fill
-        form.yPlacement = .top
+        form.rowAlignment = .firstBaseline
         return form
     }
 
