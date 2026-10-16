@@ -10,6 +10,7 @@ Install: `brew install --cask parkerrex/tap/limits-left`, or download from the l
 
 - [Home](https://limitsleft.com/): what the app does, privacy, install steps, and common questions
 - [Articles](https://limitsleft.com/articles/): guides to Claude and Codex usage limits
+- [Changelog](https://limitsleft.com/changelog/): what changed in each release, newest first
 
 ## Articles
 

@@ -15,6 +15,7 @@ Build a small native macOS menu bar utility for viewing Claude and Codex account
 - `scripts/package_app.sh`: canonical local Release app packaging.
 - `docs/STRATEGY.md`, `docs/NATIVE-DESIGN.md`: product scope and native interface criteria.
 - `docs/VALIDATION.md`, `docs/RELEASING.md`: observed evidence, limits, and packaging procedure.
+- `CHANGELOG.md`, `website/changelog/`: what changed in each public release. Write them with the [changelog skill](.agents/skills/changelog/SKILL.md).
 - `docs/research/`: source research and provider limitations.
 - `docs/USAGE-ANALYTICS-PLAN.md`: usage history features, settled decisions, and the work split.
 

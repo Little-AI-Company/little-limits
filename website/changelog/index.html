@@ -1,0 +1,167 @@
+<!doctype html>
+<!--
+  Changelog. The same entries as CHANGELOG.md at the repository root, newest
+  version first. To add a release, follow .agents/skills/changelog/SKILL.md.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Limits Left changelog: what changed in each release</title>
+  <meta name="description" content="What changed in each release of Limits Left, the free Mac menu bar app for Claude and Codex usage limits. New features, improvements, and fixes, newest first.">
+  <link rel="canonical" href="https://limitsleft.com/changelog/">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#F5F2F7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1E1724" media="(prefers-color-scheme: dark)">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Limits Left">
+  <meta property="og:url" content="https://limitsleft.com/changelog/">
+  <meta property="og:title" content="Limits Left changelog: what changed in each release">
+  <meta property="og:description" content="What changed in each release of Limits Left, the free Mac menu bar app for Claude and Codex usage limits. New features, improvements, and fixes, newest first.">
+  <meta property="og:image" content="https://limitsleft.com/images/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="Limits Left app icon, a nervous speech-bubble fuel gauge, beside the app name and the Homebrew install command">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Limits Left changelog: what changed in each release">
+  <meta name="twitter:description" content="What changed in each release of Limits Left, the free Mac menu bar app for Claude and Codex usage limits. New features, improvements, and fixes, newest first.">
+  <meta name="twitter:image" content="https://limitsleft.com/images/social-preview.png">
+  <meta name="twitter:image:alt" content="Limits Left app icon, a nervous speech-bubble fuel gauge, beside the app name and the Homebrew install command">
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../images/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="../images/favicon-64.png">
+  <link rel="apple-touch-icon" href="../images/apple-touch-icon.png">
+  <link rel="stylesheet" href="../styles.css">
+
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Limits Left",
+      "item": "https://limitsleft.com/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Changelog",
+      "item": "https://limitsleft.com/changelog/"
+    }
+  ]
+}
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-row">
+      <a class="brand" href="../" aria-label="Limits Left, home">
+        <picture>
+          <source srcset="../images/brand/limits-left-lockup-dark.svg" media="(prefers-color-scheme: dark)">
+          <img src="../images/brand/limits-left-lockup.svg" width="124" height="28" alt="Limits Left">
+        </picture>
+      </a>
+      <nav aria-label="Primary">
+        <ul class="nav-list">
+          <li><a href="../#how-it-works">How it works</a></li>
+          <li><a href="../#privacy">Privacy</a></li>
+          <li><a href="../#install">Install</a></li>
+          <li><a href="../articles/">Articles</a></li>
+          <li><a href="./" aria-current="page">Changelog</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <article class="wrap article">
+      <header class="article-header">
+        <h1>Changelog</h1>
+        <p class="article-summary">What changed in each release of Limits Left, newest first. Versions before 0.2.1 were released as AI Usage Stats.</p>
+      </header>
+
+      <div class="prose">
+        <h2 id="v0.2.1">0.2.1</h2>
+        <p class="article-date">Released <time datetime="2026-10-16">October 16, 2026</time></p>
+        <p>The app is now called Limits Left. This release also brings a new icon, a more accurate menu bar number, and clearer words across the app.</p>
+
+        <h3>New</h3>
+        <ul>
+          <li><strong>App icon:</strong> A new icon, Enamel. <strong>Settings</strong> has an <strong>App icon</strong> choice of Enamel or Night. Night shows in the Dock and app switcher while a Limits Left window is open, and in <strong>About Limits Left</strong>. Finder keeps Enamel.</li>
+          <li><strong>App menu:</strong> <strong>About Limits Left</strong>, <strong>Hide Limits Left</strong>, <strong>Hide Others</strong>, and <strong>Show All</strong> are in the app menu, and <strong>Zoom</strong> is in the <strong>Window</strong> menu.</li>
+        </ul>
+
+        <h3>Improved</h3>
+        <ul>
+          <li><strong>Home:</strong> <strong>Account Usage</strong> now comes right after <strong>Weekly Totals</strong>, so your accounts show without scrolling. The forecast and the reset calendar follow.</li>
+          <li><strong>Home:</strong> Tab reaches the forecast, the account table, and the calendar events.</li>
+          <li><strong>Home:</strong> <strong>Previous</strong>, <strong>Next</strong>, <strong>Today</strong>, <strong>Month</strong>, and <strong>2 Weeks</strong> scroll the reset calendar into view.</li>
+          <li><strong>Forecast:</strong> Labels say <strong>Usage rate</strong>, <strong>Weekly total reaches 0%</strong>, and <strong>Updated</strong>. Claude and Codex labels line up, and the chart lines are easier to see, also with Increase Contrast.</li>
+          <li><strong>Models:</strong> Model names are easy to read, such as Opus 5.5 instead of the name in the log. Models with few requests stay full strength and say "(under 5,000)", and the bars are easier to see.</li>
+          <li><strong>Old readings:</strong> The <strong>Updated</strong> column on Home shows when an account was last read, or says <strong>Stale</strong> or <strong>Unavailable</strong>. An old earned reset count reads "Last known 2 available" instead of "Last known 2".</li>
+          <li><strong>Stale accounts:</strong> The account page says to choose <strong>Refresh Account</strong> to read the account again, and every status line names <strong>Refresh Account</strong>.</li>
+        </ul>
+
+        <h3>Fixed</h3>
+        <ul>
+          <li><strong>Menu bar number:</strong> It now shows the lowest of your accounts' 5-hour and weekly limits. A limit for one model no longer lowers it. That limit still has its own row in the menu.</li>
+          <li><strong>Account page:</strong> <strong>Earned resets</strong> is one line, and each credit expiry shows once in <strong>Connection Details</strong>.</li>
+        </ul>
+
+        <h3>Changed</h3>
+        <ul>
+          <li><strong>Name:</strong> AI Usage Stats is now Limits Left. Your accounts, sign-ins, settings, and usage history stay. With Homebrew, <code>brew upgrade</code> moves you to the new name.</li>
+        </ul>
+        <h2 id="v0.2.0">0.2.0</h2>
+        <p class="article-date">Released <time datetime="2026-10-15">October 15, 2026</time></p>
+        <p>A private usage history that stays on your Mac. Released as AI Usage Stats.</p>
+
+        <h3>New</h3>
+        <ul>
+          <li><strong>Weekly totals:</strong> Home and the menu show how much weekly limit is left across all your Claude accounts, and across all your Codex accounts. You also see the next reset and what it gives back, whether an account is ahead of pace, and when an account at its limit can be used again.</li>
+          <li><strong>Forecast:</strong> Home shows how fast your weekly total is going down, when it reaches zero, and a chart of recent use with a projection over the next 1 or 7 days.</li>
+          <li><strong>Models:</strong> A new page shows how each model works in your own Claude Code and Codex sessions, such as output speed, steps per turn, and the commands it runs.</li>
+          <li><strong>Accounts:</strong> Sort accounts by most remaining or soonest usable. Refresh one account from its page with Shift-Command-R.</li>
+        </ul>
+
+        <h3>Improved</h3>
+        <ul>
+          <li><strong>Privacy:</strong> The history reads Claude Code and Codex logs on your Mac, including older compressed Codex logs, and keeps only counts, lengths, and categories. It never keeps prompts, replies, command text, file contents, or folder names, and nothing leaves your Mac.</li>
+          <li><strong>First launch:</strong> The app reads your existing logs in the background. This takes from about half a minute to a couple of minutes, and you can use the app meanwhile.</li>
+        </ul>
+        <h2 id="v0.1.0">0.1.0</h2>
+        <p class="article-date">Released <time datetime="2026-10-14">October 14, 2026</time></p>
+        <p>The first public release. Released as AI Usage Stats.</p>
+
+        <h3>New</h3>
+        <ul>
+          <li><strong>Menu bar:</strong> The remaining limit for Claude and Codex. Choose <strong>Show in Menu Bar</strong> to give the accounts you use their own numbers.</li>
+          <li><strong>Status menu:</strong> Every account's 5-hour, weekly, and model limits, with reset times. <strong>Reconnect…</strong> shows when an account needs to sign in again.</li>
+          <li><strong>Home:</strong> An account table and a reset calendar. Drag accounts in the sidebar to change their order.</li>
+          <li><strong>Accounts:</strong> Add Claude accounts by signing in in your browser. Add Codex accounts by signing in in Terminal, or use the Codex sign-in already on your Mac.</li>
+          <li><strong>API credits:</strong> See Claude API credits with a separate Claude Platform sign-in. This is experimental.</li>
+          <li><strong>Read only:</strong> The app never buys credits, changes plans, or sends AI requests to check your usage.</li>
+        </ul>
+      </div>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-row">
+      <p>Copyright 2026 Parker Rex. <a href="https://github.com/ParkerRex/limits-left/blob/main/LICENSE">MIT licensed</a>. Not affiliated with Anthropic or OpenAI.</p>
+      <ul class="footer-links">
+        <li><a href="../articles/">Articles</a></li>
+        <li><a href="./">Changelog</a></li>
+        <li><a href="https://github.com/ParkerRex/limits-left">GitHub</a></li>
+        <li><a href="https://github.com/ParkerRex/limits-left/releases">Releases</a></li>
+        <li><a href="https://github.com/ParkerRex/limits-left/blob/main/LICENSE">License</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
