@@ -120,7 +120,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             let remaining = lowest.map { Int(min(100, max(0, $0.remainingPercent)).rounded()) }
             readings.append(StatusItemSummary.Reading(provider: provider, remainingPercent: remaining))
             let notCurrent = profiles.compactMap { profile -> String? in
-                let summary = AccountQuotaSummary(snapshot: model.snapshots[profile.id], accountID: profile.id, now: now)
+                let summary = AccountQuotaSummary(snapshot: model.snapshots[profile.id]?.generalWindowsOnly, accountID: profile.id, now: now)
                 guard let reason = Self.notCurrentReason(summary) else { return nil }
                 return "\(InterfaceFormatting.accountIdentity(profile)): \(reason)"
             }
@@ -139,7 +139,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             guard model.menuBarAccountIDs?.contains($0.id) ?? true, let snapshot = model.snapshots[$0.id] else { return false }
             return snapshot.state == .stale || snapshot.state == .authenticationRequired
                 || snapshot.fetchedAt.map { now.timeIntervalSince($0) >= 300 } == true
-                || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
+                || snapshot.generalWindowsOnly.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
         }
         let summary = StatusItemSummary(readings: readings, isStale: stale || showsLastKnown)
         if displayedStatusSummary != summary, let button = statusItem?.button {
@@ -490,7 +490,19 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private func installMenu() {
         let menu = NSMenu()
         let app = NSMenuItem()
-        app.submenu = makeApplicationMenu()
+        let appMenu = makeApplicationMenu()
+        appMenu.insertItem(NSMenuItem(title: "About AI Usage Stats", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: ""), at: 0)
+        appMenu.insertItem(.separator(), at: 1)
+        // The standard Hide group sits above Quit, as in other Mac apps. The status menu does not get it.
+        let quitIndex = appMenu.numberOfItems - 1
+        let hideOthers = NSMenuItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        hideOthers.keyEquivalentModifierMask = [.command, .option]
+        let hideGroup = [NSMenuItem(title: "Hide AI Usage Stats", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h"),
+                         hideOthers,
+                         NSMenuItem(title: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: ""),
+                         .separator()]
+        for (offset, item) in hideGroup.enumerated() { appMenu.insertItem(item, at: quitIndex + offset) }
+        app.submenu = appMenu
         menu.addItem(app)
         let file = NSMenuItem()
         let fileMenu = NSMenu(title: "File")
@@ -555,6 +567,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let window = NSMenuItem()
         let windowMenu = NSMenu(title: "Window")
         windowMenu.addItem(NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"))
+        windowMenu.addItem(NSMenuItem(title: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: ""))
         window.submenu = windowMenu
         menu.addItem(window)
         NSApp.windowsMenu = windowMenu
