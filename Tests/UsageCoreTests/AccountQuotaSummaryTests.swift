@@ -16,6 +16,15 @@ private func quotaSnapshot(_ windows: [UsageWindow], state: SnapshotState = .ava
     AccountSnapshot(profileID: profileID, fetchedAt: fetchedAt, windows: windows, credits: credits, state: state)
 }
 
+private func generalWindow(_ id: String, used: Double?, active: Bool? = nil) -> UsageWindow {
+    quotaWindow(id, used: used, active: active)
+}
+
+private func modelWindow(used: Double) -> UsageWindow {
+    UsageWindow(id: "limit_fable_weekly", title: "7 days (Fable 5)", utilizationPercent: used,
+                resetsAt: observationDate.addingTimeInterval(3_600), windowDurationMinutes: 10_080)
+}
+
 @Test(arguments: [(79.0, AccountQuotaSummary.Severity.normal), (80.0, .warning),
                   (90.0, .warning), (90.1, .critical), (100.0, .critical), (0.0, .normal)])
 func quotaSummaryUsesRemainingThresholds(_ used: Double, _ severity: AccountQuotaSummary.Severity) {
@@ -94,14 +103,14 @@ func quotaSummaryDoesNotPresentRetainedFailedReadings(_ state: SnapshotState, _ 
     let stale = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
     let signedOut = UUID(uuidString: "00000000-0000-0000-0000-000000000004")!
     let snapshots = [
-        current: quotaSnapshot([quotaWindow("session", used: 37), quotaWindow("weekly", used: 83)], profileID: current),
-        stale: quotaSnapshot([quotaWindow("session", used: 100)], state: .stale, profileID: stale),
-        signedOut: quotaSnapshot([quotaWindow("session", used: 100)], state: .authenticationRequired, profileID: signedOut)
+        current: quotaSnapshot([generalWindow("five_hour", used: 37), generalWindow("seven_day", used: 83)], profileID: current),
+        stale: quotaSnapshot([generalWindow("five_hour", used: 100)], state: .stale, profileID: stale),
+        signedOut: quotaSnapshot([generalWindow("five_hour", used: 100)], state: .authenticationRequired, profileID: signedOut)
     ]
     let lowest = AccountQuotaSummary.lowestCurrent(accountIDs: [stale, signedOut, current], snapshots: snapshots, now: observationDate)
     #expect(lowest?.accountID == current)
     #expect(lowest?.remainingPercent == 17)
-    #expect(lowest?.windowTitle == "weekly")
+    #expect(lowest?.windowTitle == "seven_day")
     #expect(AccountQuotaSummary.lowestCurrent(accountIDs: [stale, signedOut], snapshots: snapshots, now: observationDate) == nil)
 }
 
@@ -112,16 +121,32 @@ func quotaSummaryDoesNotPresentRetainedFailedReadings(_ state: SnapshotState, _ 
     let signedOut = UUID(uuidString: "00000000-0000-0000-0000-000000000004")!
     let untimed = UUID(uuidString: "00000000-0000-0000-0000-000000000005")!
     let snapshots = [
-        stale: quotaSnapshot([quotaWindow("session", used: 37)], state: .stale, profileID: stale),
-        signedOut: quotaSnapshot([quotaWindow("weekly", used: 70), quotaWindow("off", used: 99, active: false)],
+        stale: quotaSnapshot([generalWindow("five_hour", used: 37)], state: .stale, profileID: stale),
+        signedOut: quotaSnapshot([generalWindow("seven_day", used: 70), generalWindow("five_hour", used: 99, active: false)],
                                  state: .authenticationRequired, profileID: signedOut),
-        untimed: quotaSnapshot([quotaWindow("session", used: 100)], fetchedAt: nil, profileID: untimed)
+        untimed: quotaSnapshot([generalWindow("five_hour", used: 100)], fetchedAt: nil, profileID: untimed)
     ]
     let lowest = AccountQuotaSummary.lowestLastKnown(accountIDs: [stale, signedOut, untimed], snapshots: snapshots,
                                                      now: observationDate)
     #expect(lowest?.accountID == signedOut)
     #expect(lowest?.remainingPercent == 30)
-    #expect(lowest?.windowTitle == "weekly")
+    #expect(lowest?.windowTitle == "seven_day")
     #expect(AccountQuotaSummary.lowestLastKnown(accountIDs: [untimed], snapshots: snapshots, now: observationDate) == nil)
     #expect(AccountQuotaSummary.lowestLastKnown(accountIDs: [UUID()], snapshots: snapshots, now: observationDate) == nil)
+}
+
+/// MENU-16: a model-scoped limit restricts only that model, so it never drives the status item number.
+@Test func lowestReadingsIgnoreModelScopedWindows() {
+    let snapshots = [accountID: quotaSnapshot([
+        generalWindow("five_hour", used: 1), generalWindow("seven_day", used: 25), modelWindow(used: 49)
+    ])]
+    let current = AccountQuotaSummary.lowestCurrent(accountIDs: [accountID], snapshots: snapshots, now: observationDate)
+    #expect(current?.remainingPercent == 75)
+    #expect(current?.windowTitle == "seven_day")
+    let lastKnown = AccountQuotaSummary.lowestLastKnown(accountIDs: [accountID], snapshots: snapshots,
+                                                        now: observationDate.addingTimeInterval(600))
+    #expect(lastKnown?.remainingPercent == 75)
+    let modelOnly = [accountID: quotaSnapshot([modelWindow(used: 49)])]
+    #expect(AccountQuotaSummary.lowestCurrent(accountIDs: [accountID], snapshots: modelOnly, now: observationDate) == nil)
+    #expect(AccountQuotaSummary.lowestLastKnown(accountIDs: [accountID], snapshots: modelOnly, now: observationDate) == nil)
 }

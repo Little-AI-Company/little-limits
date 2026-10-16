@@ -34,33 +34,45 @@ public enum AccountQuotaSummary: Sendable, Equatable {
                           windowTitle: limiting.title)
     }
 
-    /// The account and window with the lowest remaining quota among current readings, in stored account order
-    /// for ties. Stale, sign-in-required, unavailable, inactive, and unknown readings are excluded, so an old
-    /// value never stands for the provider. Nil when no account has a current reading.
+    /// The general windows of a snapshot: the 5-hour session and the general weekly window. A model-scoped limit
+    /// restricts only that model, so it never drives a provider-wide number. Unmeasured windows are skipped.
+    private static func generalMeasuredWindows(_ snapshot: AccountSnapshot) -> [(remainingPercent: Double, title: String)] {
+        snapshot.currentWindows.compactMap { window in
+            guard window.role == .session || window.role == .weekly,
+                  let used = window.utilizationPercent, used.isFinite else { return nil }
+            return (100 - used, window.title)
+        }
+    }
+
+    /// The account and window with the lowest remaining quota among current readings, counting only each
+    /// account's general 5-hour and weekly windows, in stored account order for ties. Stale, sign-in-required,
+    /// unavailable, inactive, and unknown readings, and accounts with no measured general window, are excluded,
+    /// so an old value never stands for the provider. Nil when no account has a current reading.
     public static func lowestCurrent(accountIDs: [UUID], snapshots: [UUID: AccountSnapshot], now: Date = Date())
         -> (accountID: UUID, remainingPercent: Double, windowTitle: String)? {
         var lowest: (accountID: UUID, remainingPercent: Double, windowTitle: String)?
         for id in accountIDs {
-            guard case let .available(remaining, _, title) = AccountQuotaSummary(snapshot: snapshots[id], accountID: id, now: now),
-                  remaining < lowest?.remainingPercent ?? .infinity else { continue }
-            lowest = (id, remaining, title)
+            guard let snapshot = snapshots[id],
+                  case .available = AccountQuotaSummary(snapshot: snapshot, accountID: id, now: now) else { continue }
+            for window in generalMeasuredWindows(snapshot) where window.remainingPercent < lowest?.remainingPercent ?? .infinity {
+                lowest = (id, window.remainingPercent, window.title)
+            }
         }
         return lowest
     }
 
-    /// The account and window with the lowest last known remaining quota, from any reading with a trustworthy
-    /// observation time: stale, sign-in required, older than five minutes, or past a reset. The status item shows
-    /// it, with its stale mark, only when `lowestCurrent` is nil. Nil when no account was ever measured.
+    /// The account and window with the lowest last known remaining quota among general windows, from any reading
+    /// with a trustworthy observation time: stale, sign-in required, older than five minutes, or past a reset.
+    /// The status item shows it, with its stale mark, only when `lowestCurrent` is nil. Nil when no account was
+    /// ever measured.
     public static func lowestLastKnown(accountIDs: [UUID], snapshots: [UUID: AccountSnapshot], now: Date = Date())
         -> (accountID: UUID, remainingPercent: Double, windowTitle: String)? {
         var lowest: (accountID: UUID, remainingPercent: Double, windowTitle: String)?
         for id in accountIDs {
             guard let snapshot = snapshots[id], snapshot.profileID == id,
                   let fetchedAt = snapshot.fetchedAt, fetchedAt <= now else { continue }
-            for window in snapshot.windows where window.isActive != false {
-                guard let used = window.utilizationPercent, used.isFinite,
-                      100 - used < lowest?.remainingPercent ?? .infinity else { continue }
-                lowest = (id, 100 - used, window.title)
+            for window in generalMeasuredWindows(snapshot) where window.remainingPercent < lowest?.remainingPercent ?? .infinity {
+                lowest = (id, window.remainingPercent, window.title)
             }
         }
         return lowest
