@@ -177,7 +177,7 @@ private struct PurposeBlock: View {
                     .help(model.model)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(InterfaceFormatting.modelDisplayName(model.model))
-                    .accessibilityValue(accessibilityValue(model, total: total))
+                    .accessibilityValue(accessibilityValue(model, total: total) + ". Model identifier \(model.model)")
                 }
             }
             .font(.callout)

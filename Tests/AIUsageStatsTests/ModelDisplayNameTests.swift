@@ -24,9 +24,11 @@ func earnedResetsUseHomeVocabularyWithNextExpiry() throws {
     let count = CreditBalance(id: "quota_reset_credits", title: "Earned resets", amount: 2, unit: .resets,
                               asOf: now.addingTimeInterval(-60))
     let grant = CreditBalance(id: "quota_reset_a", title: "Reset grant", amount: 1, unit: .resets,
-                              expiresAt: now.addingTimeInterval(86_400))
-    let summary = try #require(InterfaceFormatting.earnedResets([count, grant], now: now))
+                              expiresAt: now.addingTimeInterval(86_400), asOf: now.addingTimeInterval(-60), status: "available")
+    let consumed = CreditBalance(id: "quota_reset_b", title: "Used grant", amount: 1, unit: .resets,
+                                 expiresAt: now.addingTimeInterval(3_600), asOf: now.addingTimeInterval(-60), status: "consumed")
+    let summary = try #require(InterfaceFormatting.earnedResets([count, grant, consumed], now: now))
     #expect(summary.value == "2 available")
-    #expect(summary.timing.hasPrefix("Next expires in"))
+    #expect(summary.timing == "Next expires in 1d 0h")
     #expect(InterfaceFormatting.earnedResets([], now: now) == nil)
 }

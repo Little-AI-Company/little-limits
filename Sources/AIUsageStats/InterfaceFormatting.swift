@@ -180,12 +180,17 @@ enum InterfaceFormatting {
     /// Per-grant expiry stays in the detail.
     static func earnedResets(_ credits: [CreditBalance], now: Date = Date()) -> EarnedResetsSummary? {
         let summary = credits.first { $0.id == "quota_reset_credits" }
-        let grants = credits.filter { $0.id.hasPrefix("quota_reset_") && $0.id != "quota_reset_credits" }
+        // Only available grants with a trustworthy observation count, as on Home.
+        let grants = credits.filter {
+            $0.id.hasPrefix("quota_reset_") && $0.id != "quota_reset_credits" && $0.status?.lowercased() == "available"
+                && $0.asOf.map { $0 <= now } == true
+        }
         guard summary != nil || !grants.isEmpty else { return nil }
         let count = summary?.amount.map { NSDecimalNumber(decimal: $0).intValue } ?? grants.count
         let nextExpiry = grants.compactMap(\.expiresAt).filter { $0 > now }.min()
         let timing = nextExpiry.map { "Next expires in \(UsageFormatting.countdown(to: $0, now: now))" } ?? ""
-        let grantExpired = grants.contains { $0.expiresAt.map { $0 <= now } == true }
+        let observed = summary?.asOf ?? now
+        let grantExpired = grants.contains { $0.expiresAt.map { $0 > observed && $0 <= now } == true }
         let oldObservation = summary?.asOf.map { now.timeIntervalSince($0) >= 300 || $0 > now } == true
         let value = grantExpired || oldObservation ? "Last known \(count)" : "\(count) available"
         var lines = ["Earned resets: \(value)"]
