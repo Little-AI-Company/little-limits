@@ -27,7 +27,7 @@ Version and build default to `CFBundleShortVersionString` and `CFBundleVersion` 
 To override local package values:
 
 ```sh
-VERSION=0.1.1 BUILD_NUMBER=2 scripts/package_app.sh
+VERSION=0.2.1 BUILD_NUMBER=4 scripts/package_app.sh
 OUTPUT_DIRECTORY=/tmp/ai-usage-stats-package scripts/package_app.sh
 UNIVERSAL=1 scripts/package_app.sh
 ```
