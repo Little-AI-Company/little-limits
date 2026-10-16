@@ -3,20 +3,29 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>How to track Claude Code and Codex usage on your Mac | Limits Left</title>
-  <meta name="description" content="Check Claude Code and Codex limits with the built-in tools, then compare ccusage, CodexBar, and three other trackers by platform and focus.">
-  <link rel="canonical" href="https://limitsleft.com/articles/track-claude-code-and-codex-usage-on-mac.html">
+  <title>Track Claude Code and Codex usage on a Mac | Limits Left</title>
+  <meta name="description" content="Check Claude Code and Codex limits with the built-in tools, then compare ccusage, CodexBar, and three other usage trackers by platform and focus.">
+  <link rel="canonical" href="https://limitsleft.com/articles/track-claude-code-and-codex-usage-on-mac">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#F5F2F7" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1E1724" media="(prefers-color-scheme: dark)">
 
   <meta property="og:type" content="article">
+  <meta property="og:site_name" content="Limits Left">
+  <meta property="og:url" content="https://limitsleft.com/articles/track-claude-code-and-codex-usage-on-mac">
   <meta property="og:title" content="How to track Claude Code and Codex usage on your Mac">
-  <meta property="og:description" content="Check Claude Code and Codex limits with the built-in tools, then compare ccusage, CodexBar, and three other trackers by platform and focus.">
-  <meta property="og:url" content="https://limitsleft.com/articles/track-claude-code-and-codex-usage-on-mac.html">
+  <meta property="og:description" content="Check Claude Code and Codex limits with the built-in tools, then compare ccusage, CodexBar, and three other usage trackers by platform and focus.">
   <meta property="og:image" content="https://limitsleft.com/images/social-preview.png">
-  <meta property="article:published_time" content="2026-10-16">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="Limits Left app icon, a nervous speech-bubble fuel gauge, beside the app name and the Homebrew install command">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="How to track Claude Code and Codex usage on your Mac">
+  <meta name="twitter:description" content="Check Claude Code and Codex limits with the built-in tools, then compare ccusage, CodexBar, and three other usage trackers by platform and focus.">
+  <meta name="twitter:image" content="https://limitsleft.com/images/social-preview.png">
+  <meta name="twitter:image:alt" content="Limits Left app icon, a nervous speech-bubble fuel gauge, beside the app name and the Homebrew install command">
+  <meta property="article:published_time" content="2026-10-16">
+  <meta property="article:author" content="https://github.com/ParkerRex">
 
   <link rel="icon" type="image/png" sizes="32x32" href="../images/favicon-32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="../images/favicon-64.png">
@@ -24,38 +33,59 @@
   <link rel="stylesheet" href="../styles.css">
 
   <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "Article",
-    "headline": "How to track Claude Code and Codex usage on your Mac",
-    "description": "Check Claude Code and Codex limits with the built-in tools, then compare ccusage, CodexBar, and three other trackers by platform and focus.",
-    "datePublished": "2026-10-16",
-    "dateModified": "2026-10-16",
-    "inLanguage": "en",
-    "mainEntityOfPage": "https://limitsleft.com/articles/track-claude-code-and-codex-usage-on-mac.html",
-    "image": "https://limitsleft.com/images/status-menu-661.png",
-    "author": {
-      "@type": "Person",
-      "name": "Parker Rex",
-      "url": "https://github.com/ParkerRex"
-    },
-    "publisher": {
-      "@type": "Person",
-      "name": "Parker Rex",
-      "url": "https://github.com/ParkerRex"
-    },
-    "about": [
-      { "@type": "SoftwareApplication", "name": "Claude Code", "applicationCategory": "DeveloperApplication" },
-      { "@type": "SoftwareApplication", "name": "Codex", "applicationCategory": "DeveloperApplication" }
-    ],
-    "mentions": [
-      { "@type": "SoftwareApplication", "name": "ccusage", "url": "https://github.com/ccusage/ccusage" },
-      { "@type": "SoftwareApplication", "name": "CodexBar", "url": "https://github.com/steipete/CodexBar" },
-      { "@type": "SoftwareApplication", "name": "Claude Code Usage Monitor", "url": "https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor" },
-      { "@type": "SoftwareApplication", "name": "Claude Usage Tracker", "url": "https://github.com/hamed-elfayome/Claude-Usage-Tracker" },
-      { "@type": "SoftwareApplication", "name": "Limits Left", "url": "https://github.com/ParkerRex/ai-usage-stats", "operatingSystem": "macOS 14 or later", "applicationCategory": "UtilitiesApplication" }
-    ]
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "How to track Claude Code and Codex usage on your Mac",
+  "description": "Check Claude Code and Codex limits with the built-in tools, then compare ccusage, CodexBar, and three other usage trackers by platform and focus.",
+  "datePublished": "2026-10-16",
+  "dateModified": "2026-10-16",
+  "mainEntityOfPage": "https://limitsleft.com/articles/track-claude-code-and-codex-usage-on-mac",
+  "image": "https://limitsleft.com/images/social-preview.png",
+  "mentions": [
+    { "@type": "SoftwareApplication", "name": "ccusage", "url": "https://github.com/ccusage/ccusage" },
+    { "@type": "SoftwareApplication", "name": "CodexBar", "url": "https://github.com/steipete/CodexBar" },
+    { "@type": "SoftwareApplication", "name": "Claude Code Usage Monitor", "url": "https://github.com/Maciek-roboblog/Claude-Code-Usage-Monitor" },
+    { "@type": "SoftwareApplication", "name": "Claude Usage Tracker", "url": "https://github.com/hamed-elfayome/Claude-Usage-Tracker" },
+    { "@type": "SoftwareApplication", "name": "Limits Left", "url": "https://limitsleft.com/", "operatingSystem": "macOS 14 or later", "applicationCategory": "UtilitiesApplication" }
+  ],
+  "author": {
+    "@type": "Person",
+    "name": "Parker Rex",
+    "url": "https://github.com/ParkerRex"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Limits Left",
+    "url": "https://limitsleft.com/"
   }
+}
+  </script>
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Limits Left",
+      "item": "https://limitsleft.com/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Articles",
+      "item": "https://limitsleft.com/articles/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "How to track Claude Code and Codex usage on your Mac",
+      "item": "https://limitsleft.com/articles/track-claude-code-and-codex-usage-on-mac"
+    }
+  ]
+}
   </script>
 </head>
 <body>
@@ -65,7 +95,7 @@
     <div class="wrap header-row">
       <a class="brand" href="../">
         <img src="../images/favicon-64.png" width="28" height="28" alt="">
-        <span>AI Usage Stats</span>
+        <span>Limits Left</span>
       </a>
       <nav aria-label="Primary">
         <ul class="nav-list">
@@ -92,7 +122,7 @@
         <p>Product details below come from each provider's documentation and each project's own README, as of October 2026. These tools change often, so follow the links for current details.</p>
 
         <h2>What to track: limits or token costs</h2>
-        <p><strong>Plan limits</strong> decide whether you can keep working. Anthropic says Pro and Max plans have a five-hour session limit and a weekly limit, and that Claude and Claude Code share the same limits (<a href="https://support.claude.com/en/articles/11145838-use-claude-code-with-your-pro-or-max-plan">Anthropic Help Center</a>). OpenAI says Codex limits on Plus and Business plans are counted per five-hour period, that Pro plans currently have no five-hour limit, and that weekly limits may also apply (<a href="https://learn.chatgpt.com/docs/pricing">Codex pricing</a>). For the details of each plan, see <a href="/articles/claude-usage-limits-explained.html">how Claude usage limits work</a> and <a href="/articles/codex-usage-limits.html">how Codex usage limits work</a>.</p>
+        <p><strong>Plan limits</strong> decide whether you can keep working. Anthropic says Pro and Max plans have a five-hour session limit and a weekly limit, and that Claude and Claude Code share the same limits (<a href="https://support.claude.com/en/articles/11145838-use-claude-code-with-your-pro-or-max-plan">Anthropic Help Center</a>). OpenAI says Codex limits on Plus and Business plans are counted per five-hour period, that Pro plans currently have no five-hour limit, and that weekly limits may also apply (<a href="https://learn.chatgpt.com/docs/pricing">Codex pricing</a>). For the details of each plan, see <a href="/articles/claude-usage-limits-explained">how Claude usage limits work</a> and <a href="/articles/codex-usage-limits">how Codex usage limits work</a>.</p>
         <p><strong>Token costs</strong> tell you how much work went through the model. If you pay per token with an API key, that is your bill. On a subscription it is only an estimate. Anthropic's Claude Code docs say the session cost in <code>/usage</code> is computed locally at list price and "isn't relevant for billing purposes" for Pro and Max subscribers (<a href="https://code.claude.com/docs/en/costs">Claude Code costs</a>).</p>
         <p>If you mostly hit limits, track percentages and reset times. If you want to compare models or projects, or you pay per token, track tokens and cost.</p>
 
