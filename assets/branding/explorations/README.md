@@ -71,9 +71,13 @@ How it is set:
 - **ft join**: the t moves 0.045 em left so its crossbar overlaps the f's. Both bars sit at the same height in the font, so they merge into one level line, like a fill line on a gauge. This is the only custom detail.
 - **Lockup**: the tile is 2.1 cap heights tall, the caps are centered on it, and the gap is 0.24 of the tile. The tile is the current artwork masked to a rounded square (22.5 percent radius) and embedded as a 384 px PNG data URI, so each lockup file stands alone (53 KB).
 
-Rebuild: `source/outline_wordmark.swift` outlines the text with CoreText. `source/make_wordmark.py` writes the four SVGs.
+Source font: `latin-700-normal.ttf`, Schibsted Grotesk Bold, Latin subset, from the Fontsource package `@fontsource/schibsted-grotesk` version 5.3.0 (Google Fonts release v7, OFL-1.1). The font is not committed. Download it from <https://cdn.jsdelivr.net/fontsource/fonts/schibsted-grotesk@5.3.0/latin-700-normal.ttf> and check that its SHA-256 is `d7c4b81c2ff8e99614dd8b6ba40fce89e2073e596c2681ee975467106d5b0dcc` (56,268 bytes). With this file, the commands below reproduce the committed wordmark SVGs byte for byte.
+
+Rebuild: `source/outline_wordmark.swift` outlines the text with CoreText. `source/make_wordmark.py` writes the four SVGs. Run these from `assets/branding/wordmark/`.
 
 ```sh
+curl -fL -o latin-700-normal.ttf https://cdn.jsdelivr.net/fontsource/fonts/schibsted-grotesk@5.3.0/latin-700-normal.ttf
+echo "d7c4b81c2ff8e99614dd8b6ba40fce89e2073e596c2681ee975467106d5b0dcc  latin-700-normal.ttf" | shasum -a 256 -c
 swift source/outline_wordmark.swift latin-700-normal.ttf "Limits Left" -0.02 0.2 "8:-0.03,10:-0.045" > outline.txt
 magick ../nervous-gauge-artwork.png -resize 384x384 \( -size 384x384 xc:none -fill white -draw "roundrectangle 0,0 383,383 86,86" \) \
   -compose CopyOpacity -composite -dither None -colors 96 PNG8:icon-384.png

@@ -1,6 +1,12 @@
 """Write the Limits Left wordmark and lockup SVGs from outlined glyph data.
 
 Usage: make_wordmark.py <outline.txt> <icon.png> <output_dir>
+
+outline.txt comes from outline_wordmark.swift run on latin-700-normal.ttf
+(Schibsted Grotesk Bold, Latin subset) from Fontsource @fontsource/schibsted-grotesk 5.3.0:
+https://cdn.jsdelivr.net/fontsource/fonts/schibsted-grotesk@5.3.0/latin-700-normal.ttf
+SHA-256 d7c4b81c2ff8e99614dd8b6ba40fce89e2073e596c2681ee975467106d5b0dcc. See
+assets/branding/explorations/README.md for the full rebuild commands.
 """
 import base64
 import os

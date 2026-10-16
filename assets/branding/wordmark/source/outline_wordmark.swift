@@ -3,6 +3,9 @@
 // The optional last argument moves the glyph at that character index, and all later glyphs, by em units.
 // Output (stdout): line 1 = "minX minY width height" of the ink bounds, line 2 = path data.
 // Units: font size 1000, y axis pointing down, baseline at y = 0.
+// Wordmark font: latin-700-normal.ttf (Schibsted Grotesk Bold, Latin subset) from Fontsource
+// @fontsource/schibsted-grotesk 5.3.0, https://cdn.jsdelivr.net/fontsource/fonts/schibsted-grotesk@5.3.0/latin-700-normal.ttf
+// SHA-256 d7c4b81c2ff8e99614dd8b6ba40fce89e2073e596c2681ee975467106d5b0dcc.
 import CoreGraphics
 import CoreText
 import Foundation
