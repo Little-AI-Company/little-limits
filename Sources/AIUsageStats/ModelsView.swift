@@ -251,8 +251,7 @@ private struct MetricDefinition: Identifiable {
     static func all(for provider: HistoryProvider) -> [MetricDefinition] {
         [
             MetricDefinition(title: "Requests", footnote: nil, isShare: false, emptyText: "0") { model in
-                MetricReading(value: Double(model.responseCount), text: model.responseCount.formatted(),
-                              detail: model.isSmallSample ? "Under \(ModelMetrics.reliableResponseCount.formatted())" : "")
+                MetricReading(value: Double(model.responseCount), text: model.responseCount.formatted(), detail: "")
             },
             MetricDefinition(
                 title: "Output speed, tok/s (approximate)",

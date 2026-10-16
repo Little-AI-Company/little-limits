@@ -187,7 +187,7 @@ enum UsageMenu {
         // historical, as on Home.
         let grantExpired = grants.contains { $0.expiresAt.map { $0 <= now } == true }
         let oldObservation = summary?.asOf.map { now.timeIntervalSince($0) >= 300 || $0 > now } == true
-        let value = grantExpired || oldObservation ? "Last known \(count)" : "\(count) available"
+        let value = grantExpired || oldObservation ? "Last known \(count) available" : "\(count) available"
         var lines = ["Earned resets: \(value)"]
         for grant in grants.sorted(by: { ($0.expiresAt ?? .distantFuture) < ($1.expiresAt ?? .distantFuture) }) {
             lines.append(grant.expiresAt.map { "\(InterfaceFormatting.compactExpiry($0, now: now)) · \(InterfaceFormatting.exactDate($0))" }
