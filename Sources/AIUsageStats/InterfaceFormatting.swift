@@ -169,6 +169,52 @@ enum InterfaceFormatting {
         return parts.joined(separator: " · ")
     }
 
+    struct EarnedResetsSummary: Equatable {
+        let value: String
+        let timing: String
+        let detail: String
+    }
+
+    /// One summary for the earned reset count and its nearest expiry, in Home's words: `2 available`,
+    /// `Next expires in 12d`. A count the grants or the observation have outdated reads `Last known 2`.
+    /// Per-grant expiry stays in the detail.
+    static func earnedResets(_ credits: [CreditBalance], now: Date = Date()) -> EarnedResetsSummary? {
+        let summary = credits.first { $0.id == "quota_reset_credits" }
+        let grants = credits.filter { $0.id.hasPrefix("quota_reset_") && $0.id != "quota_reset_credits" }
+        guard summary != nil || !grants.isEmpty else { return nil }
+        let count = summary?.amount.map { NSDecimalNumber(decimal: $0).intValue } ?? grants.count
+        let nextExpiry = grants.compactMap(\.expiresAt).filter { $0 > now }.min()
+        let timing = nextExpiry.map { "Next expires in \(UsageFormatting.countdown(to: $0, now: now))" } ?? ""
+        let grantExpired = grants.contains { $0.expiresAt.map { $0 <= now } == true }
+        let oldObservation = summary?.asOf.map { now.timeIntervalSince($0) >= 300 || $0 > now } == true
+        let value = grantExpired || oldObservation ? "Last known \(count)" : "\(count) available"
+        var lines = ["Earned resets: \(value)"]
+        for grant in grants.sorted(by: { ($0.expiresAt ?? .distantFuture) < ($1.expiresAt ?? .distantFuture) }) {
+            lines.append(grant.expiresAt.map { "\(compactExpiry($0, now: now)) · \(exactDate($0))" }
+                ?? (grant.doesNotExpire ? "Does not expire" : "Expiration date unavailable"))
+        }
+        return EarnedResetsSummary(value: value, timing: timing, detail: lines.joined(separator: "\n"))
+    }
+
+    /// Readable names for the model identifiers in the usage logs: `claude-fable-5-1` reads `Fable 5.1`,
+    /// `gpt-6.1-sol` reads `GPT-6.1 Sol`. An identifier in no known pattern is shown as logged.
+    static func modelDisplayName(_ identifier: String) -> String {
+        let parts = identifier.lowercased().split(separator: "-").map(String.init)
+        func isDigits(_ part: String) -> Bool { !part.isEmpty && part.allSatisfy(\.isNumber) }
+        func isVersion(_ part: String) -> Bool {
+            part.first?.isNumber == true && part.allSatisfy { $0.isNumber || $0 == "." }
+        }
+        if parts.count == 3 || parts.count == 4, parts[0] == "claude", parts[1].allSatisfy(\.isLetter),
+           parts.dropFirst(2).allSatisfy(isDigits) {
+            return "\(parts[1].capitalized) \(parts.dropFirst(2).joined(separator: "."))"
+        }
+        if parts.count >= 2, parts[0] == "gpt", isVersion(parts[1]),
+           parts.dropFirst(2).allSatisfy({ $0.allSatisfy(\.isLetter) }) {
+            return (["GPT-\(parts[1])"] + parts.dropFirst(2).map(\.capitalized)).joined(separator: " ")
+        }
+        return identifier
+    }
+
     static func provider(_ provider: Provider) -> String {
         switch provider { case .claude: "Claude"; case .codex: "Codex" }
     }
