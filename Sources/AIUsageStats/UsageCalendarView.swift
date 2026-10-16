@@ -660,6 +660,17 @@ private final class UsageEventButton: NSButton {
         return field
     }
 
+    /// The separator, one letter, and an ellipsis. A narrower scope or identity field would draw a fragment of a
+    /// letter, so it hides instead; the tooltip and accessibility label keep the whole text.
+    private static let scopeMinimumWidth = minimumWidth(font: scopeFont)
+    private static let identityMinimumWidth = minimumWidth(font: detailFont)
+
+    private static func minimumWidth(font: NSFont) -> CGFloat {
+        let field = lineField(font: font)
+        field.stringValue = "· W…"
+        return drawnWidth(field)
+    }
+
     private static func lineHeight(_ font: NSFont) -> CGFloat {
         ceil(lineField(font: font).cell?.cellSize.height ?? font.boundingRectForFont.height)
     }
@@ -685,6 +696,7 @@ private final class UsageEventButton: NSButton {
         timeField.frame = NSRect(x: textX, y: top, width: timeWidth, height: firstHeight)
         let scopeX = min(textX + timeWidth, trailing)
         scopeField.frame = NSRect(x: scopeX, y: top, width: max(0, trailing - scopeX), height: firstHeight)
+        scopeField.isHidden = scopeField.frame.width < Self.scopeMinimumWidth
         let secondY = top + firstHeight + Self.lineSpacing
         var detailX = textX
         if let symbol, let size = symbol.image?.size {
@@ -697,6 +709,7 @@ private final class UsageEventButton: NSButton {
         // In the narrowest column the identity can shrink to nothing; the tooltip and label keep it.
         let identityX = min(detailX + remainingWidth, trailing)
         identityField.frame = NSRect(x: identityX, y: secondY, width: max(0, trailing - identityX), height: secondHeight)
+        identityField.isHidden = identityField.frame.width < Self.identityMinimumWidth
     }
 
     func apply(_ event: HomeCalendarEventModel) {

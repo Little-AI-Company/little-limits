@@ -53,6 +53,7 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
     private let forecastHistory: HomeForecastHistory
     private var forecastRange: HomeForecastRange = .nextWeek
     private var totalsTitle: NSTextField?
+    private var calendarTitle: NSTextField?
     private let contextLabel = NSTextField(labelWithString: "")
     private let attentionStack = NSStackView()
     private let emptyPeriodLabel = NSTextField(labelWithString: HomeInterfaceFormatting.emptyPeriodText)
@@ -126,6 +127,7 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         self.totalsTitle = totalsTitle
         let tableTitle = sectionTitle("Account Usage")
         let calendarTitle = sectionTitle("Reset Calendar")
+        self.calendarTitle = calendarTitle
         // The per-account answer comes before the forecast, so the table opens inside the default window.
         for item in [totalsTitle, totalsView, tableTitle, contextLabel, attentionStack, tableView, forecastView, calendarTitle, emptyPeriodLabel,
                      calendarView, demoLabel] {
@@ -424,32 +426,43 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
 
     // MARK: Commands
 
+    // Period commands change only the Reset Calendar, which can sit below the window, so each one reveals it.
+
     @objc func showPreviousPeriod(_ sender: Any?) {
         guard showsReadings else { return }
         shift(by: -1)
+        revealCalendar()
     }
 
     @objc func showNextPeriod(_ sender: Any?) {
         guard showsReadings else { return }
         shift(by: 1)
+        revealCalendar()
     }
 
     @objc func showCurrentPeriod(_ sender: Any?) {
         guard showsReadings else { return }
         anchor = Date()
         render()
+        revealCalendar()
     }
 
     @objc func showMonthPeriod(_ sender: Any?) {
-        guard showsReadings, mode != .month else { return }
-        mode = .month
-        render()
+        guard showsReadings else { return }
+        if mode != .month {
+            mode = .month
+            render()
+        }
+        revealCalendar()
     }
 
     @objc func showTwoWeekPeriod(_ sender: Any?) {
-        guard showsReadings, mode != .twoWeeks else { return }
-        mode = .twoWeeks
-        render()
+        guard showsReadings else { return }
+        if mode != .twoWeeks {
+            mode = .twoWeeks
+            render()
+        }
+        revealCalendar()
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
@@ -692,6 +705,29 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
     private func restoreSelectedFocus() {
         guard let id = calendarView.selectedEventID, let control = calendarView.eventView(for: id) else { return }
         view.window?.makeFirstResponder(control)
+    }
+
+    /// Moves the Reset Calendar heading to the top of the visible area, without animation, unless the calendar
+    /// already shows its weekday header and a row of days, or all of itself when shorter. A short page that fits
+    /// does not move.
+    private func revealCalendar() {
+        guard let calendarTitle, let document = scroll.documentView else { return }
+        view.layoutSubtreeIfNeeded()
+        let clip = scroll.contentView
+        let insets = scroll.contentInsets
+        var visible = clip.bounds
+        visible.origin.y += insets.top
+        visible.size.height -= insets.top + insets.bottom
+        let calendarFrame = calendarView.convert(calendarView.bounds, to: document)
+        let shown = visible.intersection(calendarFrame).height
+        // The 24 pt weekday header and one 72 pt month row.
+        if shown >= min(calendarFrame.height, 96) { return }
+        let heading = calendarTitle.convert(calendarTitle.bounds, to: document)
+        var target = clip.bounds
+        target.origin.y = heading.minY - 8 - insets.top
+        target = clip.constrainBoundsRect(target)
+        clip.scroll(to: target.origin)
+        scroll.reflectScrolledClipView(clip)
     }
 
     private func shift(by step: Int) {

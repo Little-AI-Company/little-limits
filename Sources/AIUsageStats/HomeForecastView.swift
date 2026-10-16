@@ -4,8 +4,8 @@ import SwiftUI
 import UsageCore
 import UsageHistory
 
-/// Home's Forecast section: the title with the range pop-up, then one block per provider. A block is the drain rate,
-/// the time the pool reaches 0%, and Last seen per account in the totals grid, followed by the pooled chart. Without
+/// Home's Forecast section: the title with the range pop-up, then one block per provider. A block is the usage rate,
+/// the time the weekly total reaches 0%, and Updated per account in the totals grid, followed by the pooled chart. Without
 /// history a block is one plain line. Blocks are rebuilt only when their content changes.
 @MainActor
 final class HomeForecastView: NSView {
@@ -209,7 +209,8 @@ struct HomeForecastChart: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel(model.accessibilityLabel)
             .transaction { $0.animation = nil }
-            .padding(.top, 4)
+            // The Now label draws above the plot; this keeps it clear of the last text row at the minimum width.
+            .padding(.top, 14)
         } else {
             Color.clear
         }

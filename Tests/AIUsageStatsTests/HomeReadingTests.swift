@@ -74,7 +74,8 @@ func earnedCountHasItsOwnObservationTime() {
     let old = homeReadingNow.addingTimeInterval(-1_080)
     let currentQuota = homeRow(windows: [homeWindow(used: 20)], credits: [homeResetCount(2, observed: old)])
     #expect(homeLines(currentQuota.session)[0].primary == "80% left")
-    #expect(homeLines(currentQuota.earned)[0].primary == "Last known 2")
+    #expect(homeLines(currentQuota.earned)[0].preface == ["Last known"])
+    #expect(homeLines(currentQuota.earned)[0].primary == "2 available")
     #expect(homeLines(currentQuota.earned)[0].tertiary?.hasPrefix("Last read") == true)
 
     let oldQuota = homeRow(windows: [homeWindow(used: 20)], observed: old,
@@ -144,7 +145,8 @@ func passedEarnedResetExpiryMakesTheCountHistorical() {
     let row = homeRow(windows: [homeWindow(used: 20)],
                       credits: [homeResetCount(1, observed: observed), grant])
     let line = homeLines(row.earned)[0]
-    #expect(line.primary == "Last known 1")
+    #expect(line.preface == ["Last known"])
+    #expect(line.primary == "1 available")
     #expect(line.secondary?.hasPrefix("Expired") == true)
     #expect(line.toolTip.contains(InterfaceFormatting.exactDate(expiry)))
     #expect(line.toolTip.contains("Refresh to check current availability"))

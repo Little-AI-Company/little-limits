@@ -20,7 +20,7 @@ final class HomeForecastHistory {
 
     var onChange: (() -> Void)?
     private(set) var readings: [QuotaReading] = []
-    /// Each account's latest reading of any age, so Last seen tells old history from none.
+    /// Each account's latest reading of any age, so Updated tells old history from none.
     private(set) var latestReadings: [QuotaReading] = []
     /// Why history cannot be shown at all, or nil.
     private(set) var unavailableReason: String?

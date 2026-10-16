@@ -2,7 +2,8 @@ import AppKit
 import UsageCore
 
 /// Home's Weekly Totals: one text row per pooled window and one Next reset row for each provider, aligned in a
-/// grid. The grid is rebuilt only when the displayed lines change.
+/// grid. The grid is rebuilt only when the displayed lines change. The provider column has one width for every
+/// provider, so separate grids (Weekly Totals and each forecast block) start their labels at the same x.
 @MainActor
 final class HomeTotalsView: NSView {
     private var lines: [HomeTotalLine] = []
@@ -37,6 +38,7 @@ final class HomeTotalsView: NSView {
         grid.rowSpacing = 4
         // Every field uses one 12-point size, so centered rows line up their text.
         grid.yPlacement = .center
+        grid.column(at: 0).width = Self.providerColumnWidth
         grid.translatesAutoresizingMaskIntoConstraints = false
         // A new provider starts after a gap, so each group reads as one block.
         for (index, line) in lines.enumerated() where index > 0 && line.provider != nil {
@@ -51,6 +53,12 @@ final class HomeTotalsView: NSView {
         ])
         self.grid = grid
     }
+
+    /// The icon, the gap, and the widest provider name.
+    private static let providerColumnWidth: CGFloat = {
+        let names = Provider.allCases.map { HomeText.label($0.title, size: 12, weight: .semibold).fittingSize.width }
+        return ceil(14 + 5 + (names.max() ?? 0))
+    }()
 
     private func providerView(_ provider: Provider?) -> NSView {
         guard let provider else { return NSGridCell.emptyContentView }
