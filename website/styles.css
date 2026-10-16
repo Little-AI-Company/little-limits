@@ -3,6 +3,23 @@
    Colors come from assets/app-icon.png: plum outline ink and coral face.
    The page ground is a plum-tinted mist instead of the icon's cream. */
 
+/* Self-hosted variable fonts, Latin subset. Licenses and sources: fonts/README.md */
+@font-face {
+  font-family: "Schibsted Grotesk";
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url("fonts/schibsted-grotesk/schibsted-grotesk-latin-wght-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("fonts/inter/inter-latin-wght-normal.woff2") format("woff2");
+}
+
 :root {
   color-scheme: light dark;
 
@@ -16,8 +33,8 @@
   --hairline: #E4DCE7;
   --shot-shadow: 0 1px 2px rgba(57, 32, 60, 0.10), 0 18px 44px -12px rgba(57, 32, 60, 0.28);
 
-  --text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --rounded: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --text: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --rounded: "Schibsted Grotesk", ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
   --code: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   --wrap: 1080px;

@@ -11,7 +11,7 @@ A static site for AI Usage Stats. There is no build step, no JavaScript, and no 
 | `404.html` | Page for missing addresses |
 | `_headers` | Cloudflare Pages security and cache headers |
 
-Fonts are the macOS system faces: SF Pro Rounded for headings through `ui-rounded`, which Safari supports, and SF Pro for text. Other browsers show headings in SF Pro or their own sans-serif.
+Fonts are self-hosted in `fonts/` (see `fonts/README.md`): Schibsted Grotesk for headings and Inter for text. Until they load, or if they fail, the page uses the macOS system faces (SF Pro Rounded through `ui-rounded` for headings, SF Pro for text) and then other sans-serif fonts.
 
 The hero gauge is inline SVG in `index.html`, drawn after the app icon. Its needle sweeps once on load, and stays still when the visitor asks for reduced motion.
 
