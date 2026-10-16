@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://limitsleft.com/sitemap.xml
