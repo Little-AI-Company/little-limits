@@ -97,7 +97,7 @@ Public releases are signed with the Developer ID Application certificate of RAPT
 
 3. Verify the notarized app before archiving it: `codesign --verify --deep --strict`, `xcrun stapler validate`, `spctl --assess --type execute --verbose=2`, and `lipo -archs` on both executables. Create the release archive with `ditto -c -k --keepParent` and record its `shasum -a 256`.
 
-4. Publish the archive as `Limits-Left-<version>.zip` on a `v<version>` GitHub release, then update the cask in `ParkerRex/homebrew-tap` with the version and SHA-256. Install with `brew install --cask parkerrex/tap/<cask>` on a clean account to confirm. Until 0.2.1 ships the cask is `Casks/ai-usage-stats.rb`; from 0.2.1 on it is `Casks/limits-left.rb` (see below).
+4. Publish the archive as `Limits-Left-<version>.zip` on a `v<version>` GitHub release, then update the cask in `ParkerRex/homebrew-tap` with the version and SHA-256. Install with `brew install --cask parkerrex/tap/<cask>` on a clean account to confirm. The cask is `Casks/limits-left.rb`.
 
 Keep certificates, private keys, notarization credentials, and private account data out of the repository and bundle. Changing the signing team from a local development identity to the release team can make macOS ask once for access to saved Keychain sign-ins.
 
@@ -105,17 +105,17 @@ Record exact commands, results, artifact version, tested source revision, OS, an
 
 ## Rename to Limits Left
 
-The app was published as AI Usage Stats through 0.2.0. The next release ships as Limits Left 0.2.1 (build 4). The bundle `Limits Left.app` and the archive `Limits-Left-0.2.1.zip` carry the new name. These names stay the same on purpose:
+The app was published as AI Usage Stats through 0.2.0. Limits Left 0.2.1 (build 4) shipped on October 16, 2026. The bundle `Limits Left.app` and the archive `Limits-Left-0.2.1.zip` carry the new name. These names stay the same on purpose:
 
 - Bundle ID `com.parkerrex.ai-usage-stats`. Saved Keychain sign-ins, preferences, the login item, and the Claude Platform WebKit data are bound to it.
 - The Keychain service `AI Usage Stats Claude OAuth`, which holds saved Claude sign-ins.
 - The data folder `~/Library/Application Support/AI Usage Stats` and the helper at `~/Library/Application Support/AI Usage Stats/UsageCapture`. Usage history lives in the folder, and Claude status-line configurations point to the helper.
 - Swift target, product, module, and executable names (`AIUsageStats`, `UsageCore`, and the others). The GitHub repository is now `ParkerRex/limits-left`; GitHub redirects the old `ParkerRex/ai-usage-stats` URLs, including release downloads, as long as no new repository takes that name.
 
-Release steps for 0.2.1, in addition to [Public release](#public-release):
+Release steps for 0.2.1, in addition to [Public release](#public-release). Steps 1, 2, 3, and 5 are done; step 4 is not yet verified. See [VALIDATION.md](VALIDATION.md).
 
 1. Set `CFBundleShortVersionString` to `0.2.1` and `CFBundleVersion` to `4` in `Resources/Info.plist`, then build, notarize, and verify as usual. Publish `Limits-Left-0.2.1.zip` on the `v0.2.1` GitHub release.
-2. In `ParkerRex/homebrew-tap`, add `Casks/limits-left.rb`. Copy `Casks/ai-usage-stats.rb` and change only the token to `limits-left`, `version` to `0.2.1`, `sha256` to the new archive's checksum, the `url` file name to `Limits-Left-#{version}.zip`, `name` to `Limits Left`, and the artifact to `app "Limits Left.app"`. Keep `uninstall quit: "com.parkerrex.ai-usage-stats"` and the same `zap trash` paths, which still name the data folder, the preferences file, and the WebKit data of the unchanged bundle ID.
+2. In `ParkerRex/homebrew-tap`, add `Casks/limits-left.rb`. Copy `Casks/ai-usage-stats.rb` and change only the token to `limits-left`, `version` to `0.2.1`, `sha256` to the new archive's checksum, the `url` file name to `Limits-Left-#{version}.zip`, the `url` and `homepage` repository to `ParkerRex/limits-left`, `name` to `Limits Left`, and the artifact to `app "Limits Left.app"`. Keep `uninstall quit: "com.parkerrex.ai-usage-stats"` and the same `zap trash` paths, which still name the data folder, the preferences file, and the WebKit data of the unchanged bundle ID.
 3. In the same tap commit, delete `Casks/ai-usage-stats.rb` and add `cask_renames.json` at the tap root with `{"ai-usage-stats": "limits-left"}`, so `brew upgrade` moves existing installs to the new token.
 4. Confirm on a Mac that has `parkerrex/tap/ai-usage-stats` 0.2.0 installed: `brew update && brew upgrade --cask` replaces `AI Usage Stats.app` with `Limits Left.app`, saved accounts and history are still present without a new sign-in, Claude capture still updates, and Launch at login keeps its setting. Then confirm `brew install --cask parkerrex/tap/limits-left` on a clean account.
 5. Change install and uninstall commands in `README.md` and `website/` from `ai-usage-stats` to `limits-left` only after the tap change is live.

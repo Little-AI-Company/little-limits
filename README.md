@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/ParkerRex/limits-left/releases/latest">Download</a> ·
-  <code>brew install --cask parkerrex/tap/ai-usage-stats</code> ·
+  <code>brew install --cask parkerrex/tap/limits-left</code> ·
   macOS 14 or later · Apple silicon and Intel
 </p>
 
@@ -56,7 +56,7 @@ The forecast and the Models page come from a history the app keeps on your Mac. 
 **With Homebrew:**
 
 ```sh
-brew install --cask parkerrex/tap/ai-usage-stats
+brew install --cask parkerrex/tap/limits-left
 ```
 
 **Or download it:** get the `Limits-Left-<version>.zip` file from the [latest release](https://github.com/ParkerRex/limits-left/releases/latest), unzip it, and drag **Limits Left** into your Applications folder.
@@ -83,7 +83,7 @@ The app is signed and notarized by Apple, so it opens without security warnings.
 - **Experimental readings.** Claude usage and API credits come from endpoints Anthropic hasn't documented, so they can change without notice. Codex usage comes from the Codex CLI.
 - **Readings refresh every 5 minutes**, or when you choose **Refresh All**. Old readings say **Last known** so you never mistake them for live numbers.
 - **First launch may ask for Keychain access.** That's macOS asking whether the app may read the sign-ins it saved.
-- **Uninstall:** `brew uninstall --cask ai-usage-stats`, or drag the app to the Trash.
+- **Uninstall:** `brew uninstall --cask limits-left`, or drag the app to the Trash.
 
 ## Build from source
 
