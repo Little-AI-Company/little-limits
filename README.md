@@ -14,7 +14,7 @@
   macOS 14 or later · Apple silicon and Intel
 </p>
 
-![Home: an account table with remaining quota and reset times, above a two-week reset calendar](assets/screenshots/home.png)
+![Home: weekly totals across accounts and a forecast chart of remaining weekly quota, with the account list in the sidebar](assets/screenshots/home.png)
 
 ## What it does
 
@@ -33,6 +33,8 @@ It only reads usage. It never buys credits, changes plans, or sends AI requests 
 ## Your usage history
 
 The forecast and the Models page come from a history the app keeps on your Mac. Nothing in it is uploaded.
+
+![The Models page: per-model bars for requests, output speed, steps per turn, thinking share, parallel tool calls, and shell command habits](assets/screenshots/models.png)
 
 - **What it reads.** Claude Code logs in `~/.claude/projects` and Codex logs in `~/.codex/sessions` and `~/.codex/archived_sessions`, including compressed `.jsonl.zst` files. It reads them in the background after each refresh and skips files that have not changed. Codex logs also fill in earlier Codex quota readings for the account they belong to.
 - **What it stores.** Derived facts only: quota readings over time, and for each model response its model, time, and token counts. For each shell command it keeps the length, line count, a few categories (search program, pipe into head or tail, git status or commit, inline script language and purpose), and the program names with every argument removed, such as `grep | head`. A project is a salted hash of its folder path.
