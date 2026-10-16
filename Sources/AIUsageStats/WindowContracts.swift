@@ -1,6 +1,6 @@
 import AppKit
 
-/// A page in the AI Usage Stats window that places its controls in the window toolbar.
+/// A page in the Limits Left window that places its controls in the window toolbar.
 /// The window controller asks the visible page for items after the sidebar tracking
 /// separator and shows `windowSubtitle` under the page title.
 @MainActor

@@ -1,4 +1,4 @@
-# AI Usage Stats
+# Limits Left
 
 Build a small native macOS menu bar utility for viewing Claude and Codex account usage. Keep the product focused, fast, and understandable without developer knowledge.
 
@@ -52,7 +52,7 @@ Build a small native macOS menu bar utility for viewing Claude and Codex account
 swift build
 swift test
 scripts/package_app.sh
-open -n "dist/AI Usage Stats.app"
+open -n "dist/Limits Left.app"
 ```
 
 These are available commands, not a requirement to run all four for every edit. Packaging builds in Release mode using the selected local signing identity, with ad hoc signing as the fallback. Launch through the packaged `.app`; a raw `swift run AIUsageStats` does not establish bundle behavior. Quit the previous development instance before comparing builds.

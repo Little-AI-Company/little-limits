@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/app-icon.png" width="128" height="128" alt="AI Usage Stats app icon: a nervous speech-bubble fuel gauge">
+  <img src="assets/app-icon.png" width="128" height="128" alt="Limits Left app icon: a nervous speech-bubble fuel gauge">
 </p>
 
-<h1 align="center">AI Usage Stats</h1>
+<h1 align="center">Limits Left</h1>
 
 <p align="center">
   See how much of your Claude and Codex limits are left, on every account, right from your Mac's menu bar. Keep a private history of how you use them, stored only on your Mac.
@@ -40,7 +40,7 @@ The forecast and the Models page come from a history the app keeps on your Mac. 
 - **What it stores.** Derived facts only: quota readings over time, and for each model response its model, time, and token counts. For each shell command it keeps the length, line count, a few categories (search program, pipe into head or tail, git status or commit, inline script language and purpose), and the program names with every argument removed, such as `grep | head`. A project is a salted hash of its folder path.
 - **Identifiers it keeps.** The session, turn, response, and command IDs copied from the logs, so reading a log again replaces rows instead of adding them. The app's own ID for each account, and the Codex account ID of each linked Codex account, so quota readings stay with the right account. Read positions are saved under a salted hash of each log's path.
 - **What it never stores.** Prompts, replies, tool output, file contents, command text, or folder names.
-- **Where.** `~/Library/Application Support/AI Usage Stats/history.sqlite`. It is kept until you delete it, so it outlasts Claude Code's own logs, which Claude Code deletes after 30 days by default. To clear it, quit the app and delete the files whose names start with `history.sqlite`.
+- **Where.** `~/Library/Application Support/AI Usage Stats/history.sqlite`. It is kept until you delete it, so it outlasts Claude Code's own logs, which Claude Code deletes after 30 days by default. To clear it, quit the app and delete the files whose names start with `history.sqlite`. The folder keeps the app's earlier name, AI Usage Stats, so history and the Claude capture helper from earlier versions stay in place.
 
 ## Install
 
@@ -50,20 +50,20 @@ The forecast and the Models page come from a history the app keeps on your Mac. 
 brew install --cask parkerrex/tap/ai-usage-stats
 ```
 
-**Or download it:** get the `AI-Usage-Stats-<version>.zip` file from the [latest release](https://github.com/ParkerRex/ai-usage-stats/releases/latest), unzip it, and drag **AI Usage Stats** into your Applications folder.
+**Or download it:** get the `Limits-Left-<version>.zip` file from the [latest release](https://github.com/ParkerRex/ai-usage-stats/releases/latest), unzip it, and drag **Limits Left** into your Applications folder.
 
 The app is signed and notarized by Apple, so it opens without security warnings.
 
 ## Set it up
 
-1. **Open AI Usage Stats** from Applications. A small gauge icon appears in your menu bar. There is no Dock icon until you open the window.
+1. **Open Limits Left** from Applications. A small gauge icon appears in your menu bar. There is no Dock icon until you open the window.
 2. **Add a Claude account.** Click the menu bar icon and choose **Add Claude Account…**. Your browser opens claude.ai; sign in and approve. The app shows the account as soon as you finish.
-3. **Add a Codex account.** Choose **Open AI Usage Stats**, click **+** below the sidebar (or File > Add Account…), and pick Codex. On a fresh install the menu bar menu also offers **Add Codex Account…**.
+3. **Add a Codex account.** Choose **Open Limits Left**, click **+** below the sidebar (or File > Add Account…), and pick Codex. On a fresh install the menu bar menu also offers **Add Codex Account…**.
    - If the Codex CLI on this Mac is already signed in, choose **Use Current Codex Login**.
    - Otherwise choose **Sign In with a Different Account…**. Terminal opens `codex login`; sign in, and the app picks it up by itself.
    - Codex accounts need the [Codex CLI](https://github.com/openai/codex) or the ChatGPT desktop app installed.
 4. **Pick what the menu bar shows.** Click the menu bar icon, open **Show in Menu Bar**, and check the accounts you care about. Choose **Lowest per Provider** to go back to the default.
-5. **Arrange accounts.** Choose **Open AI Usage Stats** and drag accounts in the sidebar into the order you like. Right-click an account to delete it.
+5. **Arrange accounts.** Choose **Open Limits Left** and drag accounts in the sidebar into the order you like. Right-click an account to delete it.
 
 **Optional: Claude API credits.** Open a Claude account's page and choose **Connect API Credits…**, then sign in to Claude Platform in the window that appears. Passkeys don't work in that window. If Google asks for one, choose **Try another way** and use your password or a code.
 
@@ -84,7 +84,7 @@ You need Xcode 27 or later, which includes Swift 6 and the macOS 27 SDK the sour
 git clone https://github.com/ParkerRex/ai-usage-stats.git
 cd ai-usage-stats
 scripts/package_app.sh
-open "dist/AI Usage Stats.app"
+open "dist/Limits Left.app"
 ```
 
 The first build downloads two pinned Swift packages: [GRDB](https://github.com/groue/GRDB.swift) 7.11.1 for the history database and [facebook/zstd](https://github.com/facebook/zstd) 1.5.7 to read compressed Codex logs. The app has no other dependencies.

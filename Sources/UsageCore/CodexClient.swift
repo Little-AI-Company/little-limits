@@ -234,7 +234,7 @@ struct CodexClient: Sendable {
     private static func readLogin(_ connection: CodexConnection) throws -> Login {
         struct ClientInfo: Encodable {
             let name = "ai_usage_stats"
-            let title = "AI Usage Stats"
+            let title = "Limits Left"
             // The packaged app's version; tests and `swift run` have no bundle version.
             let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development"
         }

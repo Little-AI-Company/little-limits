@@ -14,7 +14,7 @@ final class GeneralSettingsViewController: NSViewController {
         view = root
         loginButton.target = self
         loginButton.action = #selector(toggleLogin(_:))
-        loginButton.setAccessibilityLabel("Launch AI Usage Stats at login")
+        loginButton.setAccessibilityLabel("Launch Limits Left at login")
         let startup = InterfaceControls.stack([loginButton, loginStatus], spacing: 6)
         loginStatus.widthAnchor.constraint(equalTo: startup.widthAnchor).isActive = true
         let startupForm = settingsRow("Startup:", content: startup)
@@ -54,9 +54,9 @@ final class GeneralSettingsViewController: NSViewController {
         let state = SMAppService.mainApp.status
         loginButton.state = state == .enabled || state == .requiresApproval ? .on : .off
         switch state {
-        case .enabled: loginStatus.stringValue = "AI Usage Stats starts when you log in."
-        case .requiresApproval: loginStatus.stringValue = "Allow AI Usage Stats in System Settings → General → Login Items."
-        case .notFound, .notRegistered: loginStatus.stringValue = "AI Usage Stats starts when you open it."
+        case .enabled: loginStatus.stringValue = "Limits Left starts when you log in."
+        case .requiresApproval: loginStatus.stringValue = "Allow Limits Left in System Settings → General → Login Items."
+        case .notFound, .notRegistered: loginStatus.stringValue = "Limits Left starts when you open it."
         @unknown default: loginStatus.stringValue = "Login item status is unavailable."
         }
     }

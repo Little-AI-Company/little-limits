@@ -94,7 +94,7 @@ final class AddAccountSheetController: NSWindowController {
         let alert = NSAlert()
         alert.messageText = "Add Codex Account"
         let identity = login.email.map { " as \($0)" } ?? ""
-        alert.informativeText = "The Codex CLI on this Mac is signed in\(identity). AI Usage Stats can read that login without changing it.\n\nA ChatGPT web or desktop-app login is only reusable when the Codex CLI on this Mac is signed in."
+        alert.informativeText = "The Codex CLI on this Mac is signed in\(identity). Limits Left can read that login without changing it.\n\nA ChatGPT web or desktop-app login is only reusable when the Codex CLI on this Mac is signed in."
         alert.addButton(withTitle: login.email.map { "Use Current Codex Login (\($0))" } ?? "Use Current Codex Login")
         alert.addButton(withTitle: "Sign In with a Different Account…")
         // NSAlert assigns Escape to the button titled Cancel.
