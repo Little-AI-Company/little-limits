@@ -911,3 +911,22 @@ The Codex grep count differs from the plan's reference of 34 grep and 1,936 rg. 
 - The menu's `Usable time unknown` row: no fixture shows it, so it was checked by source only (#23).
 - The Home forecast with a real history database and live accounts (#30), and the Models page with real logs (#31). Both used demo or synthetic rows.
 - A Codex account added while the app runs (#29, unit test only), Intel runtime (#27, #29), and a local Linux build of the foundation (#22).
+
+## 2026-10-15 public release 0.2.0
+
+Product source `6d0bec3e` (tag `v0.2.0`, main after #37), version 0.2.0, build 3. Packaged on macOS 27.0.1, Apple silicon, Xcode 27 toolchain, macOS 27 SDK.
+
+| Command or check | Result |
+| --- | --- |
+| `DISTRIBUTION=1 UNIVERSAL=1 CODE_SIGN_IDENTITY='Developer ID Application: RAPTURE ENTERTAINERS, INC. (9FL5S77YVH)' OUTPUT_DIRECTORY="$PWD/dist/release" scripts/package_app.sh` | Signed by Developer ID Application: RAPTURE ENTERTAINERS, INC. (9FL5S77YVH), `flags=0x10000(runtime)`, secure timestamp. Version and build came from `Resources/Info.plist`. |
+| `scripts/create_xcode_archive.sh` then `xcodebuild -exportArchive` (developer-id, upload) | Uploaded; export succeeded. |
+| `xcodebuild -exportNotarizedApp` | Accepted on the second attempt, about 30 seconds after upload. |
+| `codesign --verify --deep --strict`, `xcrun stapler validate`, `spctl --assess --type execute` | Valid; stapled ticket validated; `accepted`, `source=Notarized Developer ID`. |
+| `lipo -archs` on `AIUsageStats` and `UsageCapture` | `x86_64 arm64` for both. `vtool` reports minos 14.0, sdk 27.0. |
+| `ditto -c -k --keepParent` release archive | `AI-Usage-Stats-0.2.0.zip`, 9,095,919 bytes, SHA-256 `0368cdc88d27d9461379d458b110be3a40c1aa6f4b94438edad9c5d9ee5d0b2b`; an extracted copy passed Gatekeeper and stapler validation. |
+| GitHub release `v0.2.0` asset download | Same SHA-256 as the local archive. |
+| Cask `parkerrex/tap/ai-usage-stats` (tap commit `36152dd`) | `brew style`: no offenses. `brew audit --cask --online`: exit 0. `brew livecheck`: 0.2.0. `brew fetch --cask --force` verified the download. |
+
+Before packaging, the Release app from main `11aec82` ran on this Mac with real accounts and logs: the first ingestion read 987 of 988 log files into a fresh `history.sqlite`, storing 85,294 responses and 42,646 commands, recorded completed classifier version 2, and peaked at about 269 MB resident memory. Demo-mode Home and Models windows were captured for the owner.
+
+Not verified: a `brew install --cask` on a clean account, Intel runtime, macOS 14 and 15 runtime, and the manual checks listed under "Usage history waves 0 to 2" (keyboard navigation, VoiceOver, the Home range pop-up, and Refresh Account on a live account).
