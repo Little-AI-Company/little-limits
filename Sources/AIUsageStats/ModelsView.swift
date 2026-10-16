@@ -33,7 +33,7 @@ private struct ModelsReportView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 if report.models.contains(where: \.isSmallSample) {
-                    Text("Dimmed models have fewer than \(ModelMetrics.reliableResponseCount.formatted()) requests, so their numbers are noisy.")
+                    Text("Models marked under \(ModelMetrics.reliableResponseCount.formatted()) have fewer requests than that, so their numbers are noisy.")
                 }
                 ForEach(HistoryProvider.allCases, id: \.self) { provider in
                     let models = report.models.filter { $0.provider == provider }
@@ -80,16 +80,15 @@ private struct MetricBlock: View {
                 ForEach(Array(zip(models, readings)), id: \.0.id) { model, reading in
                     let fraction = reading.map { metric.isShare ? $0.value : largest > 0 ? $0.value / largest : 0 }
                     GridRow {
-                        Text(model.model).fixedSize()
+                        ModelNameText(model: model)
                         MetricBar(fraction: fraction)
                         Text(reading?.text ?? metric.emptyText).monospacedDigit().fixedSize().gridColumnAlignment(.trailing)
                         Text(reading?.detail ?? "").monospacedDigit().foregroundStyle(.secondary).fixedSize()
                     }
-                    .opacity(model.isSmallSample ? 0.5 : 1)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(model.model)
-                    .accessibilityValue(accessibilityValue(model: model, reading: reading))
-                    .help(accessibilityValue(model: model, reading: reading))
+                    .accessibilityLabel(InterfaceFormatting.modelDisplayName(model.model))
+                    .accessibilityValue(accessibilityValue(model: model, reading: reading) + ". Model identifier \(model.model)")
+                    .help("\(model.model). \(accessibilityValue(model: model, reading: reading))")
                 }
             }
             .font(.callout)
@@ -108,6 +107,17 @@ private struct MetricBlock: View {
     }
 }
 
+/// The readable model name. A model under the reliable request count adds the words `under 5,000`, so the
+/// state does not depend on color.
+private struct ModelNameText: View {
+    let model: ModelMetrics
+
+    var body: some View {
+        let name = InterfaceFormatting.modelDisplayName(model.model)
+        Text(model.isSmallSample ? "\(name) (under \(ModelMetrics.reliableResponseCount.formatted()))" : name).fixedSize()
+    }
+}
+
 /// A horizontal bar on a visible track. Shares use a fixed 0 to 100 percent scale; other values scale to the largest.
 private struct MetricBar: View {
     let fraction: Double?
@@ -117,7 +127,7 @@ private struct MetricBar: View {
             ZStack(alignment: .leading) {
                 Rectangle().fill(.quaternary)
                 if let fraction {
-                    Rectangle().fill(Color.accentColor).frame(width: proxy.size.width * min(max(fraction, 0), 1))
+                    Rectangle().fill(Color.primary).frame(width: proxy.size.width * min(max(fraction, 0), 1))
                 }
             }
         }
@@ -157,17 +167,17 @@ private struct PurposeBlock: View {
                 ForEach(models) { model in
                     let total = model.inlinePythonPurposes.values.reduce(0, +)
                     GridRow {
-                        Text(model.model).fixedSize()
+                        ModelNameText(model: model)
                         stackedBar(model.inlinePythonPurposes, total: total)
                         ForEach(Self.purposes, id: \.0) { purpose, _, _ in
                             Text(share(model.inlinePythonPurposes[purpose] ?? 0, of: total)).monospacedDigit()
                         }
                         Text(total.formatted()).monospacedDigit()
                     }
-                    .opacity(model.isSmallSample ? 0.5 : 1)
+                    .help(model.model)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(model.model)
-                    .accessibilityValue(accessibilityValue(model, total: total))
+                    .accessibilityLabel(InterfaceFormatting.modelDisplayName(model.model))
+                    .accessibilityValue(accessibilityValue(model, total: total) + ". Model identifier \(model.model)")
                 }
             }
             .font(.callout)

@@ -432,11 +432,16 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
                                                   detail: "\(title): \(reading.value). \(InterfaceFormatting.reset(usage, snapshot: snapshot, now: now))")
             })
         let credits = snapshot?.credits ?? UsageService.unavailableCredits(for: profile.provider)
-        creditReadings.render(credits.map { credit in
+        var creditRows = credits.filter { !$0.id.hasPrefix("quota_reset_") }.map { credit in
             AccountReadingView.Reading(label: InterfaceFormatting.compactCreditTitle(credit), value: InterfaceFormatting.credit(credit),
                                        timing: InterfaceFormatting.compactCreditTiming(credit, now: now),
                                        detail: InterfaceFormatting.creditDetail(credit, now: now))
-        })
+        }
+        if let earned = InterfaceFormatting.earnedResets(credits, isCurrentReading: snapshot?.state == .available, now: now) {
+            creditRows.append(AccountReadingView.Reading(label: "Earned resets", value: earned.value,
+                                                         timing: earned.timing, detail: earned.detail))
+        }
+        creditReadings.render(creditRows)
         renderAttention(profile: profile, snapshot: snapshot, now: now)
         let platformConnected = profile.provider == .claude && model.consoleConnections[id] != nil
         creditHelp.stringValue = profile.provider == .claude && !platformConnected
