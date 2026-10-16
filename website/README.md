@@ -87,9 +87,9 @@ The files in `images/` are copies of repository assets, resized with `sips -Z` a
 
 | File | Source |
 | --- | --- |
-| `home-1600.png`, `home-800.png` | `assets/screenshots/home.png` |
-| `models-1600.png`, `models-800.png` | `assets/screenshots/models.png` |
-| `status-menu-661.png`, `status-menu-330.png` | `assets/screenshots/status-menu.png` |
+| `home-1600.webp`, `home-800.webp` | `assets/screenshots/home.png` |
+| `models-1600.webp`, `models-800.webp` | `assets/screenshots/models.png` |
+| `status-menu-661.webp`, `status-menu-330.webp` | `assets/screenshots/status-menu.png` |
 | `forecast-1260.png`, `forecast-630.png` | Codex forecast area of `assets/screenshots/home.png`, cropped at 1260 x 300 from (330, 605) |
 | `favicon-32.png`, `favicon-64.png`, `apple-touch-icon.png` | `assets/app-icon.png` |
 | `social-preview.png` | `assets/branding/social-preview.png` |
