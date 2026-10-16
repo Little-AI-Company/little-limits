@@ -4,7 +4,7 @@
 
 Limits Left only reads usage. It never buys credits, changes plans, or sends AI requests to check your usage, and it has no tracking or telemetry. The history stores derived facts only (quota readings, model names, times, token counts), never prompts, replies, or command text. Claude usage comes from endpoints Anthropic has not documented, so it can change without notice. Not affiliated with Anthropic or OpenAI.
 
-Install: `brew install --cask parkerrex/tap/ai-usage-stats`, or download from the latest release.
+Install: `brew install --cask parkerrex/tap/limits-left`, or download from the latest release.
 
 ## Pages
 

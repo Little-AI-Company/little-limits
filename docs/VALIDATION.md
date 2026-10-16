@@ -959,3 +959,21 @@ Reports: [round 1](design/crits/2026-10-16-round1.md), [round 2](design/crits/20
 - Untested across all rounds: VoiceOver; real keystrokes and pointer clicks in the packaged app, including toolbar controls and the App icon pop-up; real Increase Contrast, Reduce Transparency, and Reduce Motion preferences and other accent colors; the light menu bar and selected status item; Night in the Dock and app switcher; the Platform pane and Connect API Credits; refresh stability with live providers; delete confirmation and the Add Codex Account alert; macOS 14 and 15 and Intel runtime.
 
 Round 1 found 1 severity 3 and 7 severity 2 findings (UX diagnostic 5/10); fixes landed in #43, #44, and #45. Round 2 found 1 severity 2 (7/10); fixes landed in #58 and #59. Round 3 (8/10) found no severity 2 or higher, which ended the loop; two of its five severity 1 findings are being fixed separately, and three remain in the round 3 backlog.
+
+## 2026-10-16 public release 0.2.1, the first as Limits Left
+
+Product source `f343544` (tag `v0.2.1`, main after #70), version 0.2.1, build 4. Packaged on macOS 27.0.1 (26A434), Apple silicon, Xcode 27 toolchain, macOS 27 SDK.
+
+| Command or check | Result |
+| --- | --- |
+| `DISTRIBUTION=1 UNIVERSAL=1 CODE_SIGN_IDENTITY='Developer ID Application: RAPTURE ENTERTAINERS, INC. (9FL5S77YVH)' OUTPUT_DIRECTORY="$PWD/dist/release" scripts/package_app.sh` | Built `Limits Left.app`, `flags=0x10000(runtime)`, secure timestamp. Bundle ID still `com.parkerrex.ai-usage-stats`. |
+| `scripts/create_xcode_archive.sh` then `xcodebuild -exportArchive` (developer-id, upload) | Uploaded; export succeeded. |
+| `xcodebuild -exportNotarizedApp` | Accepted on the second attempt. |
+| `codesign --verify --deep --strict`, `xcrun stapler validate`, `spctl --assess --type execute -vv` | Valid; stapled ticket validated; `accepted`, `source=Notarized Developer ID`, origin RAPTURE ENTERTAINERS, INC. (9FL5S77YVH). |
+| `lipo -archs` on `AIUsageStats` and `UsageCapture`; `vtool -show-build` | `x86_64 arm64` for both; minos 14.0, sdk 27.0. Info.plist reports 0.2.1, build 4. |
+| `ditto -c -k --keepParent` release archive | `Limits-Left-0.2.1.zip`, 10,788,987 bytes, SHA-256 `bb68e2f0f90c3c30ef21d87b7bf5c70d528679c548b81b1c3ad3cee1bceb55da`; an extracted copy passed Gatekeeper and stapler validation. |
+| GitHub release `v0.2.1` on `ParkerRex/limits-left`, asset download | Same SHA-256 as the local archive. |
+| Tap commit `4c5931e`: `Casks/limits-left.rb` added, `Casks/ai-usage-stats.rb` removed, `cask_renames.json` maps `ai-usage-stats` to `limits-left` | `brew style`: no offenses. `brew audit --cask --online`: exit 0. `brew livecheck`: 0.2.1. `brew fetch --cask --force` verified the download. `brew install --cask --dry-run parkerrex/tap/limits-left` would install the cask. |
+| `brew info --cask parkerrex/tap/ai-usage-stats` | Resolved to `parkerrex/tap/limits-left`, then stopped because this Mac had not trusted the tap. Homebrew 7 asks for `brew trust` before loading third-party casks by short or old name; installing by the full `parkerrex/tap/limits-left` name trusts the cask. |
+
+Not verified: the upgrade from an installed `ai-usage-stats` 0.2.0 (step 4 of the [rename steps](RELEASING.md#rename-to-limits-left); this Mac has neither cask installed), whether `brew upgrade` follows the rename on a Mac that never ran `brew trust`, a `brew install --cask` on a clean account, Intel runtime, and macOS 14 and 15 runtime.
