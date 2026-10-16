@@ -816,20 +816,15 @@ enum HomeInterfaceFormatting {
 
     static let noReadingHelp = "No usage reading yet. Choose Refresh All to read usage."
 
+    /// The last read time whenever one is known, so a failed or signed-out row still shows the age of its last known
+    /// values. Without a trustworthy time the cell is `Unavailable`; the status names the reason.
     private static func updatedParts(_ account: UsageOverviewAccount, now: Date, basis: ReadingBasis) -> (primary: String, secondary: String?) {
-        let observed = account.snapshot?.fetchedAt.flatMap { $0 <= now ? $0 : nil }
+        guard let observed = account.snapshot?.fetchedAt, observed <= now else { return ("Unavailable", nil) }
+        let time = timeText(observed)
         switch basis {
-        case .authentication:
-            return ("Not refreshed", nil)
-        case .absent:
-            if (account.snapshot?.windows ?? []).isEmpty { return observed.map { (timeText($0), nil) } ?? ("Unavailable", nil) }
-            return observed.map { (timeText($0), nil) } ?? ("No reading", nil)
-        case .unavailable:
-            return observed.map { (timeText($0), "Not refreshed") } ?? ("Not refreshed", nil)
-        case .historical:
-            return observed.map { (timeText($0), "Stale") } ?? ("No reading", "Stale")
-        case .current:
-            return observed.map { (timeText($0), nil) } ?? ("No reading", nil)
+        case .authentication, .unavailable: return (time, "Not refreshed")
+        case .historical: return (time, "Stale")
+        case .absent, .current: return (time, nil)
         }
     }
 

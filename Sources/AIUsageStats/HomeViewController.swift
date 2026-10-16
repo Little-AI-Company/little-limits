@@ -10,7 +10,7 @@ extension NSToolbarItem.Identifier {
     static let homeRefreshAll = NSToolbarItem.Identifier("home.refreshAll")
 }
 
-/// Home: weekly totals, the forecast, then the account table, then the reset calendar, in one scrolling document. Period
+/// Home: weekly totals, the account table, the forecast, then the reset calendar, in one scrolling document. Period
 /// navigation, the account filter, period length, and Refresh All are window toolbar items; View > Sort Accounts
 /// orders the table. Mode, date, filter, sort order, and event selection survive refresh.
 @MainActor
@@ -82,7 +82,10 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
             forecastHistory = HomeForecastHistory(source: .unavailable(model.historyDatabaseError ?? "Quota history is unavailable."))
         }
         super.init(nibName: nil, bundle: nil)
-        forecastHistory.onChange = { [weak self] in self?.renderForecast() }
+        forecastHistory.onChange = { [weak self] in
+            self?.renderForecast()
+            self?.view.window?.recalculateKeyViewLoop()
+        }
         forecastView.onRangeChange = { [weak self] range in
             self?.forecastRange = range
             self?.renderForecast()
@@ -123,13 +126,14 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         self.totalsTitle = totalsTitle
         let tableTitle = sectionTitle("Account Usage")
         let calendarTitle = sectionTitle("Reset Calendar")
-        for item in [totalsTitle, totalsView, forecastView, tableTitle, contextLabel, attentionStack, tableView, calendarTitle, emptyPeriodLabel,
+        // The per-account answer comes before the forecast, so the table opens inside the default window.
+        for item in [totalsTitle, totalsView, tableTitle, contextLabel, attentionStack, tableView, forecastView, calendarTitle, emptyPeriodLabel,
                      calendarView, demoLabel] {
             readings.addArrangedSubview(item)
         }
         readings.setCustomSpacing(16, after: totalsView)
-        readings.setCustomSpacing(16, after: forecastView)
         readings.setCustomSpacing(16, after: tableView)
+        readings.setCustomSpacing(16, after: forecastView)
         stateStack.orientation = .vertical
         stateStack.alignment = .leading
         stateStack.spacing = 8
@@ -208,6 +212,9 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         applyPlaceholder(loaded: loaded, failed: failed, hasAccounts: hasAccounts)
         publishToolbarState(subtitle: showsReadings
             ? HomeInterfaceFormatting.periodTitle(mode: mode, period: period, anchor: anchor, calendar: calendar) : "")
+        // Hidden stacks detach their views, and refresh adds and removes calendar events and Reconnect… buttons,
+        // so the loop is recalculated after each render; otherwise Tab could never leave the sidebar.
+        defer { view.window?.recalculateKeyViewLoop() }
         guard showsReadings else {
             if popover.isShown { dismissDetails() }
             return
