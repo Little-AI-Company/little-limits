@@ -1,0 +1,21 @@
+# Cloudflare Pages response headers. See website/README.md.
+# Every page: allow only this site's own files, and nothing that runs scripts.
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+  X-Frame-Options: DENY
+  Cache-Control: public, max-age=300, must-revalidate
+
+# Fonts and images keep their names until their content changes, so browsers may keep them for a year.
+# Give a changed file a new name.
+
+/fonts/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable
+
+/images/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable
