@@ -4,7 +4,7 @@ One JSON record per defect in `.crit/<review-id>/register.json`. The register fe
 
 ```json
 {
-  "title": "AI Usage Stats Design Crit",
+  "title": "Limits Left Design Crit",
   "review": "2026-10-14-baseline",
   "revision": "bb445d3",
   "environment": "macOS 27.0.1, Apple silicon, packaged Release, 2x display",
