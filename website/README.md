@@ -8,6 +8,7 @@ A static site for Limits Left, usage limits for Claude and Codex in your Mac's m
 | `images/` | Resized copies of repository assets |
 | `articles/index.html` | Article list |
 | `articles/_template.html` | Starting point for a new article |
+| `changelog/index.html` | What changed in each release, the same entries as `CHANGELOG.md` |
 | `404.html` | Page for missing addresses |
 | `_headers` | Cloudflare Pages security and cache headers |
 
@@ -60,7 +61,7 @@ Every absolute URL (canonical link, Open Graph and Twitter images, JSON-LD, `sit
 | File | Purpose |
 | --- | --- |
 | `robots.txt` | Allows all crawlers, including AI crawlers, and links the sitemap |
-| `sitemap.xml` | Lists the home page, the article list, and each article. Add an entry for every new article |
+| `sitemap.xml` | Lists the home page, the article list, the changelog, and each article. Add an entry for every new article |
 | `llms.txt` | Short product summary and page links for AI assistants. Add each new article |
 | `_headers` | Sends `X-Robots-Tag: noindex` for `404.html` |
 
@@ -70,7 +71,9 @@ Keep titles under 60 characters and descriptions between 140 and 160.
 
 ## Update for each release
 
-The hero names the current version: "Version 0.2.0 for macOS 14 or later" in `index.html`. Change it when a new version is released. Download instructions name the file as `Limits-Left-<version>.zip` and link to the latest release, so they need no change.
+The hero names the current version: "Version 0.2.1 for macOS 14 or later" in `index.html`, alongside `softwareVersion` in its JSON-LD and the version in `llms.txt`. Change all three when a new version is released. Download instructions name the file as `Limits-Left-<version>.zip` and link to the latest release, so they need no change.
+
+Add the release to `changelog/index.html` and `CHANGELOG.md` together, as the [changelog skill](../.agents/skills/changelog/SKILL.md) describes.
 
 ## Add an article
 

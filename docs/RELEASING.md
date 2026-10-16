@@ -99,6 +99,8 @@ Public releases are signed with the Developer ID Application certificate of RAPT
 
 4. Publish the archive as `Limits-Left-<version>.zip` on a `v<version>` GitHub release, then update the cask in `ParkerRex/homebrew-tap` with the version and SHA-256. Install with `brew install --cask parkerrex/tap/<cask>` on a clean account to confirm. The cask is `Casks/limits-left.rb`.
 
+5. Add the version to `CHANGELOG.md` and `website/changelog/index.html` with the [changelog skill](../.agents/skills/changelog/SKILL.md), in the release PR or right after it. Keep the GitHub release notes in line with it.
+
 Keep certificates, private keys, notarization credentials, and private account data out of the repository and bundle. Changing the signing team from a local development identity to the release team can make macOS ask once for access to saved Keychain sign-ins.
 
 Record exact commands, results, artifact version, tested source revision, OS, and limits in [VALIDATION.md](VALIDATION.md) before claiming a release was verified.
