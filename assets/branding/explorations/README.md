@@ -8,7 +8,7 @@ Row 1: the current icon and the five variations, all placed on the same macOS gr
 
 ## Icon variations
 
-Each variation keeps the drawing of `assets/branding/nervous-gauge-artwork.png`: the bubble with its lower-left tail, three ticks, two dot eyes, the needle near empty, the sweat drop, plum ink and coral. Codex generated each one as full-bleed square artwork from that file. `icon-variations/compose_icon.sh` then placed each on the macOS app icon grid: 1024 px canvas, 824 px rounded-square body inset 100 px, 185.4 px corner radius, and a drop shadow 10 px down with a 10 px blur at 30 percent black. Each variation has a 1024 px master and a 256 px preview.
+Each variation keeps the drawing of `assets/branding/nervous-gauge-artwork.png`: the bubble with its lower-left tail, three ticks, two dot eyes, the needle near empty, the sweat drop, plum ink and coral. Codex generated each one as full-bleed square artwork from that file. `icon-variations/compose_icon.sh` then placed each on the macOS app icon grid: 1024 px canvas, 824 px rounded-square body inset 100 px, 185.4 px corner radius, and a drop shadow 10 px down with a 10 px blur at 30 percent black. Each variation has a 1024 px master and a 256 px preview. `icon-variations/artwork/` keeps the uncomposed 1024 px artwork exactly as Codex generated it, so any master can be composed again, for example with a lighter shadow: `icon-variations/compose_icon.sh icon-variations/artwork/small-size.png small-size.png small-size-256.png`. Composing again with the same ImageMagick 7.1.2 and librsvg 2.63 gives pixels that match the committed masters (PSNR above 52 dB); the PNG bytes can differ.
 
 | Preview | File | Note |
 | --- | --- | --- |
@@ -45,9 +45,9 @@ A macOS `.icns` holds 16, 32, 128, 256, and 512 pt sizes, each at 1x and 2x. Pla
 | `icon_256x256@2x`, `icon_512x512` | 512 | `enamel.png` |
 | `icon_512x512@2x` | 1024 | `enamel.png` |
 
-Resize each master with `sips -z <px> <px>` into an `AppIcon.iconset` folder using the slot names above, then run `iconutil -c icns AppIcon.iconset`. Check the 16 and 32 px results by eye; if the shadow blurs into the body at those sizes, compose the small-size master with a lighter shadow.
+Resize each master with `sips -z <px> <px>` into an `AppIcon.iconset` folder using the slot names above, then run `iconutil -c icns AppIcon.iconset`. Check the 16 and 32 px results by eye; if the shadow blurs into the body at those sizes, compose `artwork/small-size.png` again with a lighter shadow.
 
-Limits: the masters are raster images from image generation (1254 px sources downscaled to 824 px), not vector art. A few details differ slightly from the original drawing, for example tick spacing and needle length. For a final production icon, redraw the chosen variation as layered vector art. The macOS 26 Icon Composer format would let the system add its own glass treatment. This was not tested in the app.
+Limits: the masters are raster images from image generation (1024 px sources resized to 824 px), not vector art. A few details differ slightly from the original drawing, for example tick spacing and needle length. For a final production icon, redraw the chosen variation as layered vector art. The macOS 26 Icon Composer format would let the system add its own glass treatment. This was not tested in the app.
 
 ## Wordmark
 
@@ -69,9 +69,9 @@ How it is set:
 - **Face**: Schibsted Grotesk Bold (700), OFL, downloaded from Fontsource. It is sturdy and friendly, with open counters, and it matches the site's headings. Sentence case, one color, no single accented letter.
 - **Spacing**: tracking -0.02 em. Word space 0.20 em instead of the font's wider default, so the two words read as one name. "Le" is kerned an extra -0.03 em to close the gap after the L's open arm.
 - **ft join**: the t moves 0.045 em left so its crossbar overlaps the f's. Both bars sit at the same height in the font, so they merge into one level line, like a fill line on a gauge. This is the only custom detail.
-- **Lockup**: the tile is 2.1 cap heights tall, the caps are centered on it, and the gap is 0.24 of the tile. The tile is the current artwork masked to a rounded square (22.5 percent radius) and embedded as a 384 px PNG data URI, so each lockup file stands alone (53 KB).
+- **Lockup**: the tile is 2.1 cap heights tall, the caps are centered on it, and the gap is 0.24 of the tile. The tile is the current artwork masked to a rounded square (22.5 percent radius) and embedded as a 384 px PNG data URI, so each lockup file stands alone (47 KB).
 
-Source font: `latin-700-normal.ttf`, Schibsted Grotesk Bold, Latin subset, from the Fontsource package `@fontsource/schibsted-grotesk` version 5.3.0 (Google Fonts release v7, OFL-1.1). The font is not committed. Download it from <https://cdn.jsdelivr.net/fontsource/fonts/schibsted-grotesk@5.3.0/latin-700-normal.ttf> and check that its SHA-256 is `d7c4b81c2ff8e99614dd8b6ba40fce89e2073e596c2681ee975467106d5b0dcc` (56,268 bytes). With this file, the commands below reproduce the committed wordmark SVGs byte for byte.
+Source font: `latin-700-normal.ttf`, Schibsted Grotesk Bold, Latin subset, from the Fontsource package `@fontsource/schibsted-grotesk` version 5.3.0 (Google Fonts release v7, OFL-1.1). The font is not committed. Download it from <https://cdn.jsdelivr.net/fontsource/fonts/schibsted-grotesk@5.3.0/latin-700-normal.ttf> and check that its SHA-256 is `d7c4b81c2ff8e99614dd8b6ba40fce89e2073e596c2681ee975467106d5b0dcc` (56,268 bytes). With this file, the commands below reproduce all four committed SVGs byte for byte. The `-strip` option keeps ImageMagick from writing time stamps into the embedded PNG.
 
 Rebuild: `source/outline_wordmark.swift` outlines the text with CoreText. `source/make_wordmark.py` writes the four SVGs. Run these from `assets/branding/wordmark/`.
 
@@ -80,7 +80,7 @@ curl -fL -o latin-700-normal.ttf https://cdn.jsdelivr.net/fontsource/fonts/schib
 echo "d7c4b81c2ff8e99614dd8b6ba40fce89e2073e596c2681ee975467106d5b0dcc  latin-700-normal.ttf" | shasum -a 256 -c
 swift source/outline_wordmark.swift latin-700-normal.ttf "Limits Left" -0.02 0.2 "8:-0.03,10:-0.045" > outline.txt
 magick ../nervous-gauge-artwork.png -resize 384x384 \( -size 384x384 xc:none -fill white -draw "roundrectangle 0,0 383,383 86,86" \) \
-  -compose CopyOpacity -composite -dither None -colors 96 PNG8:icon-384.png
+  -compose CopyOpacity -composite -dither None -colors 96 -strip PNG8:icon-384.png
 python3 source/make_wordmark.py outline.txt icon-384.png .
 ```
 
