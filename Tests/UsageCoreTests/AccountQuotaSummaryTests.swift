@@ -143,6 +143,15 @@ func quotaSummaryDoesNotPresentRetainedFailedReadings(_ state: SnapshotState, _ 
     #expect(current?.remainingPercent == 75)
 }
 
+@Test func generalWindowsOnlyIgnoresModelLimitsForFreshness() {
+    let pastModel = UsageWindow(id: "limit_fable_weekly", title: "7 days (Fable 5)", utilizationPercent: 49,
+                                resetsAt: observationDate.addingTimeInterval(-1), windowDurationMinutes: 10_080)
+    let snapshot = quotaSnapshot([generalWindow("five_hour", used: 1), generalWindow("seven_day", used: 25), pastModel])
+    #expect(AccountQuotaSummary(snapshot: snapshot, accountID: accountID, now: observationDate) == .stale)
+    #expect(AccountQuotaSummary(snapshot: snapshot.generalWindowsOnly, accountID: accountID, now: observationDate)
+            == .available(remainingPercent: 75, severity: .normal, windowTitle: "seven_day"))
+}
+
 /// MENU-16: a model-scoped limit restricts only that model, so it never drives the status item number.
 @Test func lowestReadingsIgnoreModelScopedWindows() {
     let snapshots = [accountID: quotaSnapshot([

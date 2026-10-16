@@ -55,10 +55,7 @@ public enum AccountQuotaSummary: Sendable, Equatable {
             guard let snapshot = snapshots[id] else { continue }
             // Judge freshness on the general windows only, so an unmeasured or past model limit cannot make the
             // account's provider-wide reading look outdated.
-            let general = AccountSnapshot(profileID: snapshot.profileID, fetchedAt: snapshot.fetchedAt,
-                                          windows: snapshot.windows.filter { $0.role == .session || $0.role == .weekly },
-                                          state: snapshot.state)
-            guard case .available = AccountQuotaSummary(snapshot: general, accountID: id, now: now) else { continue }
+            guard case .available = AccountQuotaSummary(snapshot: snapshot.generalWindowsOnly, accountID: id, now: now) else { continue }
             for window in generalMeasuredWindows(snapshot) where window.remainingPercent < lowest?.remainingPercent ?? .infinity {
                 lowest = (id, window.remainingPercent, window.title)
             }
@@ -81,5 +78,14 @@ public enum AccountQuotaSummary: Sendable, Equatable {
             }
         }
         return lowest
+    }
+}
+
+extension AccountSnapshot {
+    /// The same reading with only the 5-hour and general weekly windows. The status item judges freshness and
+    /// numbers on these, so an unmeasured or past model limit does not make the provider-wide reading outdated.
+    public var generalWindowsOnly: AccountSnapshot {
+        AccountSnapshot(profileID: profileID, fetchedAt: fetchedAt,
+                        windows: windows.filter { $0.role == .session || $0.role == .weekly }, state: state)
     }
 }

@@ -120,7 +120,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             let remaining = lowest.map { Int(min(100, max(0, $0.remainingPercent)).rounded()) }
             readings.append(StatusItemSummary.Reading(provider: provider, remainingPercent: remaining))
             let notCurrent = profiles.compactMap { profile -> String? in
-                let summary = AccountQuotaSummary(snapshot: model.snapshots[profile.id], accountID: profile.id, now: now)
+                let summary = AccountQuotaSummary(snapshot: model.snapshots[profile.id]?.generalWindowsOnly, accountID: profile.id, now: now)
                 guard let reason = Self.notCurrentReason(summary) else { return nil }
                 return "\(InterfaceFormatting.accountIdentity(profile)): \(reason)"
             }
@@ -139,7 +139,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             guard model.menuBarAccountIDs?.contains($0.id) ?? true, let snapshot = model.snapshots[$0.id] else { return false }
             return snapshot.state == .stale || snapshot.state == .authenticationRequired
                 || snapshot.fetchedAt.map { now.timeIntervalSince($0) >= 300 } == true
-                || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
+                || snapshot.generalWindowsOnly.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
         }
         let summary = StatusItemSummary(readings: readings, isStale: stale || showsLastKnown)
         if displayedStatusSummary != summary, let button = statusItem?.button {
