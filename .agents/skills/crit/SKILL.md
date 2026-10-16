@@ -1,6 +1,6 @@
 ---
 name: crit
-description: Run a screenshot-backed design critique of the running AI Usage Stats app. Combines Krug's "Don't Make Me Think" and Nielsen heuristics (ux-heuristics) with current Apple macOS HIG and Liquid Glass guidance (apple-hig-expert) into one ranked finding register and report. Use when asked for a design crit, UX review, UI audit, or "the UI is rough, review it". Assessment only unless the user grants implementation.
+description: Run a screenshot-backed design critique of the running Limits Left app. Combines Krug's "Don't Make Me Think" and Nielsen heuristics (ux-heuristics) with current Apple macOS HIG and Liquid Glass guidance (apple-hig-expert) into one ranked finding register and report. Use when asked for a design crit, UX review, UI audit, or "the UI is rough, review it". Assessment only unless the user grants implementation.
 metadata:
   adapted-from: little-worker .agents/skills/crit (2026-10-14), rewritten for native AppKit capture
 ---
@@ -22,7 +22,7 @@ Read `AGENTS.md`, `docs/STRATEGY.md`, and `docs/NATIVE-DESIGN.md` first. Then re
 ## 1. Capture
 
 1. Package once with `scripts/package_app.sh`. Record the commit and whether the tree is clean.
-2. Launch each fixture as its own instance with `open -n "dist/AI Usage Stats.app" --args <flags>`, find its PID with `pgrep -nf "AIUsageStats <first flag>"`, and quit it before the next fixture. The [surface inventory](references/surfaces.md) lists fixtures, flags, and navigation steps.
+2. Launch each fixture as its own instance with `open -n "dist/Limits Left.app" --args <flags>`, find its PID with `pgrep -nf "AIUsageStats <first flag>"`, and quit it before the next fixture. The [surface inventory](references/surfaces.md) lists fixtures, flags, and navigation steps.
 3. Capture windows with `swift .agents/skills/crit/scripts/capture_windows.swift .crit/<review-id>/captures <appearance>-<surface> <pid>`. It first removes earlier files with that prefix, then writes one PNG per app-owned window (window, menu, sheet, popover) plus a JSON manifest with frames in points and backing scale. Divide pixel measurements by `backingScale` to get points.
 4. Navigation inside the window (sidebar rows, gear, plus, minus, disclosures, popovers) needs a pointer. The shell is not an Accessibility client, so drive the app with the computer-use tools, then capture with the script. A computer-use screenshot is acceptable evidence when the script cannot reach a transient surface such as an open menu.
 5. Capture light and dark (`--dark-appearance`). Capture `--increase-contrast` for the main surfaces. Resize to the 1020 × 640 point minimum once. A surface that could not be captured is listed as untested, never inferred.

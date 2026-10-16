@@ -1,4 +1,4 @@
-# AI Usage Stats project profile
+# Limits Left project profile
 
 Use this profile for the native macOS app. `AGENTS.md` defines architecture and verification; `docs/STRATEGY.md` defines scope; `docs/NATIVE-DESIGN.md` defines the current interface. `docs/design/apple-guidance.md` records source research, and `docs/VALIDATION.md` records observed behavior and remaining limits.
 
@@ -43,8 +43,8 @@ Use direct native account buttons and inline scrollable Connection Details. Pres
 Follow `AGENTS.md` for required checks. For changed native UI, package with `scripts/package_app.sh`, quit the previous development instance, and launch the packaged app. Use existing demo fixtures where suitable:
 
 ```sh
-open -n "dist/AI Usage Stats.app" --args --demo --show-menu
-open -n "dist/AI Usage Stats.app" --args --demo --show-accounts --dark-appearance
+open -n "dist/Limits Left.app" --args --demo --show-menu
+open -n "dist/Limits Left.app" --args --demo --show-accounts --dark-appearance
 ```
 
 These are separate inspection sessions, not commands to start simultaneous instances. `--show-panel` aliases the menu; it does not display a custom panel. `--increase-contrast` selects an app appearance and does not prove a real system-preference transition. Demo fixtures do not prove live sign-in or provider behavior.

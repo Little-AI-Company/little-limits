@@ -1,11 +1,11 @@
 ---
 name: apple-hig-expert
-description: Design or review AI Usage Stats using current Apple Human Interface Guidelines for its native macOS AppKit status menu, account management, settings, and isolated Claude Platform sign-in. Use for interface and accessibility work in this repository.
+description: Design or review Limits Left using current Apple Human Interface Guidelines for its native macOS AppKit status menu, account management, settings, and isolated Claude Platform sign-in. Use for interface and accessibility work in this repository.
 license: MIT
 metadata:
   version: 3.0.0
   author: Alireza Rezvani
-  adapted-by: AI Usage Stats contributors
+  adapted-by: Limits Left contributors
   category: design
   updated: "2026-10-14"
 ---
