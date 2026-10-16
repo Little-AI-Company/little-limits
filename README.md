@@ -15,7 +15,11 @@
   macOS 14 or later · Apple silicon and Intel
 </p>
 
-![Home: weekly totals across accounts and a forecast chart of remaining weekly quota, with the account list in the sidebar](assets/screenshots/home.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/home.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/screenshots/home-light.png">
+  <img src="assets/screenshots/home.png" alt="Home: weekly totals across accounts, a table of every account with its 5-hour and weekly quota left and reset times, and a forecast of remaining weekly quota, with the account list in the sidebar">
+</picture>
 
 ## What it does
 
@@ -35,7 +39,11 @@ It only reads usage. It never buys credits, changes plans, or sends AI requests 
 
 The forecast and the Models page come from a history the app keeps on your Mac. Nothing in it is uploaded.
 
-![The Models page: per-model bars for requests, output speed, steps per turn, thinking share, parallel tool calls, and shell command habits](assets/screenshots/models.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/models.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/screenshots/models-light.png">
+  <img src="assets/screenshots/models.png" alt="The Models page: per-model bars for requests, output speed, steps per turn, thinking share, parallel tool calls, and shell command habits">
+</picture>
 
 - **What it reads.** Claude Code logs in `~/.claude/projects` and Codex logs in `~/.codex/sessions` and `~/.codex/archived_sessions`, including compressed `.jsonl.zst` files. It reads them in the background after each refresh and skips files that have not changed. Codex logs also fill in earlier Codex quota readings for the account they belong to.
 - **What it stores.** Derived facts only: quota readings over time, and for each model response its model, time, and token counts. For each shell command it keeps the length, line count, a few categories (search program, pipe into head or tail, git status or commit, inline script language and purpose), and the program names with every argument removed, such as `grep | head`. A project is a salted hash of its folder path.
