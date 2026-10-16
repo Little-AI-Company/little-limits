@@ -178,11 +178,13 @@ dd {
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  color: var(--ink);
-  font-family: var(--rounded);
-  font-weight: 600;
   text-decoration: none;
+}
+
+.brand img {
+  display: block;
+  width: auto;
+  height: 28px;
 }
 
 .nav-list,
