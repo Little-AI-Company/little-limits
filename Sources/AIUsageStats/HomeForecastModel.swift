@@ -172,13 +172,13 @@ enum HomeForecastModel {
         let result = QuotaForecast.forecast(QuotaForecastInput(provider: historyProvider(provider.provider), history: weekly,
                                                                counted: counted, now: now, horizon: range.horizon))
         let title = provider.provider.title
-        var lines = [drainLine(result.drain, title: title, hasCounted: !counted.isEmpty, now: now),
+        var lines = [usageRateLine(result.drain, title: title, hasCounted: !counted.isEmpty, now: now),
                      zeroLine(result.projection, title: title, range: range, now: now, calendar: calendar)]
         let latest = Dictionary(grouping: own + ownLatest, by: \.accountID).mapValues { readings in
             readings.max { $0.observedAt < $1.observedAt }
         }
         for account in members {
-            lines.append(lastSeenLine(account, latest: latest[account.id] ?? nil, now: now, calendar: calendar))
+            lines.append(updatedLine(account, latest: latest[account.id] ?? nil, now: now, calendar: calendar))
         }
         lines[0].provider = provider.provider
 
@@ -204,60 +204,60 @@ enum HomeForecastModel {
     static let noHistoryText = "No quota history yet. The forecast appears after the app records readings over time."
 
     /// `About 7.7% per hour`. Unknown is never shown as 0.
-    static func drainLine(_ drain: QuotaDrainRate?, title: String, hasCounted: Bool, now: Date) -> HomeTotalLine {
+    static func usageRateLine(_ drain: QuotaDrainRate?, title: String, hasCounted: Bool, now: Date) -> HomeTotalLine {
         guard let drain else {
             let detail = hasCounted ? "Needs two readings in the last 24 hours" : "No current weekly reading"
-            return HomeTotalLine(label: "Drain rate", value: "Unknown", detail: detail,
-                                 accessibilityLabel: "\(title) drain rate unknown, \(detail)",
-                                 toolTip: "The drain rate is unknown. \(detail). Unknown is not zero.")
+            return HomeTotalLine(label: "Usage rate", value: "Unknown", detail: detail,
+                                 accessibilityLabel: "\(title) usage rate unknown, \(detail)",
+                                 toolTip: "The usage rate is unknown. \(detail). Unknown is not zero.")
         }
         let value = "About \(HomeInterfaceFormatting.percentText(drain.percentPerHour)) per hour"
         let detail = drain.isShortLookback
             ? "From \(UsageFormatting.countdown(to: now.addingTimeInterval(drain.lookback), now: now)) of history"
             : "Last 24 hours"
-        return HomeTotalLine(label: "Drain rate", value: value, detail: detail,
-                             accessibilityLabel: "\(title) drain rate, \(value.lowercased()), \(detail.lowercased())",
+        return HomeTotalLine(label: "Usage rate", value: value, detail: detail,
+                             accessibilityLabel: "\(title) usage rate, \(value.lowercased()), \(detail.lowercased())",
                              toolTip: "Weekly quota used per hour by the counted accounts, summed, \(detail.lowercased()). "
                                  + "Idle time counts. Resets and accounts joining or leaving the total do not.")
     }
 
-    /// `Pool reaches 0%` with `Fri 4:56 AM`, or `Not in the next 7 days`.
+    /// `Weekly total reaches 0%` with `Fri 4:56 AM`, or `Not in the next 7 days`.
     static func zeroLine(_ projection: QuotaProjection?, title: String, range: HomeForecastRange, now: Date,
                          calendar: Calendar) -> HomeTotalLine {
-        let label = "Pool reaches 0%"
+        let label = "Weekly total reaches 0%"
         guard let projection else {
             return HomeTotalLine(label: label, value: "Unknown", detail: "",
-                                 accessibilityLabel: "\(title) pool reaches 0 percent, unknown",
-                                 toolTip: "Needs a known drain rate and at least one current weekly reading.")
+                                 accessibilityLabel: "\(title) weekly total reaches 0 percent, unknown",
+                                 toolTip: "Needs a known usage rate and at least one current weekly reading.")
         }
         guard let date = projection.reachesZeroAt else {
             let value = "Not in the \(range.title.lowercased())"
             return HomeTotalLine(label: label, value: value, detail: "",
-                                 accessibilityLabel: "\(title) pool does not reach 0 percent in the \(range.title.lowercased())",
-                                 toolTip: "At the current drain rate, with each counted account's reset, the pooled total stays above 0%.")
+                                 accessibilityLabel: "\(title) weekly total does not reach 0 percent in the \(range.title.lowercased())",
+                                 toolTip: "At the current usage rate, with each counted account's reset, the weekly total stays above 0%.")
         }
         let value = HomeInterfaceFormatting.scheduleText(date, now: now, calendar: calendar)
         let detail = date <= now ? "Now" : "in \(UsageFormatting.countdown(to: date, now: now))"
         return HomeTotalLine(label: label, value: value, detail: detail,
-                             accessibilityLabel: "\(title) pool reaches 0 percent \(value), \(detail)",
-                             toolTip: "Projected from the drain rate and each counted account's reset: "
+                             accessibilityLabel: "\(title) weekly total reaches 0 percent \(value), \(detail)",
+                             toolTip: "Projected from the usage rate and each counted account's reset: "
                                  + "\(InterfaceFormatting.exactDate(date)).")
     }
 
     /// The time of the account's latest recorded reading.
-    static func lastSeenLine(_ account: UsageOverviewAccount, latest: QuotaReading?, now: Date,
+    static func updatedLine(_ account: UsageOverviewAccount, latest: QuotaReading?, now: Date,
                              calendar: Calendar) -> HomeTotalLine {
         let name = account.shortIdentity
         guard let latest else {
-            return HomeTotalLine(label: "Last seen", value: "No recorded reading", detail: name,
+            return HomeTotalLine(label: "Updated", value: "No recorded reading", detail: name,
                                  accessibilityLabel: "\(account.profile.provider.title) \(name) has no recorded reading",
                                  toolTip: "No reading of \(name) is recorded yet.")
         }
         let value = HomeInterfaceFormatting.scheduleText(latest.observedAt, now: now, calendar: calendar)
         let changesOnly = latest.source.recordsOnlyChanges
         let detail = changesOnly ? "\(name), changes only" : name
-        return HomeTotalLine(label: "Last seen", value: value, detail: detail,
-                             accessibilityLabel: "\(account.profile.provider.title) \(name) last seen \(value)"
+        return HomeTotalLine(label: "Updated", value: value, detail: detail,
+                             accessibilityLabel: "\(account.profile.provider.title) \(name) updated \(value)"
                                  + (changesOnly ? ", recorded only when quota changes" : ""),
                              toolTip: "Latest recorded reading: \(InterfaceFormatting.exactDate(latest.observedAt))."
                                  + (changesOnly ? " This source records a reading only when quota changes." : ""))

@@ -104,6 +104,12 @@ func calendarEventTextFitsItsFrameAtTheMinimumColumnWidth() throws {
                 let field = try #require(fields.first { $0.stringValue == whole })
                 #expect(drawnSize(field).width <= field.frame.width + 0.5)
             }
+            // HOME-26: a scope or identity field that shows draws at least its first letter and an ellipsis.
+            for field in fields where !field.isHidden && field.stringValue.hasPrefix("· ") {
+                let fragment = NSTextField(labelWithString: String(field.stringValue.prefix(3)) + "…")
+                fragment.font = field.font
+                #expect(drawnSize(fragment).width <= field.frame.width + 0.5)
+            }
         }
         for (index, button) in buttons.enumerated() {
             #expect(button.frame.maxY <= (button.superview?.bounds.height ?? 0))
@@ -112,6 +118,47 @@ func calendarEventTextFitsItsFrameAtTheMinimumColumnWidth() throws {
             }
         }
     }
+}
+
+/// HOME-31: the Reset Calendar sits below a short window. A period command moves its heading into view, since
+/// the toolbar controls change only the calendar.
+@Test @MainActor
+func periodCommandRevealsTheResetCalendar() async throws {
+    _ = NSApplication.shared
+    let model = ApplicationModel(isDemo: true)
+    await model.load()
+    let home = HomeViewController(model: model)
+    home.isAccountLoadComplete = { true }
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1020, height: 400),
+                          styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    defer { window.close() }
+    window.contentView = home.view
+    home.render()
+    window.contentView?.layoutSubtreeIfNeeded()
+    let scroll = try #require(home.view as? NSScrollView)
+    var pending: [NSView] = [home.view]
+    var found: NSTextField?
+    while let view = pending.popLast() {
+        if let field = view as? NSTextField, field.stringValue == "Reset Calendar" { found = field; break }
+        pending.append(contentsOf: view.subviews)
+    }
+    let heading = try #require(found)
+    func headingShows() -> Bool {
+        scroll.contentView.documentVisibleRect.contains(heading.convert(heading.bounds, to: scroll.documentView))
+    }
+    #expect(!headingShows())
+    home.showNextPeriod(nil)
+    #expect(headingShows())
+    // Scrolled to the page end, inside a Month calendar taller than the window, the heading is above the view;
+    // choosing Month again still reveals it.
+    home.showMonthPeriod(nil)
+    let clip = scroll.contentView
+    let documentHeight = try #require(scroll.documentView).frame.height
+    clip.scroll(to: NSPoint(x: 0, y: documentHeight - clip.bounds.height))
+    #expect(!headingShows())
+    home.showMonthPeriod(nil)
+    #expect(headingShows())
 }
 
 /// HOME-14, HOME-22: at the minimum window (1020 pt beside a 260 pt sidebar, less margins and a vertical

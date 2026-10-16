@@ -82,7 +82,7 @@ func demonstrationForecastKeepsProvidersApartAndExplainsMissingHistory() throws 
         #expect(chart.history.count == 2)
         #expect(chart.history.joined().allSatisfy { $0.remainingPercent <= 200 && $0.date <= now })
         #expect(forecast.lines.first?.value.hasPrefix("About ") == true)
-        #expect(forecast.lines.filter { $0.label == "Last seen" }.count == 2)
+        #expect(forecast.lines.filter { $0.label == "Updated" }.count == 2)
     }
     #expect(forecasts[0].lines[1].value == "Not in the next 7 days")
     #expect(forecasts[1].lines[1].value != "Not in the next 7 days")
@@ -97,7 +97,7 @@ private extension UsageOverviewAccount {
     }
 }
 
-/// History older than the observed span stays out of the chart rows, but its latest reading still gives Last seen,
+/// History older than the observed span stays out of the chart rows, but its latest reading still gives Updated,
 /// so old history is not reported as none.
 @Test @MainActor
 func databaseHistoryKeepsTheLatestReadingOfAnyAge() async throws {

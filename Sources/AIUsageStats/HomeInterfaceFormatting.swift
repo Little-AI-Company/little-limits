@@ -607,14 +607,19 @@ enum HomeInterfaceFormatting {
             line.isQuiet = !facts.isSupported
             return .message(line)
         }
-        let primary = facts.countText ?? "Unknown"
-        // `Last known` on the value already marks it old; the third line gives only the read time, so it fits the column.
-        return .meters([HomeReadingLine(primary: primary, secondary: facts.expiryText, tertiary: facts.staleReadTime.map { "Last read \($0)" },
+        // `Last known` sits on its own line above the count, as on quota cells, so `2 available` stays whole; the third
+        // line gives only the read time, so it fits the column.
+        let stale = facts.staleReadTime != nil
+        return .meters([HomeReadingLine(preface: stale ? ["Last known"] : [], primary: facts.availableText ?? "Unknown",
+                                        secondary: facts.expiryText, tertiary: facts.staleReadTime.map { "Last read \($0)" },
                                         tone: .neutral, accessibilityLabel: facts.help, toolTip: facts.help)])
     }
 
     private struct EarnedFacts {
+        /// `2 available`, or `Last known 2 available` for an outdated count.
         var countText: String?
+        /// `2 available` alone, for a cell that puts `Last known` on its own line.
+        var availableText: String?
         var expiryText: String?
         var expiryLabel: String?
         var expiryExact: String?
@@ -663,12 +668,13 @@ enum HomeInterfaceFormatting {
         }
         let earliest = passedExpiry ?? grants.compactMap(\.expiresAt).filter { $0 > now }.min()
         let count = wholeNumber(amount)
-        let countText = stale ? "Last known \(count)" : "\(count) available"
+        let availableText = "\(count) available"
+        let countText = stale ? "Last known \(availableText)" : availableText
         let expiryLabel: String?
         let expiryText: String?
         let expiryExact: String?
         if amount > 0, let earliest {
-            expiryLabel = "Next expiry"
+            expiryLabel = "Next expires"
             expiryText = compactExpiry(earliest, label: passedExpiry != nil ? "Expired" : "Next expires", now: now, calendar: calendar)
             expiryExact = InterfaceFormatting.exactDate(earliest) + (passedExpiry != nil ? " (expired)" : "")
         } else if amount > 0, !grants.isEmpty, amount == Decimal(grants.count),
@@ -690,7 +696,7 @@ enum HomeInterfaceFormatting {
         if stale { help += ". Stale" }
         if passedExpiry != nil { help += ". An earned reset expired after this reading. Refresh to check current availability." }
         help += ". Earned reset expiry is separate from usage window resets."
-        return EarnedFacts(countText: countText, expiryText: expiryText, expiryLabel: expiryLabel,
+        return EarnedFacts(countText: countText, availableText: availableText, expiryText: expiryText, expiryLabel: expiryLabel,
                            expiryExact: expiryExact,
                            staleReadTime: stale ? timeText(observed) : nil, help: help)
     }
