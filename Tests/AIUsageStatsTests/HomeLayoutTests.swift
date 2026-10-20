@@ -164,10 +164,12 @@ func periodCommandRevealsTheResetCalendar() async throws {
 /// HOME-14, HOME-22: at the minimum window (1020 pt beside a 260 pt sidebar, less margins and a vertical
 /// scroller: 712 pt of table), no quota cell truncates. `0% left`, `Limit reached`, `Last known`, a
 /// model-scoped window name, and the reset time each fit on their own line, for current, sign-in, stale,
-/// and missing readings.
-@Test @MainActor
-func quotaCellTextFitsAtTheMinimumWindowWidth() throws {
+/// and missing readings, with a 12-hour (`en_US`) and a 24-hour (`en_GB`) clock.
+@Test(arguments: ["en_US", "en_GB"]) @MainActor
+func quotaCellTextFitsAtTheMinimumWindowWidth(localeIdentifier: String) throws {
     _ = NSApplication.shared
+    var calendar = Calendar.current
+    calendar.locale = Locale(identifier: localeIdentifier)
     var states: Set<String> = []
     for fixture in [DemoFixtures.homeSnapshots, DemoFixtures.homeReadingStateSnapshots] {
         let snapshots = Dictionary(uniqueKeysWithValues: fixture.map { ($0.profileID, $0) })
@@ -179,7 +181,7 @@ func quotaCellTextFitsAtTheMinimumWindowWidth() throws {
         window.isReleasedWhenClosed = false
         defer { window.close() }
         window.contentView = tableView
-        tableView.apply(rows: HomeInterfaceFormatting.rows(for: overview.accounts, now: now, calendar: .current),
+        tableView.apply(rows: HomeInterfaceFormatting.rows(for: overview.accounts, now: now, calendar: calendar),
                         headings: HomeInterfaceFormatting.headings(for: overview.accounts))
         tableView.layoutSubtreeIfNeeded()
         var pending: [NSView] = [tableView]
