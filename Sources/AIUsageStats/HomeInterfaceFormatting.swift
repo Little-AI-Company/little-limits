@@ -569,8 +569,10 @@ enum HomeInterfaceFormatting {
                     ?? (basis == .current && window.hasNoPendingReset ? noPendingResetText : unknownResetText)
                 let exact = exactReset(window.resetsAt)
                 guard let remaining = remainingPercent(window) else {
+                    // The cell shows the reset time without a verb, so VoiceOver reads the exact reset instead.
+                    let spokenSchedule = schedule == nil || window.resetsAt == nil ? schedule : exact
                     return HomeReadingLine(preface: preface(window), primary: "Unknown", secondary: schedule, tertiary: nil, tone: .neutral,
-                                           accessibilityLabel: "\(scope), unknown remaining\(schedule.map { ", \($0)" } ?? ""). Unknown is not zero.",
+                                           accessibilityLabel: "\(scope), unknown remaining\(spokenSchedule.map { ", \($0)" } ?? ""). Unknown is not zero.",
                                            toolTip: "\(scope). Remaining quota is unknown. \(exact)")
                 }
                 if basis != .current {
@@ -905,19 +907,21 @@ enum HomeInterfaceFormatting {
         return remaining
     }
 
-    /// Short reset phrase for table cells: "Resets today 13:43". The exact date stays in the tooltip.
+    /// Reset time for table cells, without a verb so a 12-hour time fits the minimum column width: "Today 6:22 PM",
+    /// "Wed 6:22 PM", "Oct 21 6:22 PM". The column heading names the window; the tooltip and VoiceOver say "Resets".
     private static func resetText(_ date: Date, now: Date, calendar: Calendar) -> String {
-        let when = scheduleText(date, now: now, calendar: calendar)
-        return date > now ? "Resets \(when)" : "Reset passed \(when)"
+        guard date > now else { return "Reset passed" }
+        if calendar.isDate(date, inSameDayAs: now) { return "Today \(timeText(date, calendar: calendar))" }
+        return scheduleText(date, now: now, calendar: calendar)
     }
 
     /// "today 13:43" within today, "Wed 13:43" within six days, otherwise "Oct 21 13:43".
     static func scheduleText(_ date: Date, now: Date, calendar: Calendar) -> String {
-        let time = timeText(date)
+        let time = timeText(date, calendar: calendar)
         if calendar.isDate(date, inSameDayAs: now) { return "today \(time)" }
         let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: date)).day ?? .max
-        if abs(days) < 7 { return "\(date.formatted(.dateTime.weekday(.abbreviated))) \(time)" }
-        let month = date.formatted(.dateTime.month(.abbreviated))
+        if abs(days) < 7 { return "\(date.formatted(dateStyle(calendar).weekday(.abbreviated))) \(time)" }
+        let month = date.formatted(dateStyle(calendar).month(.abbreviated))
         let day = calendar.component(.day, from: date)
         if calendar.component(.year, from: date) == calendar.component(.year, from: now) {
             return "\(month) \(day) \(time)"
@@ -934,8 +938,14 @@ enum HomeInterfaceFormatting {
         return "\(label) \(month) \(day), \(calendar.component(.year, from: date))"
     }
 
-    private static func timeText(_ date: Date) -> String {
-        date.formatted(.dateTime.hour().minute())
+    private static func timeText(_ date: Date, calendar: Calendar = .current) -> String {
+        date.formatted(dateStyle(calendar).hour().minute())
+    }
+
+    /// The calendar's locale and time zone. `Calendar.current` keeps the user's 12- or 24-hour clock; a test passes
+    /// a calendar with a fixed locale to choose one.
+    private static func dateStyle(_ calendar: Calendar) -> Date.FormatStyle {
+        Date.FormatStyle(locale: calendar.locale ?? .current, calendar: calendar, timeZone: calendar.timeZone)
     }
 
     private static func exactReset(_ date: Date?) -> String {

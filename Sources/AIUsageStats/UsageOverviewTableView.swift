@@ -225,7 +225,7 @@ private enum Column: String, CaseIterable {
 
     /// Minimums sum to 644 pt plus 48 pt spacing, inside the 712 pt content width of the 1020 pt minimum
     /// window beside a 260 pt sidebar, less 32 pt margins and a 16 pt vertical scroller. Quota columns
-    /// hold `Reset time unknown` and `Resets today 16:04` whole; Updated holds `Not refreshed`. The
+    /// hold `Reset time unknown` and `Oct 21 12:58 PM` whole; Updated holds `Not refreshed`. The
     /// account name stays whole; a long email truncates and its tooltip keeps the full text.
     var minimumWidth: CGFloat {
         switch self {
