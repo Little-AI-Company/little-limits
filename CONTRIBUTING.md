@@ -8,6 +8,16 @@ Check current `main`, existing issues, and open PRs before starting. Keep one pu
 
 Read [AGENTS.md](AGENTS.md) for the module map, data boundaries, native workflow, and required checks. Those rules apply to human and AI-assisted contributions.
 
+These are not planned:
+
+- Telemetry, an updater framework, or recurring GitHub Actions.
+- Dependencies beyond GRDB and facebook/zstd.
+- Web views for account, settings, or monitoring controls.
+- Purchasing credits, changing plans, or spending model requests to probe usage.
+- Storing or logging prompts, replies, tool output, file contents, or command text.
+- Changing or replacing the user's Claude or Codex CLI login.
+- Inferring remaining credit dollars from token totals, API costs, or usage percentages.
+
 ## Establish and verify behavior
 
 For a bug fix, reproduce the problem on a named baseline commit before editing. Record repeatable steps, expected behavior, observed result, and the source location of the cause. Only claim a baseline failure when you observed it. State the gap when updating an existing PR without that evidence.
@@ -26,6 +36,8 @@ Performance claims require measured baseline and changed Release builds under co
 2. Repeat affected checks after a rebase or cherry-pick. Record baseline and tested head revisions.
 3. Read every line of the diff and description. Passing checks do not replace review.
 4. Open a ready-for-review PR, not a draft, using the [template](.github/pull_request_template.md).
+
+Never include tokens, Keychain items, OAuth grants, `accounts.json`, the usage history database, raw Claude Code or Codex logs, or screenshots that show account emails, organization names, or balances.
 
 Use a short conventional title naming the behavior change, such as `fix: preserve account identity during refresh`, `feat: show credit expiry`, or `docs: clarify local builds`.
 
