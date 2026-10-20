@@ -1,4 +1,4 @@
-# Limits Left HIG review
+# Little Limits HIG review
 
 **Scope and expected outcome:** [Affected task and surfaces]
 **Tested revision:** [Commit plus uncommitted changes, if any]

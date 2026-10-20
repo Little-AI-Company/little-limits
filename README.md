@@ -1,17 +1,16 @@
-<h1 align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/branding/wordmark/limits-left-lockup-dark.svg">
-    <img src="assets/branding/wordmark/limits-left-lockup.svg" height="96" alt="Limits Left: the app icon, a nervous speech-bubble fuel gauge, beside the name">
-  </picture>
-</h1>
+<p align="center">
+  <img src="assets/branding/banner.png" alt="little limits: Claude and Codex limits, in your Mac's menu bar" width="880">
+</p>
+
+# Little Limits
 
 <p align="center">
   See how much of your Claude and Codex limits are left, on every account, right from your Mac's menu bar. Keep a private history of how you use them, stored only on your Mac.
 </p>
 
 <p align="center">
-  <a href="https://github.com/ParkerRex/limits-left/releases/latest">Download</a> ·
-  <code>brew install --cask parkerrex/tap/limits-left</code> ·
+  <a href="https://github.com/ParkerRex/little-limits/releases/latest">Download</a> ·
+  <code>brew install --cask parkerrex/tap/little-limits</code> ·
   macOS 14 or later · Apple silicon and Intel
 </p>
 
@@ -56,23 +55,23 @@ The forecast and the Models page come from a history the app keeps on your Mac. 
 **With Homebrew:**
 
 ```sh
-brew install --cask parkerrex/tap/limits-left
+brew install --cask parkerrex/tap/little-limits
 ```
 
-**Or download it:** get the `Limits-Left-<version>.zip` file from the [latest release](https://github.com/ParkerRex/limits-left/releases/latest), unzip it, and drag **Limits Left** into your Applications folder.
+**Or download it:** get the `Little-Limits-<version>.zip` file from the [latest release](https://github.com/ParkerRex/little-limits/releases/latest), unzip it, and drag **Little Limits** into your Applications folder.
 
 The app is signed and notarized by Apple, so it opens without security warnings.
 
 ## Set it up
 
-1. **Open Limits Left** from Applications. A small gauge icon appears in your menu bar. There is no Dock icon until you open the window.
+1. **Open Little Limits** from Applications. A small gauge icon appears in your menu bar. There is no Dock icon until you open the window.
 2. **Add a Claude account.** Click the menu bar icon and choose **Add Claude Account…**. Your browser opens claude.ai; sign in and approve. The app shows the account as soon as you finish.
-3. **Add a Codex account.** Choose **Open Limits Left**, click **+** below the sidebar (or File > Add Account…), and pick Codex. On a fresh install the menu bar menu also offers **Add Codex Account…**.
+3. **Add a Codex account.** Choose **Open Little Limits**, click **+** below the sidebar (or File > Add Account…), and pick Codex. On a fresh install the menu bar menu also offers **Add Codex Account…**.
    - If the Codex CLI on this Mac is already signed in, choose **Use Current Codex Login**.
    - Otherwise choose **Sign In with a Different Account…**. Terminal opens `codex login`; sign in, and the app picks it up by itself.
    - Codex accounts need the [Codex CLI](https://github.com/openai/codex) or the ChatGPT desktop app installed.
 4. **Pick what the menu bar shows.** Click the menu bar icon, open **Show in Menu Bar**, and check the accounts you care about. Choose **Lowest per Provider** to go back to the default.
-5. **Arrange accounts.** Choose **Open Limits Left** and drag accounts in the sidebar into the order you like. Right-click an account to delete it.
+5. **Arrange accounts.** Choose **Open Little Limits** and drag accounts in the sidebar into the order you like. Right-click an account to delete it.
 
 **Optional: Claude API credits.** Open a Claude account's page and choose **Connect API Credits…**, then sign in to Claude Platform in the window that appears. Passkeys don't work in that window. If Google asks for one, choose **Try another way** and use your password or a code.
 
@@ -83,17 +82,17 @@ The app is signed and notarized by Apple, so it opens without security warnings.
 - **Experimental readings.** Claude usage and API credits come from endpoints Anthropic hasn't documented, so they can change without notice. Codex usage comes from the Codex CLI.
 - **Readings refresh every 5 minutes**, or when you choose **Refresh All**. Old readings say **Last known** so you never mistake them for live numbers.
 - **First launch may ask for Keychain access.** That's macOS asking whether the app may read the sign-ins it saved.
-- **Uninstall:** `brew uninstall --cask limits-left`, or drag the app to the Trash.
+- **Uninstall:** `brew uninstall --cask little-limits`, or drag the app to the Trash.
 
 ## Build from source
 
 You need Xcode 27 or later, which includes Swift 6 and the macOS 27 SDK the source uses.
 
 ```sh
-git clone https://github.com/ParkerRex/limits-left.git
-cd limits-left
+git clone https://github.com/ParkerRex/little-limits.git
+cd little-limits
 scripts/package_app.sh
-open "dist/Limits Left.app"
+open "dist/Little Limits.app"
 ```
 
 The first build downloads two pinned Swift packages: [GRDB](https://github.com/groue/GRDB.swift) 7.11.1 for the history database and [facebook/zstd](https://github.com/facebook/zstd) 1.5.7 to read compressed Codex logs. The app has no other dependencies.

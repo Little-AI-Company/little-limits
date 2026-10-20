@@ -2,7 +2,7 @@
 
 Date: 2026-10-20. Status: implemented, except PR 2, which waits for evidence.
 
-- PR 1 landed as ParkerRex/limits-left#73. Its first run found a real bug: reset times truncated on a 12-hour clock. Fixed in ParkerRex/limits-left#74.
+- PR 1 landed as ParkerRex/little-limits#73. Its first run found a real bug: reset times truncated on a 12-hour clock. Fixed in ParkerRex/little-limits#74.
 - PR 3 is the PR that adds this file. The rules live in AGENTS.md (Verification, Tests, Data compatibility), CONTRIBUTING.md (Revert), and docs/RELEASING.md.
 - The settings change (squash merge only, and a `main` ruleset that requires `Check`) is not applied yet. It needs the repository owner.
 - Known flake: on 2026-10-20, 1 of 4 Linux runs crashed inside SwiftPM 6.4's `swift-build` engine while planning the zstd C sources (segmentation fault in `discoveredClangToolInfo`), before any test ran. A rerun passed. If it repeats, run the Linux job with `swift test --build-system native`.
@@ -63,7 +63,7 @@ Add `.github/workflows/ci.yml`:
 - Concurrency: `group: ci-${{ github.event.pull_request.number || github.sha }}`, `cancel-in-progress: ${{ github.event_name == 'pull_request' }}`.
 - Job `macos` on the `xcode-27` runner image, timeout 30 min, Xcode 27.1 selected by exact path so the toolchain does not change under us. The standard `macos-26` image has only Xcode 26, which cannot build `UsageMenu.swift:73` (a macOS 27 SDK symbol). No `.build` cache: a stale cache is one more way for a check to change on its own. Add one only if run time becomes a problem. Steps:
   1. `scripts/package_app.sh` (Release build, bundle, ad hoc signature; there is no signing identity on the runner).
-  2. `codesign --verify --strict "dist/Limits Left.app"`.
+  2. `codesign --verify --strict "dist/Little Limits.app"`.
   3. `swift test`.
   4. `git diff --exit-code`. Fails if a test or the packaging step changed a tracked file.
 - Job `linux`, timeout 10 min, official Swift container at a pinned version: `swift test`. On Linux only `UsageHistory` builds (`Package.swift:3`). This keeps cloud sessions working; nothing protects that today.
@@ -111,7 +111,7 @@ The PR template already asks for exact commands, observed results, UI checks, an
 ### Settings change (Parker must authorize; apply after PR 1 merges so `Check` exists)
 
 - Repository: squash merge only, squash commit title from the PR title, delete branches on merge.
-- Ruleset on `main`: require a PR with zero approvals, require status check `Check` only, do not require the branch to be up to date, require linear history, block force pushes and deletion. No bypass: release preparation already goes through PRs (ParkerRex/limits-left#70).
+- Ruleset on `main`: require a PR with zero approvals, require status check `Check` only, do not require the branch to be up to date, require linear history, block force pushes and deletion. No bypass: release preparation already goes through PRs (ParkerRex/little-limits#70).
 
 ## Order
 

@@ -1,6 +1,6 @@
 ---
 name: ux-heuristics
-description: 'Evaluate Limits Left usability with Krug''s "Don''t Make Me Think" laws and Nielsen''s 10 heuristics, adapted for a native macOS menu bar utility. Use for a usability audit, "users are confused", navigation or labeling problems, or "is this easy to use". Covers severity ratings, the Quick Diagnostic, and heuristic conflicts. For Apple platform requirements, see apple-hig-expert. For a full screenshot-backed review, see crit.'
+description: 'Evaluate Little Limits usability with Krug''s "Don''t Make Me Think" laws and Nielsen''s 10 heuristics, adapted for a native macOS menu bar utility. Use for a usability audit, "users are confused", navigation or labeling problems, or "is this easy to use". Covers severity ratings, the Quick Diagnostic, and heuristic conflicts. For Apple platform requirements, see apple-hig-expert. For a full screenshot-backed review, see crit.'
 license: MIT
 metadata:
   author: wondelai
@@ -20,9 +20,9 @@ Practical usability principles for evaluating and improving user interfaces. Use
 
 The source framework and its references were written for websites. Translate before applying:
 
-| Web term | Limits Left equivalent |
+| Web term | Little Limits equivalent |
 | --- | --- |
-| Site / page | The status menu, the Limits Left window, and its current sidebar page (Home, an account, App Settings, Platform) |
+| Site / page | The status menu, the Little Limits window, and its current sidebar page (Home, an account, App Settings, Platform) |
 | Permanent navigation | The window sidebar and the status menu command group |
 | Search | Not a product feature. Score the "find it" row as: can someone locate a named account or reading without recall? |
 | Back button | Sidebar reselection, the Platform pane Back button, Escape for menus, popovers, and sheets |

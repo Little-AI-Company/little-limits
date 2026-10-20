@@ -285,7 +285,7 @@ private final class ClaudeAuthorizationListener {
         }
         guard !accepted else { closeConnection(id); return }
         accepted = true
-        respond(id, status: "200 OK", message: "Sign-in response received. Return to Limits Left to check the connection.")
+        respond(id, status: "200 OK", message: "Sign-in response received. Return to Little Limits to check the connection.")
         onCallback?(url)
     }
 

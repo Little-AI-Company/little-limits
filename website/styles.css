@@ -1,7 +1,7 @@
-/* AI Usage Stats product website.
-   Direction: the app's speech-bubble fuel gauge, scaled up to hold the headline.
-   Colors come from assets/app-icon.png: plum outline ink and coral face.
-   The page ground is a plum-tinted mist instead of the icon's cream. */
+/* Little Limits product website.
+   Direction: the gauge from the app icon, scaled up to hold the headline.
+   Colors follow the little family brand: warm paper, black ink, and the
+   butter yellow of the gauge character's circle. See assets/branding/README.md. */
 
 /* Self-hosted variable fonts, Latin subset. Licenses and sources: fonts/README.md */
 @font-face {
@@ -23,15 +23,15 @@
 :root {
   color-scheme: light dark;
 
-  --mist: #F5F2F7;
+  --paper: #FBFAF7;
   --face: #FFFFFF;
-  --ink: #39203C;
-  --ink-soft: #66546A;
-  --coral: #FC7754;
-  --coral-ink: #B03C1C;
-  --on-coral: #39203C;
-  --hairline: #E4DCE7;
-  --shot-shadow: 0 1px 2px rgba(57, 32, 60, 0.10), 0 18px 44px -12px rgba(57, 32, 60, 0.28);
+  --ink: #0B0B0B;
+  --ink-soft: #373737;
+  --butter: #F4DC8A;
+  --accent-ink: #7A5600;
+  --on-butter: #0B0B0B;
+  --hairline: #E7E3DA;
+  --shot-shadow: 0 1px 2px rgba(11, 11, 11, 0.08), 0 18px 44px -12px rgba(11, 11, 11, 0.22);
 
   --text: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --rounded: "Schibsted Grotesk", ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -44,14 +44,14 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --mist: #1E1724;
-    --face: #2B2232;
-    --ink: #F4EEF5;
-    --ink-soft: #C4B5C7;
-    --coral: #FC7754;
-    --coral-ink: #FF9473;
-    --on-coral: #1E1724;
-    --hairline: #3A2F42;
+    --paper: #1E1E1E;
+    --face: #2A2927;
+    --ink: #F4F1EA;
+    --ink-soft: #BDB8AE;
+    --butter: #F4DC8A;
+    --accent-ink: #F4DC8A;
+    --on-butter: #0B0B0B;
+    --hairline: #383632;
     --shot-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 18px 44px -12px rgba(0, 0, 0, 0.6);
   }
 }
@@ -69,7 +69,7 @@ html {
 
 body {
   margin: 0;
-  background: var(--mist);
+  background: var(--paper);
   color: var(--ink);
   font-family: var(--text);
   font-size: 17px;
@@ -84,7 +84,7 @@ img {
 }
 
 a {
-  color: var(--coral-ink);
+  color: var(--accent-ink);
   text-underline-offset: 0.18em;
   text-decoration-thickness: 1px;
 }
@@ -94,7 +94,7 @@ a:hover {
 }
 
 :focus-visible {
-  outline: 3px solid var(--coral-ink);
+  outline: 3px solid var(--accent-ink);
   outline-offset: 3px;
   border-radius: 4px;
 }
@@ -206,7 +206,7 @@ dd {
 
 .nav-list a:hover,
 .footer-links a:hover {
-  color: var(--coral-ink);
+  color: var(--accent-ink);
   text-decoration: underline;
 }
 
@@ -239,7 +239,7 @@ dd {
 
 .gauge-empty {
   fill: none;
-  stroke: var(--coral);
+  stroke: var(--butter);
   stroke-width: 26;
 }
 
@@ -250,7 +250,7 @@ dd {
 }
 
 .gauge-needle {
-  stroke: var(--coral);
+  stroke: var(--ink);
   stroke-width: 14;
   stroke-linecap: round;
   transform-box: view-box;
@@ -259,13 +259,6 @@ dd {
 
 .gauge-pivot {
   fill: var(--ink);
-}
-
-.gauge-drop {
-  fill: var(--face);
-  stroke: var(--ink);
-  stroke-width: 10;
-  stroke-linejoin: round;
 }
 
 .gauge h1 {
@@ -334,8 +327,8 @@ dd {
   display: inline-block;
   padding: 12px 22px;
   border-radius: 12px;
-  background: var(--coral);
-  color: var(--on-coral);
+  background: var(--butter);
+  color: var(--on-butter);
   font-family: var(--rounded);
   font-weight: 700;
   text-decoration: none;
@@ -486,7 +479,7 @@ dd {
 }
 
 .setup li::marker {
-  color: var(--coral-ink);
+  color: var(--accent-ink);
   font-family: var(--rounded);
   font-weight: 700;
 }
@@ -612,7 +605,7 @@ dd {
 .prose blockquote {
   margin-left: 0;
   padding-left: 1em;
-  border-left: 3px solid var(--coral);
+  border-left: 3px solid var(--butter);
   color: var(--ink-soft);
 }
 
@@ -650,7 +643,7 @@ dd {
 }
 
 .gauge-needle-still {
-  stroke: var(--coral);
+  stroke: var(--ink);
   stroke-width: 14;
   stroke-linecap: round;
 }

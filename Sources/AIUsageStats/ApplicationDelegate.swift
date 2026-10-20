@@ -6,7 +6,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private let model = ApplicationModel(isDemo: CommandLine.arguments.contains("--demo")
         || CommandLine.arguments.contains("--demo-home")
         || CommandLine.arguments.contains("--demo-reading-states"))
-    private let statusMenu = NSMenu(title: "Limits Left")
+    private let statusMenu = NSMenu(title: "Little Limits")
     private let accountFilterMenu = NSMenu(title: "Show Account")
     private var isMenuTracking = false
     private var statusItem: NSStatusItem?
@@ -28,7 +28,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         if let button = item.button {
             button.image = StatusItemImage.appGlyph
             button.imagePosition = .imageOnly
-            button.setAccessibilityLabel("Limits Left")
+            button.setAccessibilityLabel("Little Limits")
             button.setAccessibilityHelp("Open account usage and remaining quota")
         }
         statusItem = item
@@ -152,7 +152,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             displayedStatusSummary = summary
         }
         let marked = summary.isStale
-        let help = "Limits Left\n" + descriptions.joined(separator: "\n") + (marked ? "\nSome usage is stale or needs sign-in. Open for details." : "")
+        let help = "Little Limits\n" + descriptions.joined(separator: "\n") + (marked ? "\nSome usage is stale or needs sign-in. Open for details." : "")
         if statusItem?.button?.toolTip != help {
             statusItem?.button?.toolTip = help
             statusItem?.button?.setAccessibilityValue(descriptions.joined(separator: ". ") + (marked ? ". Some usage is stale or needs sign-in." : ""))
@@ -192,7 +192,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         if CommandLine.arguments.contains("--panel-diagnostics") || CommandLine.arguments.contains("--menu-diagnostics") {
             let window = statusItem?.button?.window
             let providerIconCount = statusMenu.items.filter { $0.isSectionHeader && $0.image != nil }.count
-            let message = "Limits Left surface: native-menu, providerIcons=\(providerIconCount)/\(model.profiles.count), statusImageWidth=\(Int(statusItem?.button?.image?.size.width ?? 0)), statusButtonFrame=\(NSStringFromRect(statusItem?.button?.frame ?? .zero)), statusItemVisible=\(statusItem?.isVisible == true), statusButtonWindowVisible=\(window?.isVisible == true), anchorFrame=\(NSStringFromRect(window?.frame ?? .zero))\n"
+            let message = "Little Limits surface: native-menu, providerIcons=\(providerIconCount)/\(model.profiles.count), statusImageWidth=\(Int(statusItem?.button?.image?.size.width ?? 0)), statusButtonFrame=\(NSStringFromRect(statusItem?.button?.frame ?? .zero)), statusItemVisible=\(statusItem?.isVisible == true), statusButtonWindowVisible=\(window?.isVisible == true), anchorFrame=\(NSStringFromRect(window?.frame ?? .zero))\n"
             FileHandle.standardError.write(Data(message.utf8))
         }
     }
@@ -488,7 +488,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
     private func showError(_ message: String) {
         let alert = NSAlert()
-        alert.messageText = "Limits Left"
+        alert.messageText = "Little Limits"
         alert.informativeText = message
         revealAccountsWindow(nil)
         if let window = accounts?.window { alert.beginSheetModal(for: window) }
@@ -498,7 +498,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let menu = NSMenu()
         let app = NSMenuItem()
         let appMenu = makeApplicationMenu()
-        let about = NSMenuItem(title: "About Limits Left", action: #selector(showAbout(_:)), keyEquivalent: "")
+        let about = NSMenuItem(title: "About Little Limits", action: #selector(showAbout(_:)), keyEquivalent: "")
         about.target = self
         appMenu.insertItem(about, at: 0)
         appMenu.insertItem(.separator(), at: 1)
@@ -506,7 +506,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let quitIndex = appMenu.numberOfItems - 1
         let hideOthers = NSMenuItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         hideOthers.keyEquivalentModifierMask = [.command, .option]
-        let hideGroup = [NSMenuItem(title: "Hide Limits Left", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h"),
+        let hideGroup = [NSMenuItem(title: "Hide Little Limits", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h"),
                          hideOthers,
                          NSMenuItem(title: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: ""),
                          .separator()]
@@ -588,17 +588,17 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
 
     private func makeApplicationMenu(includeRefresh: Bool = true, includeSetup: Bool = false, includeSettings: Bool = true) -> NSMenu {
-        let menu = NSMenu(title: "Limits Left")
+        let menu = NSMenu(title: "Little Limits")
         if includeSetup {
             menu.addItem(command(title: "Add Claude Account…", action: #selector(addClaudeAccount(_:))))
             menu.addItem(command(title: "Add Codex Account…", action: #selector(addCodexAccount(_:))))
             menu.addItem(.separator())
         }
         if includeRefresh { menu.addItem(command(title: model.isRefreshing ? "Refreshing…" : "Refresh All", action: #selector(refreshAllAccounts(_:)), key: "r")) }
-        menu.addItem(command(title: "Open Limits Left", action: #selector(showAccounts(_:))))
+        menu.addItem(command(title: "Open Little Limits", action: #selector(showAccounts(_:))))
         if includeSettings { menu.addItem(command(title: "Settings…", action: #selector(showSettings(_:)), key: ",")) }
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit Limits Left", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Quit Little Limits", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         return menu
     }
 }

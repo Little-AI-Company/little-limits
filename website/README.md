@@ -1,6 +1,6 @@
 # Product website
 
-A static site for Limits Left, usage limits for Claude and Codex in your Mac's menu bar. There is no build step, no JavaScript, and no external fonts, scripts, analytics, or trackers.
+A static site for Little Limits, usage limits for Claude and Codex in your Mac's menu bar. There is no build step, no JavaScript, and no external fonts, scripts, analytics, or trackers.
 
 | Path | Purpose |
 | --- | --- |
@@ -71,7 +71,7 @@ Keep titles under 60 characters and descriptions between 140 and 160.
 
 ## Update for each release
 
-The hero names the current version: "Version 0.2.1 for macOS 14 or later" in `index.html`, alongside `softwareVersion` in its JSON-LD and the version in `llms.txt`. Change all three when a new version is released. Download instructions name the file as `Limits-Left-<version>.zip` and link to the latest release, so they need no change.
+The hero names the current version: "Version 0.2.1 for macOS 14 or later" in `index.html`, alongside `softwareVersion` in its JSON-LD and the version in `llms.txt`. Change all three when a new version is released. Download instructions name the file as `Little-Limits-<version>.zip` and link to the latest release, so they need no change.
 
 Add the release to `changelog/index.html` and `CHANGELOG.md` together, as the [changelog skill](../.agents/skills/changelog/SKILL.md) describes.
 
@@ -94,8 +94,10 @@ The files in `images/` are copies of repository assets, resized with `sips -Z` a
 | `models-1600.webp`, `models-800.webp` | `assets/screenshots/models.png` |
 | `status-menu-661.webp`, `status-menu-330.webp` | `assets/screenshots/status-menu.png` |
 | `forecast-1260.webp`, `forecast-630.webp` | Codex forecast block rendered from the `--demo-home` fixture in light appearance at 630 pt wide (2x), cropped to 1260 x 460 |
-| `favicon-32.png`, `favicon-64.png`, `apple-touch-icon.png` | `assets/app-icon.png` |
-| `social-preview.png` | `assets/branding/social-preview.png` |
+| `little-limits-favicon-32.png`, `little-limits-favicon-64.png` | `assets/branding/app-icon/paper-small.png`, cropped to the icon body |
+| `little-limits-touch-icon.png` | `assets/branding/app-icon/artwork/paper.png` |
+| `little-limits-lockup-light.png`, `little-limits-lockup-dark.png` | `assets/branding/lockup/`, trimmed to 84 px tall (3x the 28 pt header) |
+| `little-limits-social-preview.jpg` | `assets/branding/social-preview.png` |
 
 When a screenshot in `assets/` changes, make new copies under new names, for example:
 

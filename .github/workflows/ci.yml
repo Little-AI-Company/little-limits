@@ -32,7 +32,7 @@ jobs:
       - name: Package the app
         run: scripts/package_app.sh
       - name: Verify the signature
-        run: codesign --verify --strict --verbose=2 "dist/Limits Left.app"
+        run: codesign --verify --strict --verbose=2 "dist/Little Limits.app"
       - name: Run tests
         run: swift test
       - name: Confirm no tracked file changed

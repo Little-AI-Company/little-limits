@@ -218,7 +218,7 @@ public actor UsageService {
             configuration = updated
             claudeCaptureCleanupMessages[accountID] = nil
         } catch {
-            claudeCaptureCleanupMessages[accountID] = "Could not finish removing the old Claude Code connection. Your browser connection is saved. Reopen Limits Left to retry."
+            claudeCaptureCleanupMessages[accountID] = "Could not finish removing the old Claude Code connection. Your browser connection is saved. Reopen Little Limits to retry."
         }
     }
 
@@ -250,7 +250,7 @@ public actor UsageService {
                                      sourcePath: sourceURL.path)
         let stableHelper = storage.directory.appendingPathComponent("UsageCapture")
         guard FileManager.default.isExecutableFile(atPath: captureHelperURL.path) else {
-            throw UsageError.invalidConfiguration("Usage capture helper is missing. Open the packaged Limits Left app.")
+            throw UsageError.invalidConfiguration("Usage capture helper is missing. Open the packaged Little Limits app.")
         }
         try UsagePaths.writePrivate(Data(contentsOf: captureHelperURL), to: stableHelper, permissions: 0o700)
         let installation = try ClaudeCaptureInstallation.install(profileID: profile.id, configurationURL: sourceURL,

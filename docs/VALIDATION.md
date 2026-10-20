@@ -976,4 +976,19 @@ Product source `f343544` (tag `v0.2.1`, main after #70), version 0.2.1, build 4.
 | Tap commit `4c5931e`: `Casks/limits-left.rb` added, `Casks/ai-usage-stats.rb` removed, `cask_renames.json` maps `ai-usage-stats` to `limits-left` | `brew style`: no offenses. `brew audit --cask --online`: exit 0. `brew livecheck`: 0.2.1. `brew fetch --cask --force` verified the download. `brew install --cask --dry-run parkerrex/tap/limits-left` would install the cask. |
 | `brew info --cask parkerrex/tap/ai-usage-stats` | Resolved to `parkerrex/tap/limits-left`, then stopped because this Mac had not trusted the tap. Homebrew 7 asks for `brew trust` before loading third-party casks by short or old name; installing by the full `parkerrex/tap/limits-left` name trusts the cask. |
 
-Not verified: the upgrade from an installed `ai-usage-stats` 0.2.0 (step 4 of the [rename steps](RELEASING.md#rename-to-limits-left); this Mac has neither cask installed), whether `brew upgrade` follows the rename on a Mac that never ran `brew trust`, a `brew install --cask` on a clean account, Intel runtime, and macOS 14 and 15 runtime.
+Not verified: the upgrade from an installed `ai-usage-stats` 0.2.0 (step 4 of the [rename steps](RELEASING.md#names); this Mac has neither cask installed), whether `brew upgrade` follows the rename on a Mac that never ran `brew trust`, a `brew install --cask` on a clean account, Intel runtime, and macOS 14 and 15 runtime.
+
+## 2026-10-20 rename to Little Limits and new brand artwork
+
+Local development build of branch `feat/little-limits-rebrand`, uncommitted, on macOS 27.0.1, Apple silicon (arm64), ad hoc signed.
+
+| Check | Result |
+| --- | --- |
+| `scripts/package_app.sh` | Built `dist/Little Limits.app` and `Little-Limits-0.2.1.zip`. Rebuilt `Resources/AppIcon.icns` and `Resources/AppIconNight.icns` from the new masters. `CFBundleName` and `CFBundleDisplayName` are `Little Limits`; the bundle ID is unchanged. `codesign --verify --strict` passed. |
+| `iconutil -c iconset` on both packaged `.icns` files | Ten slots each. 16 and 32 px come from the simplified small masters; 64 px and up from the detailed masters. Inspected by eye at 16, 32, and 128 px. |
+| `swift test` | 21 XCTest and 34 Swift Testing tests passed, including `appIconChoiceDefaultsToPaperAndReadsTheStoredChoice`, which confirms a saved `enamel` value still reads as Paper. |
+| `open -n "dist/Little Limits.app" --args --show-settings --demo` | Settings shows `Little Limits starts when you open it.` and the App icon choice `Paper`, with the note naming Little Limits and Paper. |
+| `--show-about --demo -AppIconChoice night` | About shows the Night icon and `Little Limits`, version 0.2.1 (4). The stored `AppIconChoice` default stayed unset. |
+| `website/` served locally | Home in light and dark at desktop width and at 375 px: new header lockup, paper and night grounds, butter button, plain dial with an ink needle, no horizontal scroll. |
+
+Not verified: the Homebrew cask rename (the tap has no `little-limits` cask yet), the deployed site, a Developer ID signed and notarized build, Intel runtime, and macOS 14 and 15 runtime.

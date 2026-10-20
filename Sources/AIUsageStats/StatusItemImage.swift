@@ -40,7 +40,7 @@ enum StatusItemImage {
             return true
         }
         image.isTemplate = true
-        image.accessibilityDescription = "Limits Left"
+        image.accessibilityDescription = "Little Limits"
         return image
     }()
 

@@ -17,7 +17,7 @@ for source_image in "$master" "$small_master"; do
     fi
 done
 
-temporary_directory="$(mktemp -d "${TMPDIR:-/tmp}/limits-left-icon.XXXXXX")"
+temporary_directory="$(mktemp -d "${TMPDIR:-/tmp}/little-limits-icon.XXXXXX")"
 trap 'rm -rf "$temporary_directory"' EXIT
 iconset="$temporary_directory/AppIcon.iconset"
 mkdir -p "$iconset" "$(dirname "$output_icon")"

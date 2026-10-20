@@ -114,7 +114,7 @@ enum ClaudeKeychainAccess {
 }
 
 struct ClaudeKeychainStore: ClaudeCredentialStore {
-    // Keeps the service name from before the rename to Limits Left, so saved sign-ins stay readable.
+    // Keeps the service name from the app's first name, AI Usage Stats, so saved sign-ins stay readable.
     private let service = "AI Usage Stats Claude OAuth"
 
     private func query(accountID: UUID, allowInteraction: Bool) -> [String: Any] {
