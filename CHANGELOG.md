@@ -1,6 +1,6 @@
 # Changelog
 
-What changed in each public release of Limits Left, newest first. The same entries are on [limitsleft.com/changelog](https://limitsleft.com/changelog/). Downloads are on [GitHub Releases](https://github.com/ParkerRex/limits-left/releases). Versions before 0.2.1 were released as AI Usage Stats.
+What changed in each public release of Little Limits, newest first. The same entries are on [limitsleft.com/changelog](https://limitsleft.com/changelog/). Downloads are on [GitHub Releases](https://github.com/ParkerRex/little-limits/releases). Version 0.2.1 was released as Limits Left, and earlier versions as AI Usage Stats.
 
 To add a release, follow the [changelog skill](.agents/skills/changelog/SKILL.md).
 

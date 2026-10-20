@@ -1,6 +1,6 @@
 ---
 name: changelog
-description: Write the Limits Left changelog for a public release, in CHANGELOG.md and on the website page limitsleft.com/changelog. Use when a version is released or about to be, or when asked to update the changelog, release notes, or what's new.
+description: Write the Little Limits changelog for a public release, in CHANGELOG.md and on the website page limitsleft.com/changelog. Use when a version is released or about to be, or when asked to update the changelog, release notes, or what's new.
 metadata:
   adapted-from: little-worker .agents/skills/roles/dev/whats-new-update/SKILL.md and packages/console/app/changelog/STYLE.md (2026-10-16), changed from dated entries without versions to one section per app version
 ---

@@ -2,7 +2,7 @@
 
 Reviewed against the live HIG on October 13, 2026. Apple reintroduced eight principles in June 2026. Use them to weigh a decision, not to assign a product score.
 
-| Principle | Question for Limits Left |
+| Principle | Question for Little Limits |
 | --- | --- |
 | Purpose | Can someone quickly understand available Claude and Codex usage for the intended account? |
 | Agency | Can someone control refresh and account setup, cancel sign-in, and recover without losing account selection or manual edits? |

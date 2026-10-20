@@ -1,6 +1,6 @@
 # Product scope
 
-Limits Left shows the available Claude and Codex usage state for several accounts in a small native macOS menu bar panel, and keeps a local record of that usage that the user owns. The [usage analytics plan](USAGE-ANALYTICS-PLAN.md) defines the history, forecast, and model behavior features.
+Little Limits shows the available Claude and Codex usage state for several accounts in a small native macOS menu bar panel, and keeps a local record of that usage that the user owns. The [usage analytics plan](USAGE-ANALYTICS-PLAN.md) defines the history, forecast, and model behavior features.
 
 ## Information to show
 

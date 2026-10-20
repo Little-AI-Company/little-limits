@@ -1,10 +1,10 @@
 # Surface inventory
 
-Launch each row as its own instance: `open -n "dist/Limits Left.app" --args <flags>`. Add `--dark-appearance` or `--increase-contrast` for appearance variants. Quit the instance (Command-Q in its window, or `kill <pid>`) before the next row. `--demo-empty` and `--demo-load-error` take effect only together with `--demo`; without it the instance loads the real saved accounts, so always pass `--demo` first. Fixture data is fictional; demo mode disables refresh, reconnect, and account changes, so disabled controls in captures are expected and are not findings by themselves.
+Launch each row as its own instance: `open -n "dist/Little Limits.app" --args <flags>`. Add `--dark-appearance` or `--increase-contrast` for appearance variants. Quit the instance (Command-Q in its window, or `kill <pid>`) before the next row. `--demo-empty` and `--demo-load-error` take effect only together with `--demo`; without it the instance loads the real saved accounts, so always pass `--demo` first. Fixture data is fictional; demo mode disables refresh, reconnect, and account changes, so disabled controls in captures are expected and are not findings by themselves.
 
 | Surface | Flags | Navigation after launch | Capture |
 | --- | --- | --- | --- |
-| status-item | `--demo-home` | None | The system menu bar process owns this window, so the script cannot capture it. Only when no other Limits Left instance is running, capture the menu bar strip with `screencapture -x -R0,0,<screen width in points>,40 <file>` and crop to the demo item before sharing. Otherwise record `status-menu.template-image` as untested. |
+| status-item | `--demo-home` | None | The system menu bar process owns this window, so the script cannot capture it. Only when no other Little Limits instance is running, capture the menu bar strip with `screencapture -x -R0,0,<screen width in points>,40 <file>` and crop to the demo item before sharing. Otherwise record `status-menu.template-image` as untested. |
 | status-menu | `--demo-home --show-menu` | Menu opens itself | `menu` PNG, or computer-use screenshot |
 | status-menu-empty | `--demo --demo-empty --show-menu` | Menu opens itself | First-run menu |
 | status-menu-error | `--demo --demo-load-error --show-menu` | Menu opens itself | Load failure menu |

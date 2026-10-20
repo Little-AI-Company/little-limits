@@ -20,11 +20,11 @@ final class GeneralSettingsViewController: NSViewController {
         view = root
         loginButton.target = self
         loginButton.action = #selector(toggleLogin(_:))
-        loginButton.setAccessibilityLabel("Launch Limits Left at login")
+        loginButton.setAccessibilityLabel("Launch Little Limits at login")
         let startup = InterfaceControls.stack([loginButton, loginStatus], spacing: 6)
         loginStatus.widthAnchor.constraint(equalTo: startup.widthAnchor).isActive = true
         let iconNote = InterfaceControls.label(
-            "Changes the icon in the Dock and app switcher while a Limits Left window is open, and in About Limits Left. Finder keeps Enamel.")
+            "Changes the icon in the Dock and app switcher while a Little Limits window is open, and in About Little Limits. Finder keeps Paper.")
         let icon = InterfaceControls.stack([iconButton, iconNote], spacing: 6)
         iconNote.widthAnchor.constraint(equalTo: icon.widthAnchor).isActive = true
         configureIconButton()
@@ -82,9 +82,9 @@ final class GeneralSettingsViewController: NSViewController {
         let state = SMAppService.mainApp.status
         loginButton.state = state == .enabled || state == .requiresApproval ? .on : .off
         switch state {
-        case .enabled: loginStatus.stringValue = "Limits Left starts when you log in."
-        case .requiresApproval: loginStatus.stringValue = "Allow Limits Left in System Settings → General → Login Items."
-        case .notFound, .notRegistered: loginStatus.stringValue = "Limits Left starts when you open it."
+        case .enabled: loginStatus.stringValue = "Little Limits starts when you log in."
+        case .requiresApproval: loginStatus.stringValue = "Allow Little Limits in System Settings → General → Login Items."
+        case .notFound, .notRegistered: loginStatus.stringValue = "Little Limits starts when you open it."
         @unknown default: loginStatus.stringValue = "Login item status is unavailable."
         }
     }

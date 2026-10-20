@@ -9,11 +9,11 @@ From the repository root:
 ```sh
 swift test
 scripts/package_app.sh
-plutil -lint "dist/Limits Left.app/Contents/Info.plist"
-codesign --verify --deep --strict --verbose=2 "dist/Limits Left.app"
-lipo -archs "dist/Limits Left.app/Contents/MacOS/AIUsageStats"
-lipo -archs "dist/Limits Left.app/Contents/MacOS/UsageCapture"
-open -n "dist/Limits Left.app"
+plutil -lint "dist/Little Limits.app/Contents/Info.plist"
+codesign --verify --deep --strict --verbose=2 "dist/Little Limits.app"
+lipo -archs "dist/Little Limits.app/Contents/MacOS/AIUsageStats"
+lipo -archs "dist/Little Limits.app/Contents/MacOS/UsageCapture"
+open -n "dist/Little Limits.app"
 ```
 
 The script builds all Release products, embeds `AIUsageStats` and the `UsageCapture` helper, builds the app icons (see [App icons](#app-icons)), copies the license, metadata, and generated SwiftPM provider-icon resource bundle, signs the helper and bundle with the selected local identity, verifies the signature, and creates a ZIP using `ditto`.
@@ -22,13 +22,13 @@ Use the same existing code-signing certificate for successive development builds
 
 Without a selected identity, packaging falls back to ad hoc signing and prints a warning. Ad hoc code is identified by its changing code hash, which can invalidate a previous Keychain permission after a rebuild. Switching from ad hoc signing to a certificate can also require one explicit permission for existing items. Background checks suppress Keychain dialogs and preserve the saved sign-in when permission is unavailable. An explicit account permission action reads the existing credential without initiating OAuth sign-in or replacing the grant.
 
-Version and build default to `CFBundleShortVersionString` and `CFBundleVersion` in `Resources/Info.plist`. Raise both for each public release; build numbers only increase (0.1.0 shipped as build 2, 0.2.0 as build 3). Other defaults are bundle ID `com.parkerrex.ai-usage-stats` (kept from the app's earlier name, AI Usage Stats; see [Rename to Limits Left](#rename-to-limits-left)), macOS minimum `14.0`, and output directory `dist`. The bundle is a menu bar agent with `LSUIElement` enabled.
+Version and build default to `CFBundleShortVersionString` and `CFBundleVersion` in `Resources/Info.plist`. Raise both for each public release; build numbers only increase (0.1.0 shipped as build 2, 0.2.0 as build 3). Other defaults are bundle ID `com.parkerrex.ai-usage-stats` (kept from the app's first name, AI Usage Stats; see [Names](#names)), macOS minimum `14.0`, and output directory `dist`. The bundle is a menu bar agent with `LSUIElement` enabled.
 
 To override local package values:
 
 ```sh
 VERSION=0.2.1 BUILD_NUMBER=4 scripts/package_app.sh
-OUTPUT_DIRECTORY=/tmp/limits-left-package scripts/package_app.sh
+OUTPUT_DIRECTORY=/tmp/little-limits-package scripts/package_app.sh
 UNIVERSAL=1 scripts/package_app.sh
 ```
 
@@ -38,21 +38,21 @@ Universal compilation targets Apple silicon and Intel. Record actual runtime che
 
 ## App icons
 
-The bundle icon is Enamel. Night is an alternate that the running app shows when the person picks it in Settings; see [NATIVE-DESIGN.md](NATIVE-DESIGN.md). Both masters are 1024 px PNGs already placed on the macOS icon grid by `assets/branding/explorations/icon-variations/compose_icon.sh`.
+The bundle icon is Paper. Night is an alternate that the running app shows when the person picks it in Settings; see [NATIVE-DESIGN.md](NATIVE-DESIGN.md). Every master is a 1024 px PNG already placed on the macOS icon grid by `scripts/compose_icon_master.sh` from the full-bleed artwork in `assets/branding/app-icon/artwork/`. See [assets/branding/README.md](../assets/branding/README.md) for how the artwork was made.
 
 | Output | 64 to 1024 px slots | 16 and 32 px slots |
 | --- | --- | --- |
-| `Resources/AppIcon.icns` (bundle icon, `CFBundleIconFile`) | `assets/app-icon.png` (Enamel) | `assets/branding/app-icon/enamel-small.png` |
-| `Resources/AppIconNight.icns` | `assets/branding/app-icon/night.png` | the same Night master |
+| `Resources/AppIcon.icns` (bundle icon, `CFBundleIconFile`) | `assets/app-icon.png` (Paper) | `assets/branding/app-icon/paper-small.png` |
+| `Resources/AppIconNight.icns` | `assets/branding/app-icon/night.png` | `assets/branding/app-icon/night-small.png` |
 
-`scripts/create_app_icon.sh <master.png> <small_master.png> <output.icns>` resizes each slot with `sips` into an `AppIcon.iconset` and runs `iconutil`. The small master is the simplified Small size drawing, which keeps the bubble, needle, and drop readable where the detailed master blurs; it fills `icon_16x16`, `icon_16x16@2x`, and `icon_32x32`. Packaging rebuilds an `.icns` when it is missing or older than one of its masters, then copies both into `Contents/Resources`. The output is byte-for-byte reproducible from the same masters. To inspect a packaged icon:
+`scripts/create_app_icon.sh <master.png> <small_master.png> <output.icns>` resizes each slot with `sips` into an `AppIcon.iconset` and runs `iconutil`. The small master is a simplified drawing with three ticks, a thick needle, and larger eyes, which stays readable where the detailed master blurs; it fills `icon_16x16`, `icon_16x16@2x`, and `icon_32x32`. Packaging rebuilds an `.icns` when it is missing or older than one of its masters, then copies both into `Contents/Resources`. The output is byte-for-byte reproducible from the same masters. To inspect a packaged icon:
 
 ```sh
-iconutil -c iconset -o /tmp/AppIcon.iconset "dist/Limits Left.app/Contents/Resources/AppIcon.icns"
+iconutil -c iconset -o /tmp/AppIcon.iconset "dist/Little Limits.app/Contents/Resources/AppIcon.icns"
 sips -g pixelWidth /tmp/AppIcon.iconset/*.png
 ```
 
-`assets/app-icon.png` is also the reference image of the current icon. The website favicons and the wordmark lockups in `assets/branding/wordmark/` were made from the earlier flat artwork and are rebuilt separately.
+The website favicons, touch icon, header lockups, and social image are copies of the same artwork; [website/README.md](../website/README.md) lists their sources.
 
 ## Provider menu icons
 
@@ -87,17 +87,17 @@ Public releases are signed with the Developer ID Application certificate of RAPT
 2. Without a notary profile, notarize through the Xcode account that is signed in to the release team. Wrap the signed app, upload it, and export the notarized app after Apple accepts it:
 
    ```sh
-   scripts/create_xcode_archive.sh 'dist/release/Limits Left.app' 'dist/release/Limits Left.xcarchive'
-   xcodebuild -exportArchive -archivePath 'dist/release/Limits Left.xcarchive' \
+   scripts/create_xcode_archive.sh 'dist/release/Little Limits.app' 'dist/release/Little Limits.xcarchive'
+   xcodebuild -exportArchive -archivePath 'dist/release/Little Limits.xcarchive' \
      -exportPath dist/release/upload -exportOptionsPlist build/XcodeUploadOptions.plist
-   xcodebuild -exportNotarizedApp -archivePath 'dist/release/Limits Left.xcarchive' -exportPath dist/release/notarized
+   xcodebuild -exportNotarizedApp -archivePath 'dist/release/Little Limits.xcarchive' -exportPath dist/release/notarized
    ```
 
    `build/XcodeUploadOptions.plist` (ignored) sets `method` `developer-id`, `destination` `upload`, `signingStyle` `manual`, `signingCertificate` to the certificate SHA-1, and `teamID` `9FL5S77YVH`. Upload success is not acceptance; `-exportNotarizedApp` succeeds only after Apple accepts the submission.
 
 3. Verify the notarized app before archiving it: `codesign --verify --deep --strict`, `xcrun stapler validate`, `spctl --assess --type execute --verbose=2`, and `lipo -archs` on both executables. Create the release archive with `ditto -c -k --keepParent` and record its `shasum -a 256`.
 
-4. Publish the archive as `Limits-Left-<version>.zip` on a `v<version>` GitHub release, then update the cask in `ParkerRex/homebrew-tap` with the version and SHA-256. Install with `brew install --cask parkerrex/tap/<cask>` on a clean account to confirm. The cask is `Casks/limits-left.rb`.
+4. Publish the archive as `Little-Limits-<version>.zip` on a `v<version>` GitHub release, then update the cask in `ParkerRex/homebrew-tap` with the version and SHA-256. Install with `brew install --cask parkerrex/tap/<cask>` on a clean account to confirm. The cask is `Casks/little-limits.rb`.
 
 5. Add the version to `CHANGELOG.md` and `website/changelog/index.html` with the [changelog skill](../.agents/skills/changelog/SKILL.md), in the release PR or right after it. Keep the GitHub release notes in line with it.
 
@@ -105,19 +105,23 @@ Keep certificates, private keys, notarization credentials, and private account d
 
 Record exact commands, results, artifact version, tested source revision, OS, and limits in [VALIDATION.md](VALIDATION.md) before claiming a release was verified.
 
-## Rename to Limits Left
+## Names
 
-The app was published as AI Usage Stats through 0.2.0. Limits Left 0.2.1 (build 4) shipped on October 16, 2026. The bundle `Limits Left.app` and the archive `Limits-Left-0.2.1.zip` carry the new name. These names stay the same on purpose:
+The app was published as AI Usage Stats through 0.2.0 and as Limits Left in 0.2.1. It is now Little Limits, part of the little family with Little Worker and Little CI. The bundle `Little Limits.app`, the archive `Little-Limits-<version>.zip`, the cask `little-limits`, and the repository `ParkerRex/little-limits` carry the current name. GitHub redirects the old `ParkerRex/limits-left` and `ParkerRex/ai-usage-stats` URLs, including release downloads, as long as no new repository takes those names. The site stays on limitsleft.com until a family domain replaces it.
+
+These names stay the same on purpose:
 
 - Bundle ID `com.parkerrex.ai-usage-stats`. Saved Keychain sign-ins, preferences, the login item, and the Claude Platform WebKit data are bound to it.
 - The Keychain service `AI Usage Stats Claude OAuth`, which holds saved Claude sign-ins.
 - The data folder `~/Library/Application Support/AI Usage Stats` and the helper at `~/Library/Application Support/AI Usage Stats/UsageCapture`. Usage history lives in the folder, and Claude status-line configurations point to the helper.
-- Swift target, product, module, and executable names (`AIUsageStats`, `UsageCore`, and the others). The GitHub repository is now `ParkerRex/limits-left`; GitHub redirects the old `ParkerRex/ai-usage-stats` URLs, including release downloads, as long as no new repository takes that name.
+- Swift target, product, module, and executable names (`AIUsageStats`, `UsageCore`, and the others).
 
-Release steps for 0.2.1, in addition to [Public release](#public-release). Steps 1, 2, 3, and 5 are done; step 4 is not yet verified. See [VALIDATION.md](VALIDATION.md).
+### Rename to Little Limits
 
-1. Set `CFBundleShortVersionString` to `0.2.1` and `CFBundleVersion` to `4` in `Resources/Info.plist`, then build, notarize, and verify as usual. Publish `Limits-Left-0.2.1.zip` on the `v0.2.1` GitHub release.
-2. In `ParkerRex/homebrew-tap`, add `Casks/limits-left.rb`. Copy `Casks/ai-usage-stats.rb` and change only the token to `limits-left`, `version` to `0.2.1`, `sha256` to the new archive's checksum, the `url` file name to `Limits-Left-#{version}.zip`, the `url` and `homepage` repository to `ParkerRex/limits-left`, `name` to `Limits Left`, and the artifact to `app "Limits Left.app"`. Keep `uninstall quit: "com.parkerrex.ai-usage-stats"` and the same `zap trash` paths, which still name the data folder, the preferences file, and the WebKit data of the unchanged bundle ID.
-3. In the same tap commit, delete `Casks/ai-usage-stats.rb` and add `cask_renames.json` at the tap root with `{"ai-usage-stats": "limits-left"}`, so `brew upgrade` moves existing installs to the new token.
-4. Confirm on a Mac that has `parkerrex/tap/ai-usage-stats` 0.2.0 installed: `brew update && brew upgrade --cask` replaces `AI Usage Stats.app` with `Limits Left.app`, saved accounts and history are still present without a new sign-in, Claude capture still updates, and Launch at login keeps its setting. Then confirm `brew install --cask parkerrex/tap/limits-left` on a clean account.
-5. Change install and uninstall commands in `README.md` and `website/` from `ai-usage-stats` to `limits-left` only after the tap change is live.
+Steps for the first release as Little Limits, in addition to [Public release](#public-release). The 0.2.1 rename to Limits Left used the same steps; its evidence is in [VALIDATION.md](VALIDATION.md).
+
+1. Build, notarize, and verify as usual. Publish `Little-Limits-<version>.zip` on the `v<version>` GitHub release.
+2. In `ParkerRex/homebrew-tap`, add `Casks/little-limits.rb`. Copy `Casks/limits-left.rb` and change only the token to `little-limits`, `version`, `sha256`, the `url` file name to `Little-Limits-#{version}.zip`, the `url` and `homepage` repository to `ParkerRex/little-limits`, `name` to `Little Limits`, and the artifact to `app "Little Limits.app"`. Keep `uninstall quit: "com.parkerrex.ai-usage-stats"` and the same `zap trash` paths.
+3. In the same tap commit, delete `Casks/limits-left.rb` and set `cask_renames.json` to `{"ai-usage-stats": "little-limits", "limits-left": "little-limits"}`, so `brew upgrade` moves existing installs to the new token.
+4. Confirm on a Mac that has `parkerrex/tap/limits-left` 0.2.1 installed: `brew update && brew upgrade --cask` replaces `Limits Left.app` with `Little Limits.app`, saved accounts and history are still present without a new sign-in, Claude capture still updates, and Launch at login keeps its setting. Then confirm `brew install --cask parkerrex/tap/little-limits` on a clean account.
+5. If you installed by hand, quit **Limits Left** and move it to the Trash after you install Little Limits. Say this in the release notes.

@@ -2,6 +2,8 @@
 
 Status: plan, written 2026-10-16. The product is being renamed from AI Usage Stats to **Limits Left**, with the subtitle "Usage limits for Claude and Codex, in your Mac's menu bar", at **limitsleft.com**. The site in `website/` is not deployed yet. The repository stays at github.com/ParkerRex/limits-left. See [Name and domain](#name-and-domain).
 
+Update 2026-10-20: the app is now **Little Limits**, part of the little family, and the repository is github.com/ParkerRex/little-limits. The site stays on limitsleft.com until a family domain replaces it. Read the brand sections below with the new name.
+
 This plan follows the vendored skills `seo-plan`, `seo-cluster`, `seo-sxo`, and `seo-geo` (see [`.agents/skills/CLAUDE-SEO-VENDOR.md`](../../.agents/skills/CLAUDE-SEO-VENDOR.md)). It had no paid keyword data. Search demand comes from autocomplete and forum research on 2026-10-16 and from web searches on the same day. There are no search volumes, so priorities below are judgments, not measurements. Replace them with Search Console data once the site is live.
 
 ## Goal

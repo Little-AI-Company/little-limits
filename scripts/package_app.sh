@@ -53,20 +53,20 @@ if [[ "$universal" == 1 ]]; then
 fi
 swift build "${build_arguments[@]}"
 binary_directory="$(swift build "${build_arguments[@]}" --show-bin-path)"
-# Enamel is the bundle icon. Night is the alternate the running app can show; see docs/RELEASING.md.
+# Paper is the bundle icon. Night is the alternate the running app can show; see docs/RELEASING.md.
 create_icon_if_outdated() {
     local master="$1" small_master="$2" output_icon="$3"
     if [[ ! -f "$output_icon" || "$master" -nt "$output_icon" || "$small_master" -nt "$output_icon" ]]; then
         scripts/create_app_icon.sh "$master" "$small_master" "$output_icon"
     fi
 }
-create_icon_if_outdated assets/app-icon.png assets/branding/app-icon/enamel-small.png Resources/AppIcon.icns
-create_icon_if_outdated assets/branding/app-icon/night.png assets/branding/app-icon/night.png Resources/AppIconNight.icns
+create_icon_if_outdated assets/app-icon.png assets/branding/app-icon/paper-small.png Resources/AppIcon.icns
+create_icon_if_outdated assets/branding/app-icon/night.png assets/branding/app-icon/night-small.png Resources/AppIconNight.icns
 
 mkdir -p "$output_directory"
 temporary_directory="$(mktemp -d "$output_directory/.package.XXXXXX")"
 trap 'rm -rf "$temporary_directory"' EXIT
-application="$temporary_directory/Limits Left.app"
+application="$temporary_directory/Little Limits.app"
 mkdir -p "$application/Contents/MacOS" "$application/Contents/Resources"
 install -m 755 "$binary_directory/AIUsageStats" "$application/Contents/MacOS/AIUsageStats"
 install -m 755 "$binary_directory/UsageCapture" "$application/Contents/MacOS/UsageCapture"
@@ -96,12 +96,12 @@ if [[ "$distribution" == 1 && -n "${NOTARY_PROFILE:-}" ]]; then
     spctl --assess --type execute --verbose=2 "$application"
 fi
 
-destination="$output_directory/Limits Left.app"
+destination="$output_directory/Little Limits.app"
 if [[ -e "$destination" ]]; then
     rm -rf "$destination"
 fi
 mv "$application" "$destination"
-archive="$output_directory/Limits-Left-$version.zip"
+archive="$output_directory/Little-Limits-$version.zip"
 ditto -c -k --keepParent "$destination" "$archive"
 printf 'Packaged %s\nArchive: %s\n' "$destination" "$archive"
 if [[ "$distribution" != 1 ]]; then
