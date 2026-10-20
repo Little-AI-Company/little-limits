@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# One group per pull request, or per commit on main. A new push cancels the older pull request run;
+# runs on main always finish, so every merged commit gets a result.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  macos:
+    name: macOS
+    # The app uses macOS 27 SDK symbols, so the standard macos-26 image (Xcode 26) cannot build it.
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      # Select Xcode by exact path so a runner image update cannot change the toolchain.
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v7
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+      - name: Package the app
+        run: scripts/package_app.sh
+      - name: Verify the signature
+        run: codesign --verify --strict --verbose=2 "dist/Limits Left.app"
+      - name: Run tests
+        run: swift test
+      - name: Confirm no tracked file changed
+        run: git diff --exit-code
+
+  linux:
+    name: Linux
+    # Only UsageHistory builds on Linux. This keeps it buildable for cloud sessions.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container: swift:6.4.0-noble
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run tests
+        run: swift test
+
+  check:
+    name: Check
+    # The only required status check. A skipped or cancelled job reports success to branch protection,
+    # so this job runs in every case and fails unless each job succeeded.
+    if: always()
+    needs: [macos, linux]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require every job to succeed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            if [ "$result" != success ]; then
+              echo "A required job ended with: $result"
+              exit 1
+            fi
+          done
