@@ -74,7 +74,7 @@ The experimental Console connection keeps a separate persistent WebKit data stor
 
 Public releases are signed with the Developer ID Application certificate of RAPTURE ENTERTAINERS, INC. (team `9FL5S77YVH`), notarized by Apple, and published as a GitHub release and a Homebrew cask in `ParkerRex/homebrew-tap`. Local Apple Development or ad hoc builds are never published.
 
-1. Build the universal, hardened-runtime package from a clean `main`:
+1. Build the universal, hardened-runtime package from a clean `main` commit whose `Check` passed in CI:
 
    ```sh
    DISTRIBUTION=1 UNIVERSAL=1 \
