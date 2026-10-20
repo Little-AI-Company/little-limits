@@ -31,6 +31,17 @@ Use a short conventional title naming the behavior change, such as `fix: preserv
 
 Open the description with the concrete problem and resulting behavior, then explain the cause and fix. Under the test plan, list exact commands and results, pass counts when available, tested revision, failures, skips, and material limits. Check boxes only for completed verification. End with an accurate AI model and harness disclosure, or state that no AI tools were used. Do not guess model details or publish private maintainer research.
 
+## Revert
+
+When `main` is wrong, revert first and discuss after.
+
+- Use GitHub's Revert button, or `git revert <sha>` on a new branch. Title: `revert: <original title> (#N)`.
+- Body: the original PR and commit, what broke, and what must be true to reland.
+- Reland as a new PR.
+- A bug already in a release: revert on `main`, then cut a patch release. There is no updater; users get it through the cask.
+
+Every merge is one squashed commit that passed `Check`, so any change reverts as one commit. [Data compatibility](AGENTS.md#data-compatibility) keeps that safe for stored data.
+
 ## Follow through
 
 Maintain the branch, resolve conflicts, and verify review findings against the source. Fix real findings and explain false positives with specific evidence. When asked to monitor a PR, inspect checks and comments newer than the last push and stay quiet while nothing has changed. Stop when the configured review bots are green on the latest commit.

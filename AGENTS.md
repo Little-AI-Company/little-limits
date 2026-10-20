@@ -11,6 +11,7 @@ Build a small native macOS menu bar utility for viewing Claude and Codex account
 - `Sources/UsageHistory/`: usage history record types, log parsers, command classifier, and forecast. Foundation and zstd only; builds on Linux.
 - `Sources/UsageHistoryStore/`: GRDB usage history database. macOS only.
 - `Tests/`: focused behavior tests, one target per source target.
+- `.github/workflows/ci.yml`: the `Check` status for every PR and push to `main`: macOS package, signature, and full tests; Linux `UsageHistory` tests.
 - `Resources/`: app metadata and generated icon.
 - `scripts/package_app.sh`: canonical local Release app packaging.
 - `docs/STRATEGY.md`, `docs/NATIVE-DESIGN.md`: product scope and native interface criteria.
@@ -18,6 +19,7 @@ Build a small native macOS menu bar utility for viewing Claude and Codex account
 - `CHANGELOG.md`, `website/changelog/`: what changed in each public release. Write them with the [changelog skill](.agents/skills/changelog/SKILL.md).
 - `docs/research/`: source research and provider limitations.
 - `docs/USAGE-ANALYTICS-PLAN.md`: usage history features, settled decisions, and the work split.
+- `docs/VERIFICATION-AND-DELIVERY-PLAN.md`: why CI, merge, and revert work the way they do.
 
 ## Working method
 
@@ -63,7 +65,7 @@ These are available commands, not a requirement to run all four for every edit. 
 | Change | Required evidence |
 | --- | --- |
 | Documentation only | Review changed lines and check referenced commands and links. Run `git diff --check` when Git is available. |
-| Swift code | Run `swift test` and `swift build -c release`. Retain tests for meaningful contracts and plausible failures. |
+| Swift code | Run focused tests for the touched target, such as `swift test --filter UsageCoreTests`. CI runs the full suite, the Release build, and packaging. |
 | Native UI or lifecycle | Also package and open the app. Exercise the changed control, keyboard access, and empty or failure state. Record actual visual checks and macOS version. |
 | Provider parsing or refresh | Also verify representative responses, missing fields, account separation, stale data, and authentication failures. Use redacted fixtures and authorized read-only requests. |
 | Credentials | Verify isolation and storage behavior. Never weaken security or print credentials to diagnose a test. |
@@ -74,6 +76,22 @@ These are available commands, not a requirement to run all four for every edit. 
 Classify failures before changing code: compiler, assertion, crash, timing, environment, provider, or signing. Use a narrow rerun and scoped diagnostics. Do not weaken assertions or hide errors to make checks pass. Repeat affected checks after a rebase or cherry-pick; avoid repeated full runs without new evidence.
 
 Report exact commands, results, tested revision, skipped checks, and material limits. A build, launch, visual check, and trusted distribution are separate claims. Universal compilation does not establish Intel runtime or minimum-macOS coverage. Put durable evidence in `docs/VALIDATION.md`.
+
+### Tests
+
+- Test a contract or a real failure mode. Do not assert call order, callback wiring, or the implementation. Delete tests that no longer protect anything.
+- Use doubles only at process, network, clock, filesystem, and Keychain boundaries. A fake fails on a call the test did not configure.
+- Pass `now`, the calendar, the locale, and the time zone as inputs. CI runs in UTC with a 12-hour US clock; a test that depends on the Mac's settings passes locally and fails there.
+- Wait on a completion signal, never a sleep. No snapshots, no coverage target.
+- CI does not open the app. For layout, focus, and menu-bar behavior, the packaged app is the check.
+
+### Data compatibility
+
+Any merged PR must be revertible without touching user data.
+
+- `accounts.json`: add a field as optional and decode it with `decodeIfPresent`. Never rename or remove a stored key.
+- A new case in a stored enum (`Provider`, `AccountSource`, `SnapshotState`, `CreditUnit`, `CreditSource`) makes an older build unable to read `accounts.json`. Ship the reader in a release before any build writes the case.
+- History database: add columns as nullable or with a default, and never change the meaning of an existing column. An older build opens a newer database and still writes to it. The database is derived from local logs, so a migration may clear it to force a reread.
 
 ## Contributions and releases
 
