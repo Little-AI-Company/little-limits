@@ -1,6 +1,6 @@
 # Little Limits brand
 
-Little Limits is part of the little family, next to Little Worker and [Little CI](https://github.com/ParkerRex/little-ci). Each product is a small character in black line art whose head is an everyday object, on a soft pastel circle over warm paper. Little Worker's Pip has a TV head on sand. Little CI has a server-box head on mint. Little Limits has a gauge head on butter yellow, with the needle near empty: a little is left.
+Little Limits is part of the little family, next to Little Worker and [Little CI](https://github.com/Little-AI-Company/little-ci). Each product is a small character in black line art whose head is an everyday object, on a soft pastel circle over warm paper. Little Worker's Pip has a TV head on sand. Little CI has a server-box head on mint. Little Limits has a gauge head on butter yellow, with the needle near empty: a little is left.
 
 ![The five concepts: gauge with the needle up, gauge with the needle low, battery, hourglass, and measuring cup, each as an icon, at 64, 32, and 16 px, and as a banner](concepts/contact-sheet.png)
 

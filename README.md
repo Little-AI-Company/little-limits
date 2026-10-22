@@ -9,9 +9,15 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ParkerRex/little-limits/releases/latest">Download</a> ·
+  <a href="https://github.com/Little-AI-Company/little-limits/releases/latest">Download</a> ·
   <code>brew install --cask parkerrex/tap/little-limits</code> ·
   macOS 14 or later · Apple silicon and Intel
+</p>
+
+<p align="center">
+  <a href="https://github.com/Little-AI-Company/little-limits/actions/workflows/ci.yml"><img src="https://github.com/Little-AI-Company/little-limits/actions/workflows/ci.yml/badge.svg?branch=main" alt="Check status"></a>
+  <a href="https://github.com/Little-AI-Company/little-limits/releases/latest"><img src="https://img.shields.io/github/v/release/Little-AI-Company/little-limits" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/Little-AI-Company/little-limits" alt="MIT license"></a>
 </p>
 
 <picture>
@@ -58,7 +64,7 @@ The forecast and the Models page come from a history the app keeps on your Mac. 
 brew install --cask parkerrex/tap/little-limits
 ```
 
-**Or download it:** get the `Little-Limits-<version>.zip` file from the [latest release](https://github.com/ParkerRex/little-limits/releases/latest), unzip it, and drag **Little Limits** into your Applications folder.
+**Or download it:** get the `Little-Limits-<version>.zip` file from the [latest release](https://github.com/Little-AI-Company/little-limits/releases/latest), unzip it, and drag **Little Limits** into your Applications folder.
 
 The app is signed and notarized by Apple, so it opens without security warnings.
 
@@ -89,7 +95,7 @@ The app is signed and notarized by Apple, so it opens without security warnings.
 You need Xcode 27 or later, which includes Swift 6 and the macOS 27 SDK the source uses.
 
 ```sh
-git clone https://github.com/ParkerRex/little-limits.git
+git clone https://github.com/Little-AI-Company/little-limits.git
 cd little-limits
 scripts/package_app.sh
 open "dist/Little Limits.app"
@@ -103,6 +109,7 @@ Local builds use your own development certificate and are not notarized. [docs/R
 
 - [Native design](docs/NATIVE-DESIGN.md), [product scope](docs/STRATEGY.md), and [usage analytics plan](docs/USAGE-ANALYTICS-PLAN.md)
 - [Validation record](docs/VALIDATION.md), [Claude sources](docs/research/claude.md), and [Codex sources](docs/research/codex.md)
-- [Contributing](CONTRIBUTING.md) and [agent guide](AGENTS.md)
+- [Contributing](CONTRIBUTING.md), [agent guide](AGENTS.md), and [security policy](SECURITY.md)
+- Want to help? Start with an issue labeled [good first issue](https://github.com/Little-AI-Company/little-limits/labels/good%20first%20issue).
 
 [MIT licensed](LICENSE). Copyright 2026 Parker Rex. Not affiliated with Anthropic or OpenAI.

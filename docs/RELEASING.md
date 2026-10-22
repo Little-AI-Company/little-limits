@@ -107,7 +107,7 @@ Record exact commands, results, artifact version, tested source revision, OS, an
 
 ## Names
 
-The app was published as AI Usage Stats through 0.2.0 and as Limits Left in 0.2.1. It is now Little Limits, part of the little family with Little Worker and Little CI. The bundle `Little Limits.app`, the archive `Little-Limits-<version>.zip`, the cask `little-limits`, and the repository `ParkerRex/little-limits` carry the current name. GitHub redirects the old `ParkerRex/limits-left` and `ParkerRex/ai-usage-stats` URLs, including release downloads, as long as no new repository takes those names. The site stays on limitsleft.com until a family domain replaces it.
+The app was published as AI Usage Stats through 0.2.0 and as Limits Left in 0.2.1. It is now Little Limits, part of the little family with Little Worker and Little CI. The bundle `Little Limits.app`, the archive `Little-Limits-<version>.zip`, the cask `little-limits`, and the repository `Little-AI-Company/little-limits` carry the current name. GitHub redirects the old `ParkerRex/little-limits`, `ParkerRex/limits-left`, and `ParkerRex/ai-usage-stats` URLs, including release downloads, as long as no new repository takes those names. Link to `Little-AI-Company/little-limits` in new docs, pages, and the cask. The site stays on limitsleft.com until a family domain replaces it.
 
 These names stay the same on purpose:
 
@@ -121,7 +121,7 @@ These names stay the same on purpose:
 Steps for the first release as Little Limits, in addition to [Public release](#public-release). The 0.2.1 rename to Limits Left used the same steps; its evidence is in [VALIDATION.md](VALIDATION.md).
 
 1. Build, notarize, and verify as usual. Publish `Little-Limits-<version>.zip` on the `v<version>` GitHub release.
-2. In `ParkerRex/homebrew-tap`, add `Casks/little-limits.rb`. Copy `Casks/limits-left.rb` and change only the token to `little-limits`, `version`, `sha256`, the `url` file name to `Little-Limits-#{version}.zip`, the `url` and `homepage` repository to `ParkerRex/little-limits`, `name` to `Little Limits`, and the artifact to `app "Little Limits.app"`. Keep `uninstall quit: "com.parkerrex.ai-usage-stats"` and the same `zap trash` paths.
+2. In `ParkerRex/homebrew-tap`, add `Casks/little-limits.rb`. Copy `Casks/limits-left.rb` and change only the token to `little-limits`, `version`, `sha256`, the `url` file name to `Little-Limits-#{version}.zip`, the `url` and `homepage` repository to `Little-AI-Company/little-limits`, `name` to `Little Limits`, and the artifact to `app "Little Limits.app"`. Keep `uninstall quit: "com.parkerrex.ai-usage-stats"` and the same `zap trash` paths.
 3. In the same tap commit, delete `Casks/limits-left.rb` and set `cask_renames.json` to `{"ai-usage-stats": "little-limits", "limits-left": "little-limits"}`, so `brew upgrade` moves existing installs to the new token.
 4. Confirm on a Mac that has `parkerrex/tap/limits-left` 0.2.1 installed: `brew update && brew upgrade --cask` replaces `Limits Left.app` with `Little Limits.app`, saved accounts and history are still present without a new sign-in, Claude capture still updates, and Launch at login keeps its setting. Then confirm `brew install --cask parkerrex/tap/little-limits` on a clean account.
 5. If you installed by hand, quit **Limits Left** and move it to the Trash after you install Little Limits. Say this in the release notes.
