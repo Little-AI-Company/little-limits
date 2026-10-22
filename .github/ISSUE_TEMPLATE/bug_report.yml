@@ -1,0 +1,77 @@
+name: Bug report
+description: A reading is wrong, missing, or stale, or the app misbehaves.
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first and keep the report to one problem.
+        Never paste a token, Keychain item, `accounts.json`, the usage history database, raw Claude Code or Codex logs, or a screenshot that shows an account email, organization name, or balance.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Menu bar number or menu
+        - Home window (accounts, weekly totals, forecast, calendar)
+        - Models page or usage history
+        - Adding or signing in to a Claude account
+        - Adding or signing in to a Codex account
+        - Claude API credits (Claude Platform)
+        - Install, update, or launch at login
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - Claude
+        - Codex
+        - Both
+        - Neither
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What you did, in order.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead. Redact account names and emails.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: In **About Little Limits**, or the commit if you built it yourself.
+      placeholder: 0.2.1 (4)
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: macOS version, Mac model (Apple silicon or Intel), how you installed (Homebrew, download, or source), and the Codex CLI version for Codex issues (`codex --version`).
+      placeholder: macOS 27.0, MacBook Pro M4, Homebrew, codex-cli 0.130.0
