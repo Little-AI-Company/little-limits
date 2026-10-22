@@ -65,7 +65,7 @@ body:
     attributes:
       label: App version
       description: In **About Little Limits**, or the commit if you built it yourself.
-      placeholder: 0.2.1 (4)
+      placeholder: 0.3.0 (5)
     validations:
       required: true
 

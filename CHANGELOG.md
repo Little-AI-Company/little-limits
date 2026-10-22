@@ -4,6 +4,19 @@ What changed in each public release of Little Limits, newest first. The same ent
 
 To add a release, follow the [changelog skill](.agents/skills/changelog/SKILL.md).
 
+## 0.3.0 (2026-10-22)
+
+The app is now called Little Limits, with new Paper and Night icons. Reset times on Home also fit on a 12-hour clock.
+
+### Fixed
+
+- **Home:** Reset times in the account table fit at the smallest window width on a 12-hour clock, such as "Today 6:22 PM". A reset that already happened says "Reset passed".
+
+### Changed
+
+- **Name:** Limits Left is now Little Limits. Your accounts, sign-ins, settings, and usage history stay. With Homebrew, `brew update && brew upgrade --cask` moves you to the new name. If you installed by hand, quit **Limits Left** and move it to the Trash after you install Little Limits.
+- **App icon:** New Paper and Night icons. Paper replaces Enamel. **Settings** has an **App icon** choice of Paper or Night, and if you chose Enamel before, you now have Paper.
+
 ## 0.2.1 (2026-10-16)
 
 The app is now called Limits Left. This release also brings a new icon, a more accurate menu bar number, and clearer words across the app.
