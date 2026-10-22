@@ -71,7 +71,7 @@ Keep titles under 60 characters and descriptions between 140 and 160.
 
 ## Update for each release
 
-The hero names the current version: "Version 0.2.1 for macOS 14 or later" in `index.html`, alongside `softwareVersion` in its JSON-LD and the version in `llms.txt`. Change all three when a new version is released. Download instructions name the file as `Little-Limits-<version>.zip` and link to the latest release, so they need no change.
+The hero names the current version: "Version 0.3.0 for macOS 14 or later" in `index.html`, alongside `softwareVersion` in its JSON-LD and the version in `llms.txt`. Change all three when a new version is released. Download instructions name the file as `Little-Limits-<version>.zip` and link to the latest release, so they need no change.
 
 Add the release to `changelog/index.html` and `CHANGELOG.md` together, as the [changelog skill](../.agents/skills/changelog/SKILL.md) describes.
 
