@@ -22,7 +22,7 @@ Use the same existing code-signing certificate for successive development builds
 
 Without a selected identity, packaging falls back to ad hoc signing and prints a warning. Ad hoc code is identified by its changing code hash, which can invalidate a previous Keychain permission after a rebuild. Switching from ad hoc signing to a certificate can also require one explicit permission for existing items. Background checks suppress Keychain dialogs and preserve the saved sign-in when permission is unavailable. An explicit account permission action reads the existing credential without initiating OAuth sign-in or replacing the grant.
 
-Version and build default to `CFBundleShortVersionString` and `CFBundleVersion` in `Resources/Info.plist`. Raise both for each public release; build numbers only increase (0.1.0 shipped as build 2, 0.2.0 as build 3). Other defaults are bundle ID `com.parkerrex.ai-usage-stats` (kept from the app's first name, AI Usage Stats; see [Names](#names)), macOS minimum `14.0`, and output directory `dist`. The bundle is a menu bar agent with `LSUIElement` enabled.
+Version and build default to `CFBundleShortVersionString` and `CFBundleVersion` in `Resources/Info.plist`. Raise both for each public release; build numbers only increase (0.1.0 shipped as build 2, 0.2.0 as build 3, 0.2.1 as build 4, 0.3.0 as build 5). Other defaults are bundle ID `com.parkerrex.ai-usage-stats` (kept from the app's first name, AI Usage Stats; see [Names](#names)), macOS minimum `14.0`, and output directory `dist`. The bundle is a menu bar agent with `LSUIElement` enabled.
 
 To override local package values:
 
