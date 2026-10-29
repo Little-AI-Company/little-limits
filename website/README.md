@@ -94,10 +94,10 @@ The files in `images/` are copies of repository assets, resized with `sips -Z` a
 | `models-1600.webp`, `models-800.webp` | `assets/screenshots/models.png` |
 | `status-menu-661.webp`, `status-menu-330.webp` | `assets/screenshots/status-menu.png` |
 | `forecast-1260.webp`, `forecast-630.webp` | Codex forecast block rendered from the `--demo-home` fixture in light appearance at 630 pt wide (2x), cropped to 1260 x 460 |
-| `little-limits-favicon-32.png`, `little-limits-favicon-64.png` | `assets/branding/app-icon/paper-small.png`, cropped to the icon body |
-| `little-limits-touch-icon.png` | `assets/branding/app-icon/artwork/paper.png` |
-| `little-limits-lockup-light.png`, `little-limits-lockup-dark.png` | `assets/branding/lockup/`, trimmed to 84 px tall (3x the 28 pt header) |
-| `little-limits-social-preview.jpg` | `assets/branding/social-preview.png` |
+| `little-limits-favicon-32-v2.png`, `little-limits-favicon-64-v2.png` | `assets/branding/app-icon/paper-small.png`, cropped to the icon body |
+| `little-limits-touch-icon-v2.png` | `assets/branding/app-icon/artwork/paper.png` |
+| `little-limits-lockup-light-v2.png`, `little-limits-lockup-dark-v2.png` | `assets/branding/lockup/`, trimmed to 84 px tall (3x the 28 pt header) |
+| `little-limits-social-preview-v2.jpg` | `assets/branding/social-preview.png` |
 
 When a screenshot in `assets/` changes, make new copies under new names, for example:
 

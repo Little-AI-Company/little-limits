@@ -1,16 +1,17 @@
 # Little Limits brand
 
-Little Limits is part of the little family, next to Little Worker and [Little CI](https://github.com/Little-AI-Company/little-ci). Each product is a small character in black line art whose head is an everyday object, on a soft pastel circle over warm paper. Little Worker's Pip has a TV head on sand. Little CI has a server-box head on mint. Little Limits has a gauge head on butter yellow, with the needle near empty: a little is left.
+Little Limits is part of the little family, next to Little Worker and [Little CI](https://github.com/Little-AI-Company/little-ci). Each product is a small character whose head is an everyday object, in a black ribbed turtleneck, on a soft pastel circle over warm paper. Little Worker's Lou has a TV head on sand. Little CI has a server-box head on mint. Little Limits has a gauge head on butter yellow, with the needle near empty: a little is left.
 
 ![The five concepts: gauge with the needle up, gauge with the needle low, battery, hourglass, and measuring cup, each as an icon, at 64, 32, and 16 px, and as a banner](concepts/contact-sheet.png)
 
 ## The character
 
-- A round dial-gauge head with a thick black rim, a few ticks along the top, and a short needle pointing at the leftmost tick.
-- The family face: two solid black oval eyes and a small smile.
-- A black ribbed turtleneck. Round white mittens and white sneakers when the full body shows.
-- Thick, even black lines with round ends. Flat fills. The figure is black and white only.
-- No gradients, gloss, 3D, shading, or texture. Lots of empty space.
+Redrawn on October 29, 2026 in the style of Little Worker's new character cast (Lou's character sheet). Same concept and colours as the first version, which is in git history.
+
+- A round dial-gauge head: a warm white face inside a thick dark rim, a few ticks along the top, and a short needle pointing at the leftmost tick.
+- Glossy oval eyes with a white highlight, soft blush, a calm smile at rest and an open smile in the full-body poses.
+- A black ribbed turtleneck, white gloves and white sneakers when the full body shows.
+- Clean dark line art (about #111), medium-heavy, round ends. Soft flat colour with one gentle shade. A big head. A thin Paper edge round the figure. No gloss, glow or texture. Lots of empty space.
 
 ## Palette
 
@@ -32,18 +33,31 @@ Butter is close to Little Worker's sand (#F2E6D0). If the two apps need to look 
 | File | What it is |
 | --- | --- |
 | `app-icon/artwork/paper.png` | Full-bleed 1024 px icon artwork from Codex |
-| `app-icon/artwork/paper-small.png` | Simplified artwork for 16 and 32 px: three ticks, thicker needle and rim, larger eyes |
+| `character/walk.png`, `wave.png`, `mark.png`, `icon-dark.png` | The other native pictures from the same Codex job: full-body poses, the head alone, and an icon on a dark field (not used by the bundle; Night is made from `paper.png`) |
+| `app-icon/artwork/paper-small.png` | Simplified head-only artwork for 16 and 32 px, cropped so the head fills the square on flat butter |
 | `app-icon/artwork/night.png`, `night-small.png` | The two above with the Paper ground flood-filled to #33312E, so the drawing is identical |
 | `app-icon/paper.png`, `paper-small.png`, `night.png`, `night-small.png` | The artwork on the macOS icon grid, made by `scripts/compose_icon_master.sh`. `../app-icon.png` is a copy of `paper.png` |
 | `banner.png` | README banner, 1536 x 768 |
 | `social-preview.png` | 1280 x 640 copy of the banner, for GitHub and link previews |
 | `lockup/lockup-light.png`, `lockup-dark.png` | Head and wordmark, 2000 x 500, on Paper and on Night |
 | `concepts/` | The five first-round concepts. The owner chose the gauge with the needle low |
-| `prompts/` | The exact Codex prompts |
+| `prompts/` | The exact Codex prompts. `redraw-2026-10-29.md` made the current art |
 
 The wordmark is raster art from Codex, not a font file. To make a new size, crop or scale the lockup or banner instead of typing it.
 
 ## How it was made
+
+### October 29, 2026 redraw
+
+One headless Codex job on the M4 (`codex exec`, the built-in image tool) drew six pictures from `prompts/redraw-2026-10-29.md`, with Lou's character sheet from Little Worker, the first version's `app-icon/artwork/paper.png` and `banner.png` attached with `-i`. A script then:
+
+- kept every word of the banner, social preview and lockups exactly as before and put the new character on the same butter circle,
+- cropped the small artwork, made the Night artwork by swapping the Paper ground for #33312E, placed all four on the macOS icon grid (824 px body, 185.4 px radius, the same drop shadow as `scripts/compose_icon_master.sh`) and made the website copies,
+- and `scripts/create_app_icon.sh` made both `.icns` files on the M4.
+
+Nothing was retouched by hand. Website images changed content, so they have new `-v2` names (see `website/_headers`).
+
+### First version, October 20, 2026
 
 Codex image generation, headless, on October 20, 2026, with Codex CLI 0.163.0. Each job ran in its own empty folder, with the sibling products' art attached as style references:
 
