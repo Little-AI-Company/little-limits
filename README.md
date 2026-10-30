@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Little-AI-Company/little-limits/actions/workflows/ci.yml"><img src="https://github.com/Little-AI-Company/little-limits/actions/workflows/ci.yml/badge.svg?branch=main" alt="Check status"></a>
+  <a href="https://github.com/Little-AI-Company/little-limits/actions/workflows/ci.yml"><img src="https://github.com/Little-AI-Company/little-limits/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
   <a href="https://github.com/Little-AI-Company/little-limits/releases/latest"><img src="https://img.shields.io/github/v/release/Little-AI-Company/little-limits" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/Little-AI-Company/little-limits" alt="MIT license"></a>
 </p>

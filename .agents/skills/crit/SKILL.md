@@ -57,10 +57,10 @@ Never call the result HIG compliant or release ready. Header format: `UX diagnos
 
 ## 4. Report
 
-1. Write `docs/design/crits/<review-id>.md`: header, scope and environment, verdict, a short "what a first-time user experiences" walkthrough, the ranked findings, HIG outcomes table, non-findings, untested list, and a proposed fix order grouped into small PR-sized batches.
+1. Write `docs/design/crits/<review-id>.md`: header, scope and environment, verdict, a short "what a first-time user experiences" walkthrough, the ranked findings, HIG outcomes table, non-findings, untested list, and a proposed fix order grouped into small batches, one commit each.
 2. Render the annotated HTML with `python3 .agents/skills/crit/scripts/build_report.py .crit/<review-id>/register.json .crit/<review-id>/captures .crit/<review-id>/report.html` and publish it as an Artifact when the user wants to see or share it. Screenshots must be demo data only. Each marker links to its finding.
 3. Report exact commands, the tested revision, skipped checks, and limits.
 
 ## Fix pass
 
-Only with explicit implementation authority. Pick up to three small, high-confidence findings, fix them on a branch, run `swift test` and `swift build -c release`, repackage, recapture the affected surfaces with the same flags and appearance, and append a before and after section to the report. Keep implementation, verification, and commits as separate claims.
+Only with explicit implementation authority. Pick up to three small, high-confidence findings, fix each as its own commit on a detached `origin/main`, run `swift test` and `swift build -c release`, repackage, recapture the affected surfaces with the same flags and appearance, and append a before and after section to the report. Keep implementation, verification, and commits as separate claims. Land each commit with `scripts/push_main.sh --package`.

@@ -4,7 +4,7 @@ Small, well-explained contributions are welcome. You are responsible for every s
 
 ## Choose one change
 
-Check current `main`, existing issues, and open PRs before starting. Keep one purpose per PR and exclude unrelated dependency updates, formatting, and refactors. Stay within the [product scope](docs/STRATEGY.md). Discuss substantial features or architecture changes first; small fixes do not need prior permission.
+Check current `main` and existing issues before starting. Keep one purpose per commit and exclude unrelated dependency updates, formatting, and refactors. Stay within the [product scope](docs/STRATEGY.md). Discuss substantial features or architecture changes first; small fixes do not need prior permission.
 
 Read [AGENTS.md](AGENTS.md) for the module map, data boundaries, native workflow, and required checks. Those rules apply to human and AI-assisted contributions.
 
@@ -20,42 +20,42 @@ These are not planned:
 
 ## Establish and verify behavior
 
-For a bug fix, reproduce the problem on a named baseline commit before editing. Record repeatable steps, expected behavior, observed result, and the source location of the cause. Only claim a baseline failure when you observed it. State the gap when updating an existing PR without that evidence.
+For a bug fix, reproduce the problem on a named baseline commit before editing. Record repeatable steps, expected behavior, observed result, and the source location of the cause. Only claim a baseline failure when you observed it. State the gap when you lack that evidence.
 
 Define an observable result and choose the cheapest reliable check that could detect a failure. Reuse existing tests. Add a test when it protects a meaningful contract, catches a plausible regression, or exercises a consequential failure. Do not mirror implementation or create extra production layers to support tests.
 
-Follow the [build instructions](README.md#build-from-source) and [verification requirements](AGENTS.md#verification). Preserve type safety and Swift concurrency checking. Update relevant docs in the same PR. For native UI, exercise the packaged app and record the actual views and interactions checked. Review screenshots for private account information before sharing.
+Follow the [build instructions](README.md#build-from-source) and [verification requirements](AGENTS.md#verification). Preserve type safety and Swift concurrency checking. Update relevant docs in the same commit. For native UI, exercise the packaged app and record the actual views and interactions checked. Review screenshots for private account information before sharing.
 
 For provider work, identify the source and whether an endpoint is official or private. Use redacted fixtures. Preserve account isolation, missing-data states, and authentication failures. Never change a user's active CLI login to test monitoring.
 
 Performance claims require measured baseline and changed Release builds under comparable conditions. Include commits, hardware, OS, workload, duration, results, tradeoffs, and limits. Estimates are not measurements.
 
-## Prepare the pull request
+## Land the change
 
-1. Fetch upstream and rebase your contribution branch onto latest `main`.
-2. Repeat affected checks after a rebase or cherry-pick. Record baseline and tested head revisions.
-3. Read every line of the diff and description. Passing checks do not replace review.
-4. Open a ready-for-review PR, not a draft, using the [template](.github/pull_request_template.md).
+Maintainers and their agents commit straight to `main`; there are no branches or pull requests ([AGENTS.md: Shipping on main](AGENTS.md#shipping-on-main)).
+
+1. Commit on a detached `origin/main`. One purpose per commit, with a short conventional subject naming the behavior change, such as `fix: preserve account identity during refresh`, `feat: show credit expiry`, or `docs: clarify local builds`.
+2. Write the body for a reader who has not seen the work: the concrete problem and resulting behavior, then the cause and fix. For a bug fix, name the baseline commit and the reproduction. List manual checks you ran and their results, such as the packaged app views and interactions. End with an accurate AI model and harness disclosure, or state that no AI tools were used. Do not guess model details or publish private maintainer research.
+3. A `feat`, `fix`, or `perf` commit ends with a `Customer-note:` trailer for the changelog, or `Customer-note: none (<reason>)`.
+4. Read every line of `git show HEAD`. Passing checks do not replace review.
+5. Run `scripts/push_main.sh` (`--package` for UI, lifecycle, resource, or packaging changes). It rebases, runs the checks on the exact commit, records them as `Tested:` trailers, and pushes `main`. See [docs/push-main.md](docs/push-main.md).
 
 Never include tokens, Keychain items, OAuth grants, `accounts.json`, the usage history database, raw Claude Code or Codex logs, or screenshots that show account emails, organization names, or balances.
 
-Use a short conventional title naming the behavior change, such as `fix: preserve account identity during refresh`, `feat: show credit expiry`, or `docs: clarify local builds`.
+### From a fork
 
-Open the description with the concrete problem and resulting behavior, then explain the cause and fix. Under the test plan, list exact commands and results, pass counts when available, tested revision, failures, skips, and material limits. Check boxes only for completed verification. End with an accurate AI model and harness disclosure, or state that no AI tools were used. Do not guess model details or publish private maintainer research.
+Without push access, open a pull request from your fork with the same content: the problem, the fix, the checks you ran, and the disclosure. A maintainer reads it, lands it on `main` with the push script, credits you with a `Co-authored-by:` trailer, and closes the pull request with a link to the commit.
 
 ## Revert
 
 When `main` is wrong, revert first and discuss after.
 
-- Use GitHub's Revert button, or `git revert <sha>` on a new branch. Title: `revert: <original title> (#N)`.
-- Body: the original PR and commit, what broke, and what must be true to reland.
-- Reland as a new PR.
+- Run `scripts/push_main.sh --revert <sha> --reason "<what broke>"`. It reverts the commit on `origin/main`, checks the result, and pushes it.
+- The body names the original commit, what broke, and what must be true to reland. Reland as a new commit.
 - A bug already in a release: revert on `main`, then cut a patch release. There is no updater; users get it through the cask.
 
-Every merge is one squashed commit that passed `Check`, so any change reverts as one commit. [Data compatibility](AGENTS.md#data-compatibility) keeps that safe for stored data.
+Every commit on `main` is one change that its `Tested:` trailers describe, so any change reverts as one commit. [Data compatibility](AGENTS.md#data-compatibility) keeps that safe for stored data.
 
 ## Follow through
 
-Maintain the branch, resolve conflicts, and verify review findings against the source. Fix real findings and explain false positives with specific evidence. When asked to monitor a PR, inspect checks and comments newer than the last push and stay quiet while nothing has changed. Stop when the configured review bots are green on the latest commit.
-
-Merge only with the disposition authorized by the maintainer or user. Otherwise leave the PR open and report its state.
+Whoever pushed a commit watches its GitHub Actions run on `main`. A red run is fixed or reverted within the hour. Verify review findings against the source; fix real findings in a follow-up commit and explain false positives with specific evidence.

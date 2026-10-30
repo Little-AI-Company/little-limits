@@ -18,7 +18,7 @@ Two files hold the same entries, newest version first:
 
 ## When to write
 
-Write one section for each public release: a version with a `v<version>` tag and a GitHub release (see `docs/RELEASING.md`). A local, test, or ad hoc signed build gets no section. Write it in the release PR or in a PR right after it, so the page is live when people upgrade. A version section is final once it ships: to correct it, change the words, never the version or date.
+Write one section for each public release: a version with a `v<version>` tag and a GitHub release (see `docs/RELEASING.md`). A local, test, or ad hoc signed build gets no section. Write it in the release commit or in a commit right after it, so the page is live when people upgrade. A version section is final once it ships: to correct it, change the words, never the version or date.
 
 ## Where the facts come from
 
@@ -30,20 +30,19 @@ Write one section for each public release: a version with a `v<version>` tag and
    gh release view v<previous> --json publishedAt,body
    ```
 
-2. List the PRs merged since then. Use the date of the previous tag, and keep only PRs that are in `git log --oneline v<previous>..origin/main`:
+2. List the commits on `main` since then with their customer notes. Changes land as single commits on `main` (AGENTS.md: Shipping on main); before 2026-10-30 they were squashed pull requests, whose subjects end in `(#N)`:
 
    ```sh
-   gh pr list --state merged --search "merged:>=YYYY-MM-DD" --limit 200 --json number,title,mergedAt
-   git log --oneline v<previous>..origin/main
+   git log --reverse --format='%h %s%n  note: %(trailers:key=Customer-note,valueonly,unfold)' v<previous>..origin/main
    ```
 
-3. Read the summary of each `feat`, `fix`, and `perf` PR with `gh pr view <number>`. The summary says what changed for the person. Read the code only when the summary leaves it unclear.
+3. Start each `feat`, `fix`, and `perf` change from its `Customer-note:`. It says what changed for the person. For an older commit without one, read its body, or `gh pr view <N>` for a `(#N)` subject. Read the code only when the note leaves it unclear. Leave out changes whose note is `none (...)`.
 4. If the GitHub release notes for the new version are already drafted, read them too. The changelog and the release notes must agree.
-5. Leave out PRs that a person using the app cannot notice: design crit reports, docs, tests, tooling, skills, the website, SEO, and release preparation. Say in the PR description which PRs you left out and why, one line each.
+5. Leave out changes that a person using the app cannot notice: design crit reports, docs, tests, tooling, skills, the website, SEO, and release preparation. Say in the commit body which changes you left out and why, one line each.
 
 ## How to write
 
-Group changes by what a person notices, not by PR. Several PRs can make one bullet, and one PR can make two.
+Group changes by what a person notices, not by commit. Several commits can make one bullet, and one commit can make two.
 
 ### The voice
 
@@ -91,7 +90,7 @@ One or two sentences: the main news of this version.
 
 - Each bullet starts with its place in bold and a colon: **Home:**, **Menu bar number:**, **Models:**, **Settings:**. Then one to three sentences.
 - A change to something new in the same version is part of that new item, not a fix.
-- No PR numbers, branch names, commit types, build numbers, or file names.
+- No PR numbers, commit hashes, branch names, commit types, build numbers, or file names.
 - Do not repeat the install command. The website and README own it. When a release changes how people upgrade, as the rename did, say what to do in one bullet, with the same commands as the GitHub release notes.
 
 ### Good and bad
@@ -112,7 +111,7 @@ One or two sentences: the main news of this version.
 
 ## Check
 
-- Each bullet traces to a merged PR in `v<previous>..origin/main`. If you cannot point to the change that makes a sentence true, take the sentence out.
+- Each bullet traces to a commit in `v<previous>..origin/main`. If you cannot point to the change that makes a sentence true, take the sentence out.
 - Each bold name matches a string in `Sources/`.
 - No em dashes, and no "we":
 
@@ -136,4 +135,4 @@ One or two sentences: the main news of this version.
   ```
 
   Stop the server when you are done.
-- Run `git diff --check`, read every changed line, and open the PR with the title `docs: add the <version> changelog`.
+- Read every changed line, commit with the subject `docs: add the <version> changelog`, and land it with `scripts/push_main.sh`.

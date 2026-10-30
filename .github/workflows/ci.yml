@@ -1,18 +1,21 @@
 name: CI
 
+# Runs after each push to main. Nothing waits for it and nothing requires it:
+# scripts/push_main.sh checks a commit before it lands, and this run proves the
+# Release build, packaging, and signature on a clean macOS image afterwards.
+# Whoever pushed a commit that turns it red fixes or reverts it within the hour.
 on:
-  pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-# One group per pull request, or per commit on main. A new push cancels the older pull request run;
-# runs on main always finish, so every merged commit gets a result.
+# One group per commit, never cancelled, so every commit on main gets a result.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.sha }}
+  cancel-in-progress: false
 
 jobs:
   macos:
@@ -48,23 +51,3 @@ jobs:
       - uses: actions/checkout@v7
       - name: Run tests
         run: swift test
-
-  check:
-    name: Check
-    # The only required status check. A skipped or cancelled job reports success to branch protection,
-    # so this job runs in every case and fails unless each job succeeded.
-    if: always()
-    needs: [macos, linux]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 2
-    steps:
-      - name: Require every job to succeed
-        env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
-        run: |
-          for result in $RESULTS; do
-            if [ "$result" != success ]; then
-              echo "A required job ended with: $result"
-              exit 1
-            fi
-          done

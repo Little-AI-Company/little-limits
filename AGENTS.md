@@ -11,7 +11,8 @@ Build a small native macOS menu bar utility for viewing Claude and Codex account
 - `Sources/UsageHistory/`: usage history record types, log parsers, command classifier, and forecast. Foundation and zstd only; builds on Linux.
 - `Sources/UsageHistoryStore/`: GRDB usage history database. macOS only.
 - `Tests/`: focused behavior tests, one target per source target.
-- `.github/workflows/ci.yml`: the `Check` status for every PR and push to `main`: macOS package, signature, and full tests; Linux `UsageHistory` tests.
+- `scripts/push_main.sh`: the only way a change lands on `main`. See [Shipping on main](#shipping-on-main) and [docs/push-main.md](docs/push-main.md).
+- `.github/workflows/ci.yml`: after each push to `main`, GitHub's runners package, verify the signature, and run the full tests on macOS, and run the `UsageHistory` tests on Linux. Nobody waits for it.
 - `Resources/`: app metadata and generated icon.
 - `scripts/package_app.sh`: canonical local Release app packaging.
 - `docs/STRATEGY.md`, `docs/NATIVE-DESIGN.md`: product scope and native interface criteria.
@@ -19,7 +20,7 @@ Build a small native macOS menu bar utility for viewing Claude and Codex account
 - `CHANGELOG.md`, `website/changelog/`: what changed in each public release. Write them with the [changelog skill](.agents/skills/changelog/SKILL.md).
 - `docs/research/`: source research and provider limitations.
 - `docs/USAGE-ANALYTICS-PLAN.md`: usage history features, settled decisions, and the work split.
-- `docs/VERIFICATION-AND-DELIVERY-PLAN.md`: why CI, merge, and revert work the way they do.
+- `docs/VERIFICATION-AND-DELIVERY-PLAN.md`: the test, data, and revert rules and where they came from. Its pull request flow ended on 2026-10-30.
 
 ## Working method
 
@@ -65,7 +66,7 @@ These are available commands, not a requirement to run all four for every edit. 
 | Change | Required evidence |
 | --- | --- |
 | Documentation only | Review changed lines and check referenced commands and links. Run `git diff --check` when Git is available. |
-| Swift code | Run focused tests for the touched target, such as `swift test --filter UsageCoreTests`. CI runs the full suite, the Release build, and packaging. |
+| Swift code | Run focused tests for the touched target while you work, such as `swift test --filter UsageCoreTests`. `scripts/push_main.sh` runs the full `swift test` on the exact commit before it pushes. GitHub Actions runs the Release build and packaging after the push. |
 | Native UI or lifecycle | Also package and open the app. Exercise the changed control, keyboard access, and empty or failure state. Record actual visual checks and macOS version. |
 | Provider parsing or refresh | Also verify representative responses, missing fields, account separation, stale data, and authentication failures. Use redacted fixtures and authorized read-only requests. |
 | Credentials | Verify isolation and storage behavior. Never weaken security or print credentials to diagnose a test. |
@@ -87,16 +88,25 @@ Report exact commands, results, tested revision, skipped checks, and material li
 
 ### Data compatibility
 
-Any merged PR must be revertible without touching user data.
+Any commit on `main` must be revertible without touching user data.
 
 - `accounts.json`: add a field as optional and decode it with `decodeIfPresent`. Never rename or remove a stored key.
 - A new case in a stored enum (`Provider`, `AccountSource`, `SnapshotState`, `CreditUnit`, `CreditSource`) makes an older build unable to read `accounts.json`. Ship the reader in a release before any build writes the case.
 - History database: add columns as nullable or with a default, and never change the meaning of an existing column. An older build opens a newer database and still writes to it. The database is derived from local logs, so a migration may clear it to force a reread.
 
-## Contributions and releases
+## Shipping on main
 
-Follow [CONTRIBUTING.md](CONTRIBUTING.md) and the [PR template](.github/pull_request_template.md). Keep each PR focused, read every changed line, and tie proof to the submitted revision. Use a short conventional title, such as `fix: preserve account identity during refresh`.
+Work lands on `main`. There are no branches, pull requests, or required checks in this repository (Parker, 2026-10-30). A bad commit costs one revert, and a gate costs every commit its wait, so we revert instead of adding gates. Only Parker changes the `main` ruleset and repository settings.
 
-Rebase onto current `main` before opening a ready-for-review PR. Include observed baseline reproduction for bug fixes, exact verification results, and an accurate model and harness disclosure. Merge only with authorization.
+- One commit, one purpose. Commit on a detached `origin/main`, never on a branch you push. Use a short conventional subject such as `fix: preserve account identity during refresh`; the body says what changed and why.
+- A `feat`, `fix`, or `perf` commit ends with a trailer `Customer-note: <one or two plain sentences>` that says what a person using the app can do now, or `Customer-note: none (<reason>)`. The scopes `release`, `website`, `ci`, `test`, and `repo` need none. The [changelog skill](.agents/skills/changelog/SKILL.md) writes each release from these notes.
+- Read every line of `git show HEAD` before you push. Passing checks do not replace reading it.
+- Push with `scripts/push_main.sh`. It rebases onto `origin/main`, runs `git diff --check` and, when the commit touches Swift, resources, scripts, or the package, the full `swift test` on that exact commit: on this Mac, or on the M4 over `ssh m4` from a cloud session (run little-worker's `scripts/m4-ssh-setup.sh` once). It writes a `Tested:` trailer for each check and the tree it passed on, then pushes `main`, retrying when `main` moved. Add `--package` for UI, lifecycle, resource, or packaging changes. `--verify` checks HEAD and pushes nothing. Exit 2 means a check failed and `main` is unchanged. Only the script writes `Tested:` trailers.
+- Never force-push, amend, or rewrite a pushed commit, and never push `main` any other way.
+- After the push, GitHub Actions builds and tests the commit on a clean macOS image. Nobody waits for it. Whoever pushed a commit that turns `main` red fixes it or reverts it within the hour: `scripts/push_main.sh --revert <sha> --reason "<what broke>"`.
+- Native UI still needs the packaged app checked by hand before the push, as the Verification table says. Put evidence in the commit body and `docs/VALIDATION.md`, not in a separate review.
+- Outside contributors cannot push. Their pull requests from forks are read like any other change; a maintainer lands the work with the push script and credits them with a `Co-authored-by:` trailer, then closes the pull request with a link to the commit.
+
+Releases follow [docs/RELEASING.md](docs/RELEASING.md). Follow [CONTRIBUTING.md](CONTRIBUTING.md) for evidence and disclosure.
 
 Reuse `scripts/package_app.sh`. Local ad hoc signing does not provide Developer ID trust or notarization. Do not publish a release, add recurring workflows, enable an updater, or change distribution configuration merely because checks passed.

@@ -74,7 +74,7 @@ The experimental Console connection keeps a separate persistent WebKit data stor
 
 Public releases are signed with the Developer ID Application certificate of RAPTURE ENTERTAINERS, INC. (team `9FL5S77YVH`), notarized by Apple, and published as a GitHub release and a Homebrew cask in `ParkerRex/homebrew-tap`. Local Apple Development or ad hoc builds are never published.
 
-1. Build the universal, hardened-runtime package from a clean `main` commit whose `Check` passed in CI:
+1. Build the universal, hardened-runtime package from a clean `main` commit whose `Tested:` trailers pass and whose GitHub Actions run on `main` passed:
 
    ```sh
    DISTRIBUTION=1 UNIVERSAL=1 \
@@ -99,7 +99,7 @@ Public releases are signed with the Developer ID Application certificate of RAPT
 
 4. Publish the archive as `Little-Limits-<version>.zip` on a `v<version>` GitHub release, then update the cask in `ParkerRex/homebrew-tap` with the version and SHA-256. Install with `brew install --cask parkerrex/tap/<cask>` on a clean account to confirm. The cask is `Casks/little-limits.rb`.
 
-5. Add the version to `CHANGELOG.md` and `website/changelog/index.html` with the [changelog skill](../.agents/skills/changelog/SKILL.md), in the release PR or right after it. Keep the GitHub release notes in line with it.
+5. Add the version to `CHANGELOG.md` and `website/changelog/index.html` with the [changelog skill](../.agents/skills/changelog/SKILL.md), in the release commit or right after it. Keep the GitHub release notes in line with it.
 
 Keep certificates, private keys, notarization credentials, and private account data out of the repository and bundle. Changing the signing team from a local development identity to the release team can make macOS ask once for access to saved Keychain sign-ins.
 

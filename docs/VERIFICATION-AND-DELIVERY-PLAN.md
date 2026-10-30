@@ -2,6 +2,8 @@
 
 Date: 2026-10-20. Status: implemented, except PR 2, which waits for evidence.
 
+Superseded on 2026-10-30 for how changes land: there are no pull requests, branches, or required `Check` status any more. Commits go straight to `main` through `scripts/push_main.sh` ([docs/push-main.md](push-main.md)), and `ci.yml` runs only after a push. The test, data, and revert rules below still hold. The ruleset proposed under Settings change was never applied. The `main` ruleset that replaces it only blocks deletion and force pushes and requires linear history.
+
 - PR 1 landed as ParkerRex/little-limits#73. Its first run found a real bug: reset times truncated on a 12-hour clock. Fixed in ParkerRex/little-limits#74.
 - PR 3 is the PR that adds this file. The rules live in AGENTS.md (Verification, Tests, Data compatibility), CONTRIBUTING.md (Revert), and docs/RELEASING.md.
 - The settings change (squash merge only, and a `main` ruleset that requires `Check`) is not applied yet. It needs the repository owner.
