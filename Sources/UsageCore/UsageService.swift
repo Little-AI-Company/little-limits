@@ -175,10 +175,7 @@ public actor UsageService {
 
     public func load() throws -> [AccountProfile] {
         try ensureLoaded()
-        do { try retryClaudeCredentialCleanup(allowInteraction: false) }
-        catch {
-            // Keep recovery markers for interactive retry without hiding otherwise valid accounts.
-        }
+        try? retryClaudeCredentialCleanup(allowInteraction: false)
         for profile in configuration.profiles where profile.source == .claudeOAuth {
             retireClaudeCapture(accountID: profile.id)
         }
