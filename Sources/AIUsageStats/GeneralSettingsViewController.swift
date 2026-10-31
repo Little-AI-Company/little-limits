@@ -8,7 +8,6 @@ final class GeneralSettingsViewController: NSViewController {
     private let iconButton = NSPopUpButton(frame: .zero, pullsDown: false)
     private let storesIconChoice: Bool
 
-    /// Demo sessions show the chosen icon but do not save it.
     init(storesIconChoice: Bool) {
         self.storesIconChoice = storesIconChoice
         super.init(nibName: nil, bundle: nil)
@@ -31,7 +30,6 @@ final class GeneralSettingsViewController: NSViewController {
         let form = settingsForm([("Startup:", startup), ("App icon:", icon)])
         form.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(form)
-        // The page sits under the window toolbar; start below it.
         NSLayoutConstraint.activate([
             form.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 24),
             form.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -24),
@@ -56,7 +54,6 @@ final class GeneralSettingsViewController: NSViewController {
             iconButton.addItem(withTitle: choice.title)
             guard let item = iconButton.lastItem else { continue }
             item.representedObject = choice.rawValue
-            // A copy, so resizing the menu image leaves the full-size icon untouched.
             if let image = choice.image(in: .main)?.copy() as? NSImage {
                 image.size = NSSize(width: 16, height: 16)
                 item.image = image

@@ -7,7 +7,6 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
     private let model: ApplicationModel
     private let existingProfileID: UUID?
     private let accountLabel: String
-    /// Called with the connected account after a successful sign-in closes the sheet.
     var onConnected: ((UUID) -> Void)?
     private let status = InterfaceControls.label("Preparing sign-in…", size: 13)
     private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
@@ -110,8 +109,6 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
                 guard !finished else { return }
                 finished = true
                 self.request = nil
-                // Success needs no confirmation: close the sheet and show the account, whose page states
-                // whether usage was read.
                 let parent = window?.sheetParent
                 if let window, let parent { parent.endSheet(window); window.orderOut(nil) }
                 NSApp.activate(ignoringOtherApps: true)
@@ -138,7 +135,6 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
         finish(title: "Close")
     }
 
-    /// The single button becomes the Return default once there is nothing left to cancel.
     private func finish(title: String) {
         cancelButton.title = title
         cancelButton.keyEquivalent = "\r"
@@ -168,7 +164,6 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) { stop() }
 }
 
-/// Receives only the registered loopback redirect, without retaining request data.
 @MainActor
 private final class ClaudeAuthorizationListener {
     private let listener: NWListener

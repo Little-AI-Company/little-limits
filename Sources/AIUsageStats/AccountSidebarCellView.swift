@@ -1,15 +1,11 @@
 import AppKit
 import UsageCore
 
-/// A two-line source-list row. Line 1 is the provider template image and the account identity; line 2 is the
-/// state symbol and the quota summary, which names the limiting window. The identity never shares its line with
-/// quota text, so it truncates only when it is longer than the sidebar.
 @MainActor
 final class AccountSidebarCellView: NSTableCellView {
     enum Indicator: Equatable {
         case none, low, limitReached, signInRequired, stale
 
-        /// Each state has its own shape, matching the Home table and calendar, so meaning never depends on color.
         @MainActor fileprivate var symbol: (name: String, color: NSColor)? {
             switch self {
             case .none: nil
@@ -24,14 +20,11 @@ final class AccountSidebarCellView: NSTableCellView {
     struct Display: Equatable {
         let identity: String
         let provider: Provider
-        /// Line 2: remaining quota with its state word and limiting window, or the state alone.
         let quotaText: String
         let indicator: Indicator
-        /// Full description for the tooltip and VoiceOver.
         let description: String
     }
 
-    /// Point size of line 2 relative to the identity font the table chooses for the sidebar size setting.
     private static let quotaFontReduction: CGFloat = 2
     static let lineSpacing: CGFloat = 1
 
@@ -102,7 +95,6 @@ final class AccountSidebarCellView: NSTableCellView {
     }
 
     override func layout() {
-        // Follow the identity font the table chose for the sidebar size setting.
         let font = Self.quotaFont(identitySize: identity.font?.pointSize ?? NSFont.systemFontSize)
         if quota.font != font { quota.font = font }
         super.layout()
@@ -115,8 +107,6 @@ final class AccountSidebarCellView: NSTableCellView {
         }
     }
 
-    /// On an emphasized (accent) selection the state tints can fall under 3:1, so the symbol takes the selected
-    /// text color like the quota text; its shape still carries the state. The calendar does the same.
     private func updateIndicatorTint() {
         guard let color = displayed?.indicator.symbol?.color else { return }
         let tint: NSColor = backgroundStyle == .emphasized ? .alternateSelectedControlTextColor : color

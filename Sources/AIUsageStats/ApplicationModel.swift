@@ -4,7 +4,6 @@ import UsageCore
 import UsageHistory
 import UsageHistoryStore
 
-/// The answer to the Add Codex Account question shown when this Mac's Codex CLI is already signed in.
 enum CodexLoginChoice {
     case useCurrentLogin
     case signInSeparately
@@ -26,17 +25,13 @@ final class ApplicationModel {
     private(set) var consoleMessages: [UUID: String] = [:]
     private(set) var manualCredits: [UUID: [CreditBalance]] = [:]
     private(set) var pendingManualCredits: [UUID: [CreditBalance]] = [:]
-    /// Codex accounts whose Terminal sign-in is open. The account page and sidebar show the wait instead of an error.
     private(set) var awaitingCodexSignIns: Set<UUID> = []
-    /// The local usage history, or nil when it could not be opened or the app runs the demonstration.
-    /// `historyDatabaseError` then explains why; monitoring continues without history.
     let historyDatabase: HistoryDatabase?
     let historyDatabaseError: String?
     private let logIngestor: LogIngestor?
     private var logIngestion: Task<Void, Never>?
     var onChange: (() -> Void)?
     var onError: ((String) -> Void)?
-    /// Opens the Terminal login command. Returns false when Terminal could not be opened.
     var onLoginCommand: ((String, UUID) -> Bool)?
     var onCodexLoginChoice: (@MainActor (CodexCurrentLogin) async -> CodexLoginChoice)?
     var onShowAccount: ((UUID) -> Void)?
@@ -72,8 +67,6 @@ final class ApplicationModel {
         }
     }
 
-    /// Saves the latest readings to quota history and starts a log read when none is running. Both run on a
-    /// background task; the menu and windows never wait for them.
     private func recordHistory() {
         guard let historyDatabase, let logIngestor else { return }
         let readings = profiles.flatMap { profile in
@@ -108,7 +101,6 @@ final class ApplicationModel {
 
     private func finishLogIngestion() { logIngestion = nil }
 
-    /// One reading per window of an available snapshot. Demonstration and manual accounts have no live source.
     private static func quotaReadings(profile: AccountProfile, snapshot: AccountSnapshot) -> [QuotaReading] {
         let source: QuotaReadingSource
         switch profile.source {
@@ -131,13 +123,10 @@ final class ApplicationModel {
     // MARK: Menu bar accounts
 
     private static let menuBarAccountsKey = "MenuBarAccountIDs"
-    /// The first version stored hidden accounts instead; read once so an existing choice carries over.
     private static let legacyMenuBarHiddenKey = "MenuBarHiddenAccountIDs"
     private var chosenMenuBarAccountIDs: Set<UUID>?
     private var legacyMenuBarHiddenAccountIDs: Set<UUID>
 
-    /// Accounts that each get their own menu bar number, or nil for the default: the lowest remaining quota
-    /// per provider across every account. A display preference only; account data is unchanged.
     var menuBarAccountIDs: Set<UUID>? { chosenMenuBarAccountIDs }
 
     func showsInMenuBar(_ id: UUID) -> Bool { menuBarAccountIDs?.contains(id) == true }
@@ -148,8 +137,6 @@ final class ApplicationModel {
         saveMenuBarChoice(chosen)
     }
 
-    /// Saves the earlier hidden-account choice as the chosen-account list once, against the loaded accounts, so
-    /// accounts added later are not chosen automatically.
     private func convertLegacyMenuBarChoice() {
         guard chosenMenuBarAccountIDs == nil, !legacyMenuBarHiddenAccountIDs.isEmpty else { return }
         chosenMenuBarAccountIDs = Set(profiles.map(\.id)).subtracting(legacyMenuBarHiddenAccountIDs)
@@ -160,7 +147,6 @@ final class ApplicationModel {
         }
     }
 
-    /// Returns the menu bar to the lowest remaining quota per provider.
     func showLowestPerProviderInMenuBar() { saveMenuBarChoice(nil) }
 
     private func saveMenuBarChoice(_ chosen: Set<UUID>?) {
@@ -178,7 +164,6 @@ final class ApplicationModel {
     func load() async {
         if isDemo {
             message = nil
-            // Load failure and empty keep their existing precedence. Reading states and Home are additional demo sets.
             if CommandLine.arguments.contains("--demo-load-error"), !hasPresentedDemoLoadError {
                 hasPresentedDemoLoadError = true
                 profiles = []
@@ -252,8 +237,6 @@ final class ApplicationModel {
         }
     }
 
-    /// Reads one account again. It shares `isRefreshing` with Refresh All, so the two never run together and every
-    /// refresh control disables while it runs. Only that account's snapshot changes.
     func refreshAccount(_ id: UUID) {
         guard !isDemo, !isChangingAccounts, !isRefreshing, profiles.contains(where: { $0.id == id }) else { return }
         isRefreshing = true
@@ -263,7 +246,6 @@ final class ApplicationModel {
             guard let self else { return }
             if !Task.isCancelled, profiles.contains(where: { $0.id == id }) {
                 snapshots[id] = snapshot
-                // A read can update the saved email or plan, as Refresh All reloads after reading.
                 do {
                     profiles = try await service.load()
                     message = nil
@@ -357,7 +339,6 @@ final class ApplicationModel {
 
     func isAwaitingCodexSignIn(_ id: UUID) -> Bool { awaitingCodexSignIns.contains(id) }
 
-    /// Opens the Terminal login, then refreshes the account and shows its page once the login finishes.
     private func openCodexLogin(command: String, accountID id: UUID) {
         guard onLoginCommand?(command, id) == true else { return }
         cancelCodexSignInWait(id)
@@ -365,7 +346,6 @@ final class ApplicationModel {
         onChange?()
         codexSignInWaits[id] = Task { [weak self, service] in
             let outcome = await service.awaitCodexSignIn(id: id)
-            // A cancelled wait was replaced or stopped, and its owner already cleared the waiting state.
             guard let self, !Task.isCancelled else { return }
             codexSignInWaits[id] = nil
             awaitingCodexSignIns.remove(id)
@@ -376,7 +356,6 @@ final class ApplicationModel {
                 onChange?()
                 onShowAccount?(id)
             case .timedOut:
-                // One ordinary read replaces the wait with the account's real state, such as Sign-in required.
                 let snapshot = await service.refreshAccount(id: id)
                 if profiles.contains(where: { $0.id == id }) { snapshots[id] = snapshot }
                 onChange?()
@@ -391,7 +370,6 @@ final class ApplicationModel {
         awaitingCodexSignIns.remove(id)
     }
 
-    /// Stops every Terminal sign-in wait, for example when the app quits.
     func cancelCodexSignInWaits() {
         for id in Array(codexSignInWaits.keys) { cancelCodexSignInWait(id) }
     }
@@ -439,7 +417,6 @@ final class ApplicationModel {
         onChange?()
     }
 
-    /// Shows the new order at once, then saves it. A failed save reloads the saved order.
     func moveAccount(id: UUID, toIndex index: Int) {
         guard !isDemo, !isChangingAccounts, !isRefreshing,
               let source = profiles.firstIndex(where: { $0.id == id }) else { return }
@@ -460,7 +437,6 @@ final class ApplicationModel {
     }
 
     func removeAccount(_ id: UUID) {
-        // A sign-in wait for this account ends on its own once the service no longer lists the account.
         changeAccounts { service in try await service.removeAccount(id: id) }
     }
 

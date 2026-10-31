@@ -66,7 +66,6 @@ private struct ProviderSection: View {
     }
 }
 
-/// One metric for every model of a provider: a bar per model, its exact value, and the counts behind it.
 private struct MetricBlock: View {
     let metric: MetricDefinition
     let models: [ModelMetrics]
@@ -107,8 +106,6 @@ private struct MetricBlock: View {
     }
 }
 
-/// The readable model name. A model under the reliable request count adds the words `under 5,000`, so the
-/// state does not depend on color.
 private struct ModelNameText: View {
     let model: ModelMetrics
 
@@ -118,7 +115,6 @@ private struct ModelNameText: View {
     }
 }
 
-/// A horizontal bar on a visible track. Shares use a fixed 0 to 100 percent scale; other values scale to the largest.
 private struct MetricBar: View {
     let fraction: Double?
 
@@ -136,7 +132,6 @@ private struct MetricBar: View {
     }
 }
 
-/// P4: inline Python by purpose, one stacked bar per model with the exact shares beside it.
 private struct PurposeBlock: View {
     let models: [ModelMetrics]
     private static let purposes: [(InlineScriptPurpose, String, Color)] = [
@@ -224,11 +219,9 @@ private struct PurposeBlock: View {
 }
 
 private struct MetricReading {
-    /// A share from 0 to 1, or a value scaled against the largest model.
     let value: Double
     let text: String
     let detail: String
-    /// The detail with its unit, for VoiceOver and the tooltip.
     var spokenDetail: String { unit.isEmpty ? detail : "\(detail) \(unit)" }
     var unit = ""
 }

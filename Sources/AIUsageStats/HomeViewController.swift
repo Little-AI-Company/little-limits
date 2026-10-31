@@ -10,16 +10,12 @@ extension NSToolbarItem.Identifier {
     static let homeRefreshAll = NSToolbarItem.Identifier("home.refreshAll")
 }
 
-/// Home: weekly totals, the account table, the forecast, then the reset calendar, in one scrolling document. Period
-/// navigation, the account filter, period length, and Refresh All are window toolbar items; View > Sort Accounts
-/// orders the table. Mode, date, filter, sort order, and event selection survive refresh.
 @MainActor
 final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemValidation,
                                 WindowToolbarContributor, WindowCommandHandling {
     var onViewAccount: ((UUID) -> Void)?
     var onReconnectAccount: ((UUID) -> Void)?
     var onRetryAccountLoad: (() -> Void)?
-    /// Direct route for the empty-state add buttons. Without it they send `addAccount(_:)` up the responder chain.
     var onAddAccount: ((Provider) -> Void)?
     var isAccountLoadComplete: () -> Bool = { false }
     var onToolbarStateChange: (() -> Void)?
@@ -68,8 +64,6 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
     private let readings = NSStackView()
     private let stateStack = NSStackView()
     private let scroll = NSScrollView()
-    /// Keeps a short document at the top of the visible area. Its constant removes the toolbar inset,
-    /// so a page that fits does not scroll by the toolbar height.
     private var minimumDocumentHeight: NSLayoutConstraint?
 
     init(model: ApplicationModel) {
@@ -128,7 +122,6 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         let tableTitle = sectionTitle("Account Usage")
         let calendarTitle = sectionTitle("Reset Calendar")
         self.calendarTitle = calendarTitle
-        // The per-account answer comes before the forecast, so the table opens inside the default window.
         for item in [totalsTitle, totalsView, tableTitle, contextLabel, attentionStack, tableView, forecastView, calendarTitle, emptyPeriodLabel,
                      calendarView, demoLabel] {
             readings.addArrangedSubview(item)
@@ -233,7 +226,6 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
             case .account(let id): account.id == id
             }
         }
-        // Totals pool every account, whatever the filter shows.
         let totals = HomeInterfaceFormatting.totalLines(overview, now: now, calendar: calendar)
         totalsView.apply(totals)
         totalsView.isHidden = totals.isEmpty
@@ -252,22 +244,16 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         refreshPresentedDetails()
     }
 
-    /// The forecast pools every account, whatever the filter shows. It also redraws alone when recorded history
-    /// changes or the range changes.
     private func renderForecast() {
         guard isViewLoaded, showsReadings else { return }
         let now = Date()
         let forecasts = HomeForecastModel.providers(overview: overview, readings: forecastHistory.readings,
                                                     latestReadings: forecastHistory.latestReadings, range: forecastRange, now: now, calendar: .current)
-        // With no history for any provider, one line replaces the whole forecast.
         let noHistory = forecasts.allSatisfy { $0.lines.isEmpty && $0.chart == nil }
         forecastView.apply(forecasts, notice: forecastHistory.unavailableReason ?? (noHistory ? HomeForecastModel.noHistoryText : nil),
                            range: forecastRange)
     }
 
-    /// Focuses the page's main action when there is one: Add Claude Account… on an empty page, Retry on a load
-    /// failure. With readings, the page takes no focus and returns false, so the window keeps focus on the
-    /// sidebar Home row; no calendar event looks selected on arrival, and Tab reaches the events after it.
     @discardableResult
     func focusInitialControl() -> Bool {
         if !isViewLoaded { _ = view }
@@ -279,8 +265,6 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         return false
     }
 
-    /// View > Show Account: All Accounts, then one item per account, sent to this page and checked by
-    /// `validateMenuItem(_:)`. The same choices as the toolbar Accounts pop-up.
     func accountFilterMenuItems() -> [NSMenuItem] {
         let menu = filterMenu(titles: ["All Accounts"] + filterChoices.map(\.title), action: #selector(chooseFilter(_:)))
         let items = menu.items
@@ -388,7 +372,6 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         if changed { onToolbarStateChange?() }
     }
 
-    /// Applies current state to the items the toolbar holds. Unchanged values are not reassigned.
     private func syncToolbarItems() {
         if let group = toolbarItems[.homePeriodLength] as? NSToolbarItemGroup {
             let index = mode == .month ? 0 : 1
@@ -431,8 +414,6 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
     }
 
     // MARK: Commands
-
-    // Period commands change only the Reset Calendar, which can sit below the window, so each one reveals it.
 
     @objc func showPreviousPeriod(_ sender: Any?) {
         guard showsReadings else { return }
@@ -511,7 +492,6 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         render()
     }
 
-    /// View > Sort Accounts. The menu item tag is the index in `AccountSortOrder.allCases`.
     @objc func chooseAccountSortOrder(_ sender: Any?) {
         guard showsReadings, let tag = (sender as? NSMenuItem)?.tag, AccountSortOrder.allCases.indices.contains(tag) else { return }
         let order = AccountSortOrder.allCases[tag]
@@ -601,7 +581,6 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         }
     }
 
-    /// One line per affected account, with Reconnect… beside a sign-in failure. Rebuilt only on change.
     private func applyAttention(_ items: [HomeAttentionItem]) {
         attentionStack.isHidden = items.isEmpty
         guard items != attentionItems else { return }
@@ -631,7 +610,6 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         }
     }
 
-    /// Reconnect… follows the account page rule even when the attention rows themselves are unchanged.
     private func syncAttentionReconnect() {
         let canReconnect = !model.isRefreshing && !model.isChangingAccounts
         for case let line as NSStackView in attentionStack.arrangedSubviews {
@@ -668,7 +646,6 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         showDetails(for: id, pin: true)
     }
 
-    /// Opens on click or Return only. The trailing edge keeps the popover off the sidebar.
     private func showDetails(for eventID: String, pin: Bool) {
         guard let event = visibleEvents.first(where: { $0.id == eventID }),
               let account = overview.accounts.first(where: { $0.id == event.accountID }),
@@ -713,9 +690,6 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         view.window?.makeFirstResponder(control)
     }
 
-    /// Moves the Reset Calendar heading to the top of the visible area, without animation, unless the heading
-    /// already shows with the weekday header and a row of days, or all of the calendar when shorter. A short page
-    /// that fits does not move.
     private func revealCalendar() {
         guard let calendarTitle, let document = scroll.documentView else { return }
         view.layoutSubtreeIfNeeded()

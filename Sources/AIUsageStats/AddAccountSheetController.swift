@@ -1,12 +1,10 @@
 import AppKit
 import UsageCore
 
-/// Attached sheet that chooses the provider for Add Account… and explains how that provider signs in.
 @MainActor
 final class AddAccountSheetController: NSWindowController {
     private let providerPicker = NSPopUpButton(frame: .zero, pullsDown: false)
     private let explanation = InterfaceControls.label("", size: 12)
-    /// Width of the text column. The sheet height follows the fitted content for the chosen provider.
     private static let contentWidth: CGFloat = 380
     private static let margin: CGFloat = 20
 
@@ -30,7 +28,6 @@ final class AddAccountSheetController: NSWindowController {
         cancel.keyEquivalent = "\u{1b}"
         let proceed = NSButton(title: "Continue", target: self, action: #selector(proceed(_:)))
         proceed.keyEquivalent = "\r"
-        // Trailing gravity keeps Continue at the trailing edge of the full-width button row.
         let buttons = NSStackView()
         buttons.setViews([cancel, proceed], in: .trailing)
         buttons.orientation = .horizontal
@@ -57,8 +54,6 @@ final class AddAccountSheetController: NSWindowController {
 
     required init?(coder: NSCoder) { nil }
 
-    /// The completion handler keeps this controller alive until the sheet ends. `onContinue` runs after the sheet
-    /// detaches, so the next step can attach its own sheet.
     func present(in parent: NSWindow, onContinue: @escaping (Provider) -> Void) {
         guard let window, parent.attachedSheet == nil else { return }
         parent.beginSheet(window) { [self] response in
@@ -80,7 +75,6 @@ final class AddAccountSheetController: NSWindowController {
         fitWindowToContent()
     }
 
-    /// Sizes the sheet to the fitted content, so the explanation and buttons are never clipped when the text changes.
     private func fitWindowToContent() {
         guard let window, let root = window.contentView else { return }
         root.layoutSubtreeIfNeeded()
@@ -89,7 +83,6 @@ final class AddAccountSheetController: NSWindowController {
         window.setContentSize(size)
     }
 
-    /// The second Add Codex Account step, shown only when this Mac's Codex CLI is already signed in with ChatGPT.
     static func chooseCodexLogin(_ login: CodexCurrentLogin, in window: NSWindow) async -> CodexLoginChoice {
         let alert = NSAlert()
         alert.messageText = "Add Codex Account"
@@ -97,7 +90,6 @@ final class AddAccountSheetController: NSWindowController {
         alert.informativeText = "The Codex CLI on this Mac is signed in\(identity). Little Limits can read that login without changing it.\n\nA ChatGPT web or desktop-app login is only reusable when the Codex CLI on this Mac is signed in."
         alert.addButton(withTitle: login.email.map { "Use Current Codex Login (\($0))" } ?? "Use Current Codex Login")
         alert.addButton(withTitle: "Sign In with a Different Account…")
-        // NSAlert assigns Escape to the button titled Cancel.
         alert.addButton(withTitle: "Cancel")
         let response = await withCheckedContinuation { continuation in
             alert.beginSheetModal(for: window) { continuation.resume(returning: $0) }

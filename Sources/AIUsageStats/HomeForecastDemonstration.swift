@@ -2,9 +2,6 @@ import Foundation
 import UsageCore
 import UsageHistory
 
-/// Fictional weekly quota history for `--demo-home`, consistent with the demonstration accounts' current readings.
-/// Use rises between 9:00 and 23:00 and stays flat at night, and the app is closed for eight hours the night before
-/// last, so the chart shows a gap.
 enum HomeForecastDemonstration {
     static func readings(profiles: [AccountProfile], snapshots: [UUID: AccountSnapshot], now: Date,
                          calendar: Calendar = .current) -> [QuotaReading] {
@@ -12,10 +9,8 @@ enum HomeForecastDemonstration {
         let week: TimeInterval = 7 * 86_400
         let latest = now.addingTimeInterval(-60)
         let closed = now.addingTimeInterval(-30 * 3_600)...now.addingTimeInterval(-22 * 3_600)
-        // Eight days: the longest range plus the drain lookback.
         let count = Int(8 * 86_400 / step)
         let dates = (0...count).reversed().map { latest.addingTimeInterval(-Double($0) * step) }
-        // Active hours from the first date to each date, accumulated once.
         var active: [Double] = []
         var total = 0.0
         for (index, date) in dates.enumerated() {
@@ -39,7 +34,6 @@ enum HomeForecastDemonstration {
             let currentSpan = activeHours(at: latest) - atStart
             for date in dates where !closed.contains(date) {
                 let inCurrent = date >= start
-                // The previous week ends at 70% used.
                 let value = inCurrent
                     ? (currentSpan > 0 ? used * (activeHours(at: date) - atStart) / currentSpan : used)
                     : (atStart > 0 ? 70 * activeHours(at: date) / atStart : 70)

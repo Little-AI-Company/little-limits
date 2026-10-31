@@ -4,8 +4,6 @@ import UsageCore
 import UsageHistory
 import UsageHistoryStore
 
-/// Recorded quota readings for the Home forecast. The database is observed off the main thread; each committed change
-/// delivers a fresh list on the main actor. The demonstration supplies generated readings in memory.
 @MainActor
 final class HomeForecastHistory {
     enum Source {
@@ -14,15 +12,11 @@ final class HomeForecastHistory {
         case unavailable(String)
     }
 
-    /// The longest range plus one weekly window and a day: a change-only reading holds its value until its reset,
-    /// at most a week later, so a reading that old can still reach into the range.
     nonisolated static let observedSpan: TimeInterval = 15 * 86_400
 
     var onChange: (() -> Void)?
     private(set) var readings: [QuotaReading] = []
-    /// Each account's latest reading of any age, so Updated tells old history from none.
     private(set) var latestReadings: [QuotaReading] = []
-    /// Why history cannot be shown at all, or nil.
     private(set) var unavailableReason: String?
     private let source: Source
     private var observation: AnyDatabaseCancellable?
@@ -33,8 +27,6 @@ final class HomeForecastHistory {
         if case .unavailable(let reason) = source { unavailableReason = reason }
     }
 
-    /// Starts the observation, or moves it once its lower bound is a day older than needed. The demonstration
-    /// generates its readings once, from the first loaded accounts.
     func observe(now: Date, profiles: [AccountProfile], snapshots: [UUID: AccountSnapshot]) {
         switch source {
         case .database(let database):
@@ -45,7 +37,6 @@ final class HomeForecastHistory {
                 .tracking { db in
                     ObservedHistory(
                         readings: try QuotaReading.filter(Column("observedAt") >= bound).fetchAll(db),
-                        // SQLite takes the other columns of a MAX aggregate from the row holding the maximum.
                         latestReadings: try QuotaReading.fetchAll(db, sql: """
                             SELECT provider, accountID, windowID, usedPercent, resetsAt, windowDurationMinutes,
                                    MAX(observedAt) AS observedAt, source

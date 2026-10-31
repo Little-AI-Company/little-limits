@@ -251,7 +251,6 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
                 let response = try await get(url)
                 let observedAt = Date()
                 try Task.checkCancellation()
-                // Decode before saving the connection so malformed data cannot replace an existing connection.
                 _ = try ClaudeConsoleBalance.decode(response, organizationID: selectedID)
                 try await model.setConsoleConnection(accountID: profile.id, organizationID: selectedID, expectedIdentity: profile.providerAccountID)
                 var linkStateData: Data?
@@ -340,7 +339,6 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
         }
         let response = try JSONDecoder().decode(BrowserResponse.self, from: data)
         if response.status == 403 || response.status == 503 {
-            // Let the provider create its own device-binding and account-context headers.
             return try await responseFromOfficialPage(for: url)
         }
         if response.status == 401 || response.status == 403 || response.redirected || !response.contentType.lowercased().contains("json") {

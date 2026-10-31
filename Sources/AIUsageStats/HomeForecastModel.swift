@@ -2,7 +2,6 @@ import Foundation
 import UsageCore
 import UsageHistory
 
-/// The forecast range pop-up. History before Now covers the same length as the projection after it.
 enum HomeForecastRange: Int, CaseIterable {
     case nextDay
     case nextWeek
@@ -22,11 +21,8 @@ enum HomeForecastRange: Int, CaseIterable {
     }
 }
 
-/// One provider's pooled weekly chart: solid history runs, a dashed projection from Now, and a fixed 0 to capacity
-/// scale.
 struct HomeForecastChartModel: Equatable {
     var provider: Provider
-    /// Each run is one unbroken line. The space between runs is a gap, never zero.
     var history: [[QuotaHistoryPoint]]
     var projection: [QuotaProjectionPoint]
     var now: Date
@@ -36,8 +32,6 @@ struct HomeForecastChartModel: Equatable {
     var accessibilityLabel: String
 }
 
-/// One provider's forecast block: text lines in the totals grid, then the chart. With no recorded history the
-/// block is a single plain notice instead.
 struct HomeProviderForecast: Equatable {
     var provider: Provider
     var lines: [HomeTotalLine]
@@ -48,8 +42,6 @@ struct HomeProviderForecast: Equatable {
 enum HomeForecastModel {
     static let historyStep: TimeInterval = QuotaForecast.polledRefreshInterval
 
-    /// Forecast blocks for each provider with an account, Claude first. Claude and Codex are never combined.
-    /// `latestReadings` holds each account's latest reading of any age; it may be older than `readings` covers.
     static func providers(overview: UsageOverview, readings: [QuotaReading], latestReadings: [QuotaReading] = [],
                           range: HomeForecastRange, now: Date,
                           calendar: Calendar) -> [HomeProviderForecast] {
@@ -66,9 +58,6 @@ enum HomeForecastModel {
         }
     }
 
-    /// Readings of each account's general weekly window. A reading is classified with UsageCore's window rules,
-    /// using the title of the same window in the account's latest reading, so a model-scoped or named weekly
-    /// window never joins the pooled total.
     static func generalWeeklyReadings(_ readings: [QuotaReading], accounts: [UsageOverviewAccount]) -> [QuotaReading] {
         var titles: [UUID: [String: String]] = [:]
         for account in accounts {
@@ -83,9 +72,6 @@ enum HomeForecastModel {
         }
     }
 
-    /// The pooled total of `accounts` over time, sampled every `historyStep` back from `now` to `start`. A sample
-    /// exists only when every account's history covers it; a run continues only while each account stays in the
-    /// same unbroken segment. Any account's gap is therefore a gap in the pooled line.
     static func pooledHistory(_ segments: [QuotaHistorySegment], accounts: [UUID], from start: Date,
                               to now: Date) -> [[QuotaHistoryPoint]] {
         guard !accounts.isEmpty, now > start else { return [] }
@@ -128,10 +114,7 @@ enum HomeForecastModel {
         return first.date <= date && date <= last.date
     }
 
-    /// The segment's value at `date`, linear between points. At a date with two points, a change-only step, the later
-    /// value wins.
     private static func value(of segment: QuotaHistorySegment, at date: Date) -> Double? {
-        // Binary search for the first point after `date`; points are in date order.
         var low = 0
         var high = segment.points.count
         while low < high {
@@ -182,8 +165,6 @@ enum HomeForecastModel {
         lines[0].provider = provider.provider
 
         let start = now.addingTimeInterval(-range.horizon.duration)
-        // Every reading is kept: a change-only value recorded before the range holds until its reset or the next
-        // reading, which can fall inside the range. Pooling samples only from `start`.
         let segments = QuotaForecast.historySegments(readings: weekly, now: now)
         let history = pooledHistory(segments, accounts: counted.map(\.accountID), from: start, to: now)
         var chart: HomeForecastChartModel?
@@ -202,7 +183,6 @@ enum HomeForecastModel {
 
     static let noHistoryText = "No quota history yet. The forecast appears after the app records readings over time."
 
-    /// `About 7.7% per hour`. Unknown is never shown as 0.
     static func usageRateLine(_ drain: QuotaDrainRate?, title: String, hasCounted: Bool, now: Date) -> HomeTotalLine {
         guard let drain else {
             let detail = hasCounted ? "Needs two readings in the last 24 hours" : "No current weekly reading"
@@ -220,7 +200,6 @@ enum HomeForecastModel {
                                  + "Idle time counts. Resets and accounts joining or leaving the total do not.")
     }
 
-    /// `Weekly total reaches 0%` with `Fri 4:56 AM`, or `Not in the next 7 days`.
     static func zeroLine(_ projection: QuotaProjection?, title: String, range: HomeForecastRange, now: Date,
                          calendar: Calendar) -> HomeTotalLine {
         let label = "Weekly total reaches 0%"
@@ -243,7 +222,6 @@ enum HomeForecastModel {
                                  + "\(InterfaceFormatting.exactDate(date)).")
     }
 
-    /// The time of the account's latest recorded reading.
     static func updatedLine(_ account: UsageOverviewAccount, latest: QuotaReading?, now: Date,
                              calendar: Calendar) -> HomeTotalLine {
         let name = account.shortIdentity

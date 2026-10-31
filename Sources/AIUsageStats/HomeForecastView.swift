@@ -4,9 +4,6 @@ import SwiftUI
 import UsageCore
 import UsageHistory
 
-/// Home's Forecast section: the title with the range pop-up, then one block per provider. A block is the usage rate,
-/// the time the weekly total reaches 0%, and Updated per account in the totals grid, followed by the pooled chart. Without
-/// history a block is one plain line. Blocks are rebuilt only when their content changes.
 @MainActor
 final class HomeForecastView: NSView {
     var onRangeChange: ((HomeForecastRange) -> Void)?
@@ -57,7 +54,6 @@ final class HomeForecastView: NSView {
         HomeForecastRange(rawValue: rangePopUp.indexOfSelectedItem) ?? .nextWeek
     }
 
-    /// `notice` replaces every block, for history that cannot be read at all.
     func apply(_ forecasts: [HomeProviderForecast], notice: String?, range: HomeForecastRange) {
         if rangePopUp.indexOfSelectedItem != range.rawValue { rangePopUp.selectItem(at: range.rawValue) }
         rangePopUp.isHidden = notice != nil || forecasts.allSatisfy { $0.chart == nil }
@@ -69,7 +65,6 @@ final class HomeForecastView: NSView {
             replaceBlocks(with: [plainLine(notice)])
             return
         }
-        // Reuse a provider's views when only its values changed, so the chart updates in place.
         let existing = blocks.arrangedSubviews.compactMap { $0 as? HomeForecastBlockView }
         if existing.count == forecasts.count, zip(previous, forecasts).allSatisfy({ $0.provider == $1.provider && ($0.notice == nil) == ($1.notice == nil) }) {
             for (view, forecast) in zip(existing, forecasts) { view.apply(forecast) }
@@ -105,7 +100,6 @@ final class HomeForecastView: NSView {
     }
 }
 
-/// One provider: its notice line, or its grid of lines and its chart.
 @MainActor
 private final class HomeForecastBlockView: NSView {
     private let lines = HomeTotalsView()
@@ -152,10 +146,6 @@ private final class HomeForecastBlockView: NSView {
     }
 }
 
-/// Pooled remaining over time: a solid line for each unbroken history run, a dashed projection from Now, and a Now
-/// rule. Lines use the primary label color, which keeps at least 3:1 against the window in every accent and contrast
-/// setting; the graphite accent under Increase Contrast measured 2.36:1. The scale is fixed from 0 to the counted
-/// accounts times 100%. No animation.
 struct HomeForecastChart: View {
     let model: HomeForecastChartModel?
 
@@ -205,11 +195,9 @@ struct HomeForecastChart: View {
                                    ? .dateTime.weekday(.abbreviated) : .dateTime.hour())
                 }
             }
-            // Each mark keeps its own date and value, so VoiceOver and the audio graph can read the series.
             .accessibilityElement(children: .contain)
             .accessibilityLabel(model.accessibilityLabel)
             .transaction { $0.animation = nil }
-            // The Now label draws above the plot; this keeps it clear of the last text row at the minimum width.
             .padding(.top, 14)
         } else {
             Color.clear

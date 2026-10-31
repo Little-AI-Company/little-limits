@@ -6,7 +6,6 @@ enum HomeReadingTone: Equatable {
     case warning
     case critical
 
-    /// The words carry the meaning. Text stays in label color.
     var word: String? {
         switch self {
         case .neutral: nil
@@ -23,8 +22,6 @@ enum HomeReadingTone: Equatable {
         }
     }
 
-    /// Semantic color for the state symbol only, never for text. Every surface (table, calendar, popover,
-    /// sidebar) uses this one color per state.
     var symbolColor: NSColor {
         switch self {
         case .neutral: .labelColor
@@ -34,9 +31,6 @@ enum HomeReadingTone: Equatable {
     }
 }
 
-/// State symbol colors. In light appearances the system color is darkened so the symbol reaches 3:1 on white
-/// and on the sidebar; plain systemOrange measures 2.33:1 on white. Dark appearances keep the system color,
-/// which already exceeds 3:1.
 enum StateSymbolColor {
     static let warning = darkenedInLightAppearance(.systemOrange)
     static let critical = darkenedInLightAppearance(.systemRed)
@@ -53,10 +47,6 @@ enum StateSymbolColor {
     }
 }
 
-/// One quota reading in a table cell. `preface` lines name the window (`Weekly · Fable 5`) and qualify an old
-/// value (`Last known`) above it, so `primary` is the value alone and stays whole in a narrow column. A
-/// non-neutral `tone` supplies the `Low` or `Limit reached` line below, and the accessibility label carries the
-/// full "0% left, Limit reached" phrase.
 struct HomeReadingLine: Equatable {
     var preface: [String] = []
     var primary: String
@@ -65,7 +55,6 @@ struct HomeReadingLine: Equatable {
     var tone: HomeReadingTone
     var accessibilityLabel: String
     var toolTip: String
-    /// A permanent provider gap, drawn in secondary color at regular weight.
     var isQuiet = false
 }
 
@@ -99,10 +88,6 @@ struct HomeAccountRow: Equatable, Identifiable {
     var toolTip: String
 }
 
-/// One reset on the calendar: time and scope first (`13:11 · 5-hour`), then what is left now. The section
-/// title says these are resets, so the visible scope omits the word; the label and tooltip keep it. A
-/// model-scoped window shows only its model (`14:18 · Sonnet`), so it never truncates to look like the
-/// account's general weekly reset; the label, tooltip, and popover keep the full `Weekly · Sonnet`.
 struct HomeCalendarEventModel: Equatable, Identifiable {
     var id: String
     var provider: Provider
@@ -116,7 +101,6 @@ struct HomeCalendarEventModel: Equatable, Identifiable {
     var dayIndex: Int
 }
 
-/// One line of Home's Weekly Totals. `provider` is set on the first line of each provider's group.
 struct HomeTotalLine: Equatable {
     var provider: Provider?
     var label: String
@@ -126,7 +110,6 @@ struct HomeTotalLine: Equatable {
     var toolTip: String
 }
 
-/// One account in the unavailable-readings banner.
 struct HomeAttentionItem: Equatable, Identifiable {
     var id: UUID
     var text: String
@@ -162,7 +145,6 @@ enum HomeText {
         return field
     }
 
-    /// State symbol for Low and Limit reached. Nil for an ordinary reading.
     static func stateSymbol(_ tone: HomeReadingTone, color: NSColor? = nil, size: CGFloat = 11) -> NSImageView? {
         guard let name = tone.symbolName, let word = tone.word,
               let image = NSImage(systemSymbolName: name, accessibilityDescription: word)?
@@ -176,10 +158,8 @@ enum HomeText {
     }
 }
 
-/// A scroll view nested in the Home document. Vertical scrolling belongs to the document.
 @MainActor
 class HomeNestedScrollView: NSScrollView {
-    /// The enclosing document owns toolbar insets; a nested view must not shift as it scrolls under the toolbar.
     override var automaticallyAdjustsContentInsets: Bool {
         get { false }
         set {}
@@ -273,7 +253,6 @@ enum HomeInterfaceFormatting {
     }
 
     static func rows(for accounts: [UsageOverviewAccount], now: Date, calendar: Calendar) -> [HomeAccountRow] {
-        // A shared last-column heading names the scope, so its cells show only the value.
         let namesOther = otherScopeLabels(accounts).count > 1
         return accounts.map { accountRow($0, namesOther: namesOther, now: now, calendar: calendar) }
     }
@@ -305,7 +284,6 @@ enum HomeInterfaceFormatting {
                           updatedToolTip: updatedToolTip(account, now: now))
     }
 
-    /// Each account whose readings are not current, named with its state and what to do.
     static func attentionItems(_ accounts: [UsageOverviewAccount], now: Date) -> [HomeAttentionItem] {
         accounts.compactMap { account in
             switch account.summary {
@@ -314,7 +292,6 @@ enum HomeInterfaceFormatting {
             }
             let basis = readingBasis(account, now: now)
             let state: String
-            // A reused Codex CLI login is signed in outside the app, so it offers no Reconnect….
             let reconnectable = account.profile.source != .codexDefaultLogin
             switch basis {
             case .authentication:
@@ -331,8 +308,6 @@ enum HomeInterfaceFormatting {
 
     // MARK: Weekly totals
 
-    /// Weekly totals for each provider with two or more accounts. A single account's total is its own weekly value,
-    /// which the table already shows.
     static func totalLines(_ overview: UsageOverview, now: Date, calendar: Calendar) -> [HomeTotalLine] {
         let names = Dictionary(uniqueKeysWithValues: overview.accounts.map { ($0.id, "\($0.profile.provider.title) \($0.shortIdentity)") })
         return overview.providers.filter { $0.accountCount > 1 }.flatMap { provider -> [HomeTotalLine] in
@@ -355,20 +330,16 @@ enum HomeInterfaceFormatting {
         }
     }
 
-    /// `Weekly`, or `Weekly · Fable 5` for a model or meter total.
     static func poolLabel(_ pool: QuotaPool) -> String {
         pool.scopeName.map { "Weekly · \($0)" } ?? "Weekly"
     }
 
-    /// `90% of 300% left`, `Unknown` when no account has a current reading (never `0%`), or `Not supported`
-    /// when no account reports the window.
     static func poolValue(_ pool: QuotaPool) -> String {
         if pool.countedAccountIDs.isEmpty, pool.unknownAccountIDs.isEmpty { return "Not supported" }
         guard let remaining = pool.remainingPercent else { return "Unknown" }
         return "\(RemainingPercentText.format(remaining)) of \(Int(pool.capacityPercent))% left"
     }
 
-    /// `1 account unknown`, or nil when every account in the pool is counted.
     static func poolUnknownText(_ pool: QuotaPool) -> String? {
         let count = pool.unknownAccountIDs.count
         guard count > 0 else { return nil }
@@ -388,7 +359,6 @@ enum HomeInterfaceFormatting {
         return parts.joined(separator: " ")
     }
 
-    /// Value `+24%` and detail `in 1d 4h · Tue 21:59 · Claude personal`, with the exact date in the help text.
     static func nextResetText(_ reset: NextQuotaReset, names: [UUID: String], now: Date, calendar: Calendar)
         -> (value: String, detail: String, help: String) {
         switch reset {
@@ -405,7 +375,6 @@ enum HomeInterfaceFormatting {
         }
     }
 
-    /// `Ahead of pace` when more quota is used than the share of the window that has passed.
     static func paceText(_ verdict: QuotaPace.Verdict) -> String {
         switch verdict {
         case .ahead: "Ahead of pace"
@@ -418,13 +387,11 @@ enum HomeInterfaceFormatting {
         "\(paceText(pace.verdict)): \(percentText(pace.usedPercent)) used with \(percentText(pace.elapsedPercent)) of the window passed"
     }
 
-    /// `Usable in 8h 58m` for an account with a fully used 5-hour or weekly window.
     static func usableText(_ date: Date?, now: Date) -> String {
         guard let date else { return "Usable time unknown" }
         return "Usable in \(UsageFormatting.countdown(to: date, now: now))"
     }
 
-    /// Value text with its state word: "17% left, Low".
     static func remainingText(_ remaining: Double) -> String {
         let value = "\(RemainingPercentText.format(remaining)) left"
         return tone(for: remaining).word.map { "\(value), \($0)" } ?? value
@@ -447,7 +414,6 @@ enum HomeInterfaceFormatting {
         return fractional
     }
 
-    /// Measured zero is the only limit reached. Any positive remaining at or below 20 is low.
     static func tone(for remaining: Double) -> HomeReadingTone {
         guard remaining.isFinite else { return .neutral }
         if remaining == 0 { return .critical }
@@ -455,7 +421,6 @@ enum HomeInterfaceFormatting {
         return .neutral
     }
 
-    /// Vocabulary names: "5-hour", "Weekly", model-scoped "Weekly · Fable 5".
     static func scopeLabel(_ window: UsageWindow) -> String {
         if let scoped = window.modelScope {
             return "\(baseName(scoped.base, duration: window.windowDurationMinutes)) · \(scoped.name)"
@@ -506,9 +471,6 @@ enum HomeInterfaceFormatting {
                               accessibilityLabel: toolTip, toolTip: toolTip)
     }
 
-    /// Same admission rule as `UsageOverview`: a fresh available snapshot keeps known windows current.
-    /// One missing percentage does not blank the account. Age, failure, sign-in, a missing or future
-    /// observation keep values unknown; age and a passed reset keep observed values historical.
     private enum ReadingBasis: Equatable {
         case current
         case historical
@@ -563,27 +525,23 @@ enum HomeInterfaceFormatting {
             return .meters(matching.map { window -> HomeReadingLine in
                 if window.isActive == false { return inactiveLine(window, now: now, calendar: calendar) }
                 let scope = scopeLabel(window)
-                // A sign-in failure keeps the last known value but not its timing, as in the status menu.
                 let schedule = basis == .authentication ? nil
                     : window.resetsAt.map { resetText($0, now: now, calendar: calendar) }
                     ?? (basis == .current && window.hasNoPendingReset ? noPendingResetText : unknownResetText)
                 let exact = exactReset(window.resetsAt)
                 guard let remaining = remainingPercent(window) else {
-                    // The cell shows the reset time without a verb, so VoiceOver reads the exact reset instead.
                     let spokenSchedule = schedule == nil || window.resetsAt == nil ? schedule : exact
                     return HomeReadingLine(preface: preface(window), primary: "Unknown", secondary: schedule, tertiary: nil, tone: .neutral,
                                            accessibilityLabel: "\(scope), unknown remaining\(spokenSchedule.map { ", \($0)" } ?? ""). Unknown is not zero.",
                                            toolTip: "\(scope). Remaining quota is unknown. \(exact)")
                 }
                 if basis != .current {
-                    // `Last known` sits on its own line above the value, so the value never truncates.
                     let reason = basis == .authentication ? "Sign-in required" : "Stale reading"
                     let spoken = "\(scope), Last known \(RemainingPercentText.format(remaining)) left. \(exact). \(reason)."
                     return HomeReadingLine(preface: preface(window) + ["Last known"], primary: "\(RemainingPercentText.format(remaining)) left",
                                            secondary: schedule, tertiary: nil, tone: .neutral,
                                            accessibilityLabel: spoken, toolTip: spoken)
                 }
-                // The table draws the state word on its own line, so the percentage and the word both stay whole.
                 let pace = role == .weekly ? QuotaPace(window: window, now: now) : nil
                 let spoken = "\(scope), \(remainingText(remaining)), \(exact)" + (pace.map { ". \(paceSentence($0))" } ?? "")
                 return HomeReadingLine(preface: preface(window), primary: "\(RemainingPercentText.format(remaining)) left", secondary: schedule,
@@ -609,8 +567,6 @@ enum HomeInterfaceFormatting {
             line.isQuiet = !facts.isSupported
             return .message(line)
         }
-        // `Last known` sits on its own line above the count, as on quota cells, so `2 available` stays whole; the third
-        // line gives only the read time, so it fits the column.
         let stale = facts.staleReadTime != nil
         return .meters([HomeReadingLine(preface: stale ? ["Last known"] : [], primary: facts.availableText ?? "Unknown",
                                         secondary: facts.expiryText, tertiary: facts.staleReadTime.map { "Last read \($0)" },
@@ -618,9 +574,7 @@ enum HomeInterfaceFormatting {
     }
 
     private struct EarnedFacts {
-        /// `2 available`, or `Last known 2 available` for an outdated count.
         var countText: String?
-        /// `2 available` alone, for a cell that puts `Last known` on its own line.
         var availableText: String?
         var expiryText: String?
         var expiryLabel: String?
@@ -634,7 +588,6 @@ enum HomeInterfaceFormatting {
     private static func earnedFacts(_ account: UsageOverviewAccount, now: Date, calendar: Calendar) -> EarnedFacts {
         let basis = readingBasis(account, now: now)
         let credits = account.snapshot?.credits.filter { $0.unit == .resets } ?? []
-        // A provider gap is permanent, so it reads the same in every reading state.
         if credits.isEmpty, account.profile.provider == .claude {
             return EarnedFacts(unavailableReason: "Not supported", isSupported: false,
                                help: "Claude accounts do not report earned resets.")
@@ -801,7 +754,6 @@ enum HomeInterfaceFormatting {
         case .unavailable: return "Unavailable"
         case .absent: return absentStatus(account)
         case .historical:
-            // A passed model reset makes the row historical, but the general windows can still decide usability.
             if case .exhausted(let usableAt) = AccountUsability(snapshot: account.snapshot, now: now) {
                 return "\(staleText(account, now: now)) · \(usableText(usableAt, now: now))"
             }
@@ -817,15 +769,12 @@ enum HomeInterfaceFormatting {
         }
     }
 
-    /// No reading at all is `Unavailable`; retained windows without a trustworthy time are `Observation time unknown`.
     private static func absentStatus(_ account: UsageOverviewAccount) -> String {
         (account.snapshot?.windows ?? []).isEmpty ? "Unavailable" : "Observation time unknown"
     }
 
     static let noReadingHelp = "No usage reading yet. Choose Refresh All to read usage."
 
-    /// The last read time whenever one is known, so a failed or signed-out row still shows the age of its last known
-    /// values. Without a trustworthy time the cell is `Unavailable`; the status names the reason.
     private static func updatedParts(_ account: UsageOverviewAccount, now: Date, basis: ReadingBasis) -> (primary: String, secondary: String?) {
         guard let observed = account.snapshot?.fetchedAt, observed <= now else { return ("Unavailable", nil) }
         let time = timeText(observed)
@@ -842,7 +791,6 @@ enum HomeInterfaceFormatting {
         return "\(prefix) \(InterfaceFormatting.exactDate(date))"
     }
 
-    /// Vocabulary state for an old reading: "Stale · last read 11:09".
     private static func staleText(_ account: UsageOverviewAccount, now: Date) -> String {
         guard let date = account.snapshot?.fetchedAt, date <= now else { return "Stale" }
         return "Stale · last read \(timeText(date))"
@@ -871,8 +819,6 @@ enum HomeInterfaceFormatting {
         return title == "5-hour" ? "5-hour" : title
     }
 
-    /// The part of the scope that tells a calendar event apart in a narrow day column: the model or meter
-    /// name for a scoped window, otherwise the whole scope.
     static func calendarScope(_ window: UsageWindow) -> String {
         if let scoped = window.modelScope { return scoped.name }
         if let named = window.namedMeter, !window.isOrdinaryCodexMeter { return named.prefix }
@@ -907,15 +853,12 @@ enum HomeInterfaceFormatting {
         return remaining
     }
 
-    /// Reset time for table cells, without a verb so a 12-hour time fits the minimum column width: "Today 6:22 PM",
-    /// "Wed 6:22 PM", "Oct 21 6:22 PM". The column heading names the window; the tooltip and VoiceOver say "Resets".
     private static func resetText(_ date: Date, now: Date, calendar: Calendar) -> String {
         guard date > now else { return "Reset passed" }
         if calendar.isDate(date, inSameDayAs: now) { return "Today \(timeText(date, calendar: calendar))" }
         return scheduleText(date, now: now, calendar: calendar)
     }
 
-    /// "today 13:43" within today, "Wed 13:43" within six days, otherwise "Oct 21 13:43".
     static func scheduleText(_ date: Date, now: Date, calendar: Calendar) -> String {
         let time = timeText(date, calendar: calendar)
         if calendar.isDate(date, inSameDayAs: now) { return "today \(time)" }
@@ -942,8 +885,6 @@ enum HomeInterfaceFormatting {
         date.formatted(dateStyle(calendar).hour().minute())
     }
 
-    /// The calendar's locale and time zone. `Calendar.current` keeps the user's 12- or 24-hour clock; a test passes
-    /// a calendar with a fixed locale to choose one.
     private static func dateStyle(_ calendar: Calendar) -> Date.FormatStyle {
         Date.FormatStyle(locale: calendar.locale ?? .current, calendar: calendar, timeZone: calendar.timeZone)
     }

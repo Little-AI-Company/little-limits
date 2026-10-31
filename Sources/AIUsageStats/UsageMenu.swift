@@ -10,15 +10,12 @@ enum UsageMenu {
         let detail: String
     }
 
-    /// A transient progress line with nothing to open, such as `Loading Accounts…`. AppKit draws it disabled.
     static func progress(_ title: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = false
         return item
     }
 
-    /// A state or error line. It is an enabled item with a real action so AppKit draws it at label
-    /// contrast, not disabled contrast; the full explanation is in the tooltip.
     static func stateLine(_ title: String, detail: String?, target: AnyObject, action: Selector,
                           accountID: UUID? = nil) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
@@ -28,9 +25,6 @@ enum UsageMenu {
         return item
     }
 
-    /// Usage sections for the status menu: weekly totals for each provider with two or more accounts, then one
-    /// section per account. Total rows open Home. State lines and reading rows open the account page; sections
-    /// that need attention end with `Reconnect…` or `Open Account`. Both actions read the account id from `representedObject`.
     static func accountItems(profiles: [AccountProfile], snapshots: [UUID: AccountSnapshot],
                              consoleMessages: [UUID: String], now: Date,
                              target: AnyObject, homeAction: Selector, openAction: Selector, reconnectAction: Selector) -> [NSMenuItem] {
@@ -56,7 +50,6 @@ enum UsageMenu {
             item.representedObject = accountID
             item.toolTip = metric.detail
             item.indentationLevel = 1
-            // No explicit colors: AppKit draws label color and the highlight inversion for enabled items.
             let title = NSMutableAttributedString(string: metric.label + "\t", attributes: [.font: font])
             title.append(NSAttributedString(string: metric.value, attributes: [.font: valueFont]))
             if !metric.timing.isEmpty {
@@ -86,7 +79,6 @@ enum UsageMenu {
             if #available(macOS 27, *) { heading.preferredImageVisibility = .visible }
             heading.toolTip = ["\(provider) · \(identity)", email == "Email unavailable" ? email : nil, observation, snapshot?.detail].compactMap { $0 }.joined(separator: "\n")
             items.append(heading)
-            // No snapshot or no windows is a section without readings: it still gets a state line and Open Account.
             let state = snapshot.flatMap { accountState($0, now: now) }
                 ?? ((snapshot?.windows ?? []).isEmpty ? "Unavailable" : nil)
             if let state {
@@ -102,7 +94,6 @@ enum UsageMenu {
             }
             items += metrics[index].map { readingItem($0, action: openAction, accountID: profile.id) }
             if state != nil || consoleMessages[profile.id] != nil {
-                // A reused Codex CLI login is signed in outside the app, so it opens the account instead.
                 let needsSignIn = snapshot?.state == .authenticationRequired && profile.source != .codexDefaultLogin
                 let item = NSMenuItem(title: needsSignIn ? "Reconnect…" : "Open Account",
                                       action: needsSignIn ? reconnectAction : openAction, keyEquivalent: "")
@@ -116,7 +107,6 @@ enum UsageMenu {
         return items
     }
 
-    /// Weekly total rows and the next reset for one provider, with the same text as Home's Weekly Totals.
     private static func totalMetrics(_ provider: ProviderQuotaOverview, overview: UsageOverview, now: Date) -> [Metric] {
         let names = Dictionary(uniqueKeysWithValues: overview.accounts.map { ($0.id, "\($0.profile.provider.title) \($0.shortIdentity)") })
         var metrics = ([provider.weekly] + provider.scopedWeekly).map { pool in
@@ -139,9 +129,7 @@ enum UsageMenu {
             metrics.append(Metric(label: InterfaceFormatting.usageTitle(window), value: value, timing: timing,
                                   detail: "\(InterfaceFormatting.usageTitle(window)): \(value). \(InterfaceFormatting.reset(window, snapshot: snapshot, now: now))"))
         }
-        // A fully used current 5-hour or weekly window: when the account takes requests again, the latest reset among them.
         if case .exhausted(let usableAt) = AccountUsability(snapshot: snapshot, now: now) {
-            // An unknown time is one phrase, `Usable time unknown`, never `Usable in Unknown`.
             let value = usableAt.map { UsageFormatting.countdown(to: $0, now: now) } ?? ""
             let detail = usableAt.map { "Usable again \(InterfaceFormatting.exactDate($0)), when its last fully used 5-hour or weekly window resets." }
                 ?? "A fully used 5-hour or weekly window has no reported reset time, so when this account is usable again is unknown."
@@ -170,12 +158,10 @@ enum UsageMenu {
         credit.id.hasPrefix("quota_reset_")
     }
 
-    /// A balance the provider has not reported and the user has not connected: no amount, no status, no observation.
     private static func isPlaceholder(_ credit: CreditBalance) -> Bool {
         credit.amount == nil && !credit.isUnlimited && credit.status == nil && credit.asOf == nil && credit.source != .manual
     }
 
-    /// One row for the count and the nearest expiry. Per-grant expiry stays in the tooltip.
     private static func earnedResets(_ credits: [CreditBalance], now: Date) -> Metric? {
         let summary = credits.first { $0.id == "quota_reset_credits" }
         let grants = credits.filter { isEarnedReset($0) && $0.id != "quota_reset_credits" }
@@ -183,8 +169,6 @@ enum UsageMenu {
         let count = summary?.amount.map { NSDecimalNumber(decimal: $0).intValue } ?? grants.count
         let nextExpiry = grants.compactMap(\.expiresAt).filter { $0 > now }.min()
         let timing = nextExpiry.map { "Next expires in \(UsageFormatting.countdown(to: $0, now: now))" } ?? ""
-        // A grant that expired after the count was observed, or an old or future observation, makes the count
-        // historical, as on Home.
         let grantExpired = grants.contains { $0.expiresAt.map { $0 <= now } == true }
         let oldObservation = summary?.asOf.map { !AccountSnapshot.isObservationCurrent($0, now: now) } == true
         let value = grantExpired || oldObservation ? "Last known \(count) available" : "\(count) available"

@@ -1,6 +1,5 @@
 import AppKit
 
-/// Account detail anchored in the reset popover. One account, every reported window.
 @MainActor
 final class UsageEventDetailsViewController: NSViewController {
     var onViewAccount: ((UUID) -> Void)?

@@ -1,7 +1,5 @@
 import AppKit
 
-/// Account usage table. Rows stay in saved profile order. The table is as tall as its rows, so the
-/// Home document does the vertical scrolling; columns share the width and fit the minimum window.
 @MainActor
 final class UsageOverviewTableView: NSView, NSTableViewDataSource, NSTableViewDelegate {
     var onReconnect: ((UUID) -> Void)?
@@ -60,7 +58,6 @@ final class UsageOverviewTableView: NSView, NSTableViewDataSource, NSTableViewDe
 
     required init?(coder: NSCoder) { nil }
 
-    /// Header plus every row, so no row is clipped and no nested vertical scroller appears.
     override var intrinsicContentSize: NSSize {
         let header = table.headerView?.frame.height ?? 0
         let spacing = table.intercellSpacing.height
@@ -226,10 +223,6 @@ private enum Column: String, CaseIterable {
         }
     }
 
-    /// Minimums sum to 644 pt plus 48 pt spacing, inside the 712 pt content width of the 1020 pt minimum
-    /// window beside a 260 pt sidebar, less 32 pt margins and a 16 pt vertical scroller. Quota columns
-    /// hold `Reset time unknown` and `Oct 21 12:58 PM` whole; Updated holds `Not refreshed`. The
-    /// account name stays whole; a long email truncates and its tooltip keeps the full text.
     var minimumWidth: CGFloat {
         switch self {
         case .account: 120
@@ -240,7 +233,6 @@ private enum Column: String, CaseIterable {
         }
     }
 
-    /// Initial widths sum to 900 pt plus spacing, inside the default window; uniform resizing shares the rest.
     var initialWidth: CGFloat {
         switch self {
         case .account: 200

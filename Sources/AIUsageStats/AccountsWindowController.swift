@@ -31,7 +31,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private var sidebarDisplays: [UUID: AccountSidebarCellView.Display] = [:]
     private var isUpdatingSelection = false
     private var toolbarPageIdentifiers: [NSToolbarItem.Identifier] = []
-    /// `--show-models` opens the Models page the first time the window shows, for local verification.
     private var opensModelsOnFirstShow = CommandLine.arguments.contains("--show-models")
     private weak var toolbarContributor: (any WindowToolbarContributor)?
     var onClaudeConnection: ((UUID?, String) -> Void)?
@@ -157,7 +156,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         let sidebar = NSView()
         sidebar.addSubview(accountScroll)
         sidebar.addSubview(sidebarActions)
-        // The list scrolls under the toolbar with automatic insets; add and remove sit directly under it.
         NSLayoutConstraint.activate([
             accountScroll.topAnchor.constraint(equalTo: sidebar.topAnchor),
             accountScroll.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor),
@@ -240,7 +238,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         }
     }
 
-    /// Pins `page` to every edge of the content area, under the toolbar, and removes the previous page.
     private func installPage(_ page: NSViewController) {
         for view in pageContainer.subviews where view !== page.view { view.removeFromSuperview() }
         guard page.view.superview !== pageContainer else { return }
@@ -274,7 +271,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         setSection(.models)
         render()
         window?.recalculateKeyViewLoop()
-        // The page has no controls of its own, so focus stays in the sidebar.
         window?.makeFirstResponder(table)
     }
 
@@ -356,8 +352,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         }
     }
 
-    /// Rebuilds the page items after the sidebar tracking separator when the page or its item set changes,
-    /// then updates the title and subtitle.
     private func updateToolbar() {
         guard let window else { return }
         let contributor = currentToolbarContributor
@@ -415,7 +409,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         if !home.focusInitialControl() { window?.makeFirstResponder(table) }
     }
 
-    /// View > Show Account items while Home shows; empty on other pages, where the filter does not apply.
     func accountFilterMenuItems() -> [NSMenuItem] {
         section == .home ? home.accountFilterMenuItems() : []
     }
@@ -502,8 +495,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
                                               quotaText: text, indicator: indicator, description: description)
     }
 
-    /// The identity, prefixed with the provider when another saved account shows the same identity, as the
-    /// status menu heading does: `Claude · parker@example.invalid`.
     private func distinctIdentity(_ profile: AccountProfile) -> String {
         let identity = InterfaceFormatting.accountIdentity(profile)
         let shared = model.profiles.contains {
@@ -518,7 +509,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             : date.formatted(.dateTime.month(.abbreviated).day().hour().minute())
     }
 
-    /// Home and Models keep the system sidebar row height; account rows add the quota line below the identity.
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
         guard row >= Self.accountRowOffset else { return tableView.rowHeight }
         let identitySize: CGFloat = switch tableView.effectiveRowSizeStyle {
@@ -530,8 +520,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         return tableView.rowHeight + ceil(NSLayoutManager().defaultLineHeight(for: quotaFont)) + AccountSidebarCellView.lineSpacing
     }
 
-    /// Choosing the selected account row again returns from the Platform pane to the account page. Selection does not
-    /// change in that case, so `tableViewSelectionDidChange(_:)` is not called.
     @objc private func selectClickedSidebarRow(_ sender: Any?) {
         let row = table.clickedRow
         guard section == .platform, row == table.selectedRow, let id = accountID(forSidebarRow: row), id == selectedID else { return }
@@ -564,12 +552,10 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
 
     // MARK: Account changes
 
-    /// Status menu Add Claude Account… and Add Codex Account… open the provider sheet with that provider chosen.
     func connect(_ provider: Provider) {
         presentAddAccountSheet(provider: provider)
     }
 
-    /// File > Add Account… and the sidebar plus button.
     @objc func addAccount(_ sender: Any?) {
         presentAddAccountSheet(provider: .claude)
     }
@@ -625,19 +611,16 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         return menu
     }
 
-    /// The account selected in the sidebar while its account page or Platform pane shows.
     private var selectedSidebarAccountID: UUID? {
         guard section == .account || section == .platform else { return nil }
         return accountID(forSidebarRow: table.selectedRow)
     }
 
-    /// File > Delete Account…, the sidebar minus button, and the Delete key. Asks for confirmation.
     @objc func removeSelectedAccount(_ sender: Any?) {
         guard let id = selectedSidebarAccountID else { return }
         confirmAccountRemoval(id: id)
     }
 
-    /// File > Reconnect… for the selected account; the same route as the account page Reconnect… item.
     @objc func reconnectSelectedAccount(_ sender: Any?) {
         guard let id = selectedSidebarAccountID else { return }
         reconnectAccount(id: id)
@@ -697,7 +680,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
 
     // MARK: Reordering
 
-    /// File > Move Up and Move Down act on the selected account.
     @objc func moveSelectedAccountUp(_ sender: Any?) { moveSelectedAccount(by: -1) }
     @objc func moveSelectedAccountDown(_ sender: Any?) { moveSelectedAccount(by: 1) }
     @objc private func moveAccountUpFromMenu(_ sender: NSMenuItem) { moveAccount(representedBy: sender, by: -1) }
@@ -724,7 +706,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         moveAccount(id: id, toIndex: index + offset)
     }
 
-    /// Slides the row to `index` in the saved account order, then saves it. Selection, page, and edits stay with the UUID.
     private func moveAccount(id: UUID, toIndex index: Int) {
         guard canModifyAccounts, window?.attachedSheet == nil,
               let source = displayedProfiles.firstIndex(where: { $0.id == id }),
@@ -752,7 +733,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         info.draggingPasteboard.string(forType: Self.accountPasteboardType).flatMap(UUID.init(uuidString:))
     }
 
-    /// A drop lands between account rows, never on a row and never above Home.
     func tableView(_ tableView: NSTableView, validateDrop info: any NSDraggingInfo, proposedRow row: Int,
                    proposedDropOperation dropOperation: NSTableView.DropOperation) -> NSDragOperation {
         guard info.draggingSource as? NSTableView === tableView, canModifyAccounts, window?.attachedSheet == nil,
@@ -773,7 +753,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         return true
     }
 
-    // Row 0 is Home and row 1 is Models. Later rows follow the saved account order and are addressed by UUID.
     private func profileIndex(forSidebarRow row: Int) -> Int? {
         let index = row - Self.accountRowOffset
         guard displayedProfiles.indices.contains(index) else { return nil }
@@ -793,8 +772,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     }
 }
 
-/// Offers the visible page as a supplemental action target, so menu commands such as Home's period commands and
-/// the account page's Open Billing reach that page while keyboard focus is in the sidebar.
 @MainActor
 private final class PageCommandSplitViewController: NSSplitViewController {
     private static let pageActions: Set<Selector> = [

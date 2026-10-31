@@ -2,8 +2,6 @@ import Foundation
 import UsageHistory
 import UsageHistoryStore
 
-/// Fictional model history for demo mode, so the Models page renders without reading real logs. The rows are
-/// generated from a fixed seed into a temporary database that replaces the previous demo database.
 enum ModelsDemoHistory {
     private struct Profile {
         let provider: HistoryProvider
@@ -54,7 +52,6 @@ enum ModelsDemoHistory {
     private static let purposes: [(InlineScriptPurpose, Double)] = [
         (.editsFileInPlace, 0.38), (.writesFile, 0.17), (.readsJSON, 0.27), (.other, 0.18)
     ]
-    /// Fictional project keys. The first holds about half the commands, as one busy project would.
     private static let projects: [(String, Double)] = [
         ("0000000000000001", 0.5), ("0000000000000002", 0.2), ("0000000000000003", 0.15),
         ("0000000000000004", 0.1), ("0000000000000005", 0.05)
@@ -161,7 +158,6 @@ enum ModelsDemoHistory {
     }
 }
 
-/// SplitMix64, so every demo launch shows the same numbers.
 private struct SeededGenerator: RandomNumberGenerator {
     private var state: UInt64
 

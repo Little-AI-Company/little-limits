@@ -17,7 +17,6 @@ enum InterfaceFormatting {
 
     static func usageTitle(_ window: UsageWindow) -> String { usageTitle(window.title) }
 
-    /// Maps a provider window title such as `7 days (Fable 5)` to its display name, `Weekly · Fable 5`.
     static func usageTitle(_ title: String) -> String {
         if title == "5 hours" { return "5-hour" }
         if title == "7 days" { return "Weekly" }
@@ -28,14 +27,12 @@ enum InterfaceFormatting {
         return title
     }
 
-    /// Remaining quota, the one percentage meaning shown everywhere in the interface.
     static func remaining(_ window: UsageWindow) -> String {
         if window.isActive == false { return "Inactive" }
         guard let used = window.utilizationPercent, used.isFinite else { return "Unavailable" }
         return "\(RemainingPercentText.format(max(0, 100 - used))) left"
     }
 
-    /// Remaining quota with the Home status word: `Low` or `Limit reached`.
     static func remainingWithStatus(_ window: UsageWindow) -> String {
         let value = remaining(window)
         guard window.isActive != false, let used = window.utilizationPercent, used.isFinite else { return value }
@@ -46,14 +43,11 @@ enum InterfaceFormatting {
         }
     }
 
-    /// An old reading is prefixed so it is not mistaken for a current one.
     static func lastKnownRemaining(_ window: UsageWindow) -> String {
         let value = remaining(window)
         return value == "Unavailable" || value == "Inactive" ? value : "Last known \(value)"
     }
 
-    /// A reading that must not pass for current: stale, sign-in required, a passed reset, older than five minutes,
-    /// or observed in the future after a clock change.
     static func isOutdated(_ snapshot: AccountSnapshot, now: Date) -> Bool {
         switch snapshot.state {
         case .authenticationRequired, .stale: return true
@@ -64,8 +58,6 @@ enum InterfaceFormatting {
         }
     }
 
-    /// Value and compact timing for one window, shared by the status menu and the account page. An outdated
-    /// value reads `Last known 63% left`; sign-in required omits the timing.
     static func reading(_ window: UsageWindow, snapshot: AccountSnapshot, now: Date) -> (value: String, timing: String) {
         let value = isOutdated(snapshot, now: now) ? lastKnownRemaining(window) : remainingWithStatus(window)
         let timing = snapshot.state == .authenticationRequired ? ""
@@ -75,7 +67,6 @@ enum InterfaceFormatting {
         return (value, timing)
     }
 
-    /// `No reset pending` needs a current reading; an old zero cannot show that nothing was used since.
     static func reset(_ window: UsageWindow, snapshot: AccountSnapshot?, now: Date = Date()) -> String {
         if window.isActive == false {
             return window.resetsAt.map { "Provider reported reset: \(exactDate($0))" } ?? "Reset time unknown"
@@ -175,12 +166,8 @@ enum InterfaceFormatting {
         let detail: String
     }
 
-    /// One summary for the earned reset count and its nearest expiry, in Home's words: `2 available`,
-    /// `Next expires in 12d`. A count the grants, the observation, or a failed refresh have outdated reads `Last known 2 available`.
-    /// Per-grant expiry stays in the detail.
     static func earnedResets(_ credits: [CreditBalance], isCurrentReading: Bool = true, now: Date = Date()) -> EarnedResetsSummary? {
         let summary = credits.first { $0.id == "quota_reset_credits" }
-        // Only available grants with a trustworthy observation count, as on Home.
         let grants = credits.filter {
             $0.id.hasPrefix("quota_reset_") && $0.id != "quota_reset_credits" && $0.status?.lowercased() == "available"
                 && $0.asOf.map { $0 <= now } == true
@@ -201,8 +188,6 @@ enum InterfaceFormatting {
         return EarnedResetsSummary(value: value, timing: timing, detail: lines.joined(separator: "\n"))
     }
 
-    /// Readable names for the model identifiers in the usage logs: `claude-fable-5-1` reads `Fable 5.1`,
-    /// `gpt-6.1-sol` reads `GPT-6.1 Sol`. An identifier in no known pattern is shown as logged.
     static func modelDisplayName(_ identifier: String) -> String {
         let parts = identifier.lowercased().split(separator: "-").map(String.init)
         func isDigits(_ part: String) -> Bool { !part.isEmpty && part.allSatisfy(\.isNumber) }

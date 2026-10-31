@@ -2,14 +2,10 @@ import AppKit
 import QuartzCore
 import UsageCore
 
-/// Monday-first reset calendar. Days come from `UsageCalendarPeriod`. Buttons come only from
-/// the supplied `UsageResetEvent` values, placed on the local day of each reported reset.
 @MainActor
 final class UsageCalendarView: NSView {
-    /// Click or Return on an event. The value is `UsageResetEvent.id`. Hover only highlights and shows the tooltip.
     var onActivate: ((String) -> Void)?
 
-    /// Selection survives `apply` when that event is still in the new readings.
     private(set) var selectedEventID: String?
 
     private let weekdayHeader = CalendarWeekdayHeader()
@@ -56,8 +52,6 @@ final class UsageCalendarView: NSView {
 
     required init?(coder: NSCoder) { nil }
 
-    /// Height of the header plus every day row. The Home document scrolls vertically; the grid scrolls
-    /// horizontally only when the view is narrower than seven minimum columns.
     var preferredHeight: CGFloat { CalendarMetrics.headerHeight + grid.contentHeight }
 
     override var intrinsicContentSize: NSSize {
@@ -66,7 +60,6 @@ final class UsageCalendarView: NSView {
 
     func eventView(for eventID: String) -> NSView? { grid.button(for: eventID) }
 
-    /// The reset button under this mouse or key event, when it belongs to this calendar.
     func eventID(for event: NSEvent) -> String? {
         if event.type == .keyDown || event.type == .keyUp {
             guard event.window === window else { return nil }
@@ -90,7 +83,6 @@ final class UsageCalendarView: NSView {
         publishAccessibilityChildren()
     }
 
-    /// Replace the visible period and readings. Keeps the selected event and keyboard focus when that id remains.
     func apply(period: UsageCalendarPeriod, events: [UsageResetEvent], mode: UsageCalendarMode,
                anchor: Date, now: Date, calendar: Calendar) {
         let focusedID = (window?.firstResponder as? UsageEventButton)?.eventID ?? pendingFocusID
@@ -213,9 +205,7 @@ private struct CalendarSnapshot: Equatable {
 
 enum CalendarMetrics {
     static let headerHeight: CGFloat = 24
-    /// The badge sits inside the date band with 4 pt above and below, clear of the week's grid line.
     static let todayDiameter: CGFloat = 22
-    /// Seven columns fit the content width of the minimum window beside the sidebar.
     static let columnMinimum: CGFloat = 96
     static let minimumWidth: CGFloat = columnMinimum * 7
     static let twoWeekRow: CGFloat = 96
@@ -355,7 +345,6 @@ private final class CalendarGridView: NSView {
             let origin = cellOrigin(index, columnWidth: width)
             let today = index == todayIndex
             let circle = todayBadgeRect(index, columnWidth: width)
-            // Labels are centered on the date band, so the today numeral sits in the middle of its badge.
             let labelHeight = ceil(dateLabels[index].intrinsicContentSize.height)
             let labelY = origin.y + (CalendarMetrics.dateBand - labelHeight) / 2
             if today {
@@ -441,7 +430,6 @@ private final class CalendarGridView: NSView {
         if let todayIndex, days.indices.contains(todayIndex) {
             let columnWidth = bounds.width / 7
             let circle = todayBadgeRect(todayIndex, columnWidth: columnWidth)
-            // Label color with a background-color numeral keeps contrast in every accent color.
             NSColor.labelColor.setFill()
             NSBezierPath(ovalIn: circle).fill()
         }
@@ -591,9 +579,6 @@ private final class CalendarGridView: NSView {
     }
 }
 
-/// One reset event: exactly two single-line rows. Row 1 is the reset time, which never truncates, then the
-/// scope, which truncates. Row 2 is the state symbol and remaining percentage, which never truncate, then the
-/// identity, which truncates. The slot height comes from the fitted line heights of these fonts.
 @MainActor
 private final class UsageEventButton: NSButton {
     private(set) var eventID = ""
@@ -614,7 +599,6 @@ private final class UsageEventButton: NSButton {
     private static let firstLineHeight = max(lineHeight(timeFont), lineHeight(scopeFont), iconSize)
     private static let secondLineHeight = lineHeight(detailFont)
 
-    /// Fitted height of both rows plus padding. Every event slot uses it, so text is never clipped vertically.
     static let preferredHeight = verticalPadding * 2 + firstLineHeight + lineSpacing + secondLineHeight
 
     private let icon = HomePassImageView()
@@ -662,8 +646,6 @@ private final class UsageEventButton: NSButton {
         return field
     }
 
-    /// The separator, one letter, and an ellipsis. A narrower scope or identity field would draw a fragment of a
-    /// letter, so it hides instead; the tooltip and accessibility label keep the whole text.
     private static let scopeMinimumWidth = minimumWidth(font: scopeFont)
     private static let identityMinimumWidth = minimumWidth(font: detailFont)
 
@@ -677,8 +659,6 @@ private final class UsageEventButton: NSButton {
         ceil(lineField(font: font).cell?.cellSize.height ?? font.boundingRectForFont.height)
     }
 
-    /// The width the cell needs to draw its whole string. A tail-truncating field reports a smaller
-    /// intrinsic width, which would truncate the text it measures.
     private static func drawnWidth(_ field: NSTextField) -> CGFloat {
         ceil(field.cell?.cellSize.width ?? field.intrinsicContentSize.width)
     }
@@ -692,8 +672,6 @@ private final class UsageEventButton: NSButton {
         let leading = Self.leadingInset
         icon.frame = NSRect(x: leading, y: top + (firstHeight - Self.iconSize) / 2, width: Self.iconSize, height: Self.iconSize)
         let textX = leading + Self.iconSize + Self.iconGap
-        // The time keeps its fitted width; only the scope gives up space. Each cell pads its text by
-        // 2 pt, so adjacent fields read as words separated by one space.
         let timeWidth = Self.drawnWidth(timeField)
         timeField.frame = NSRect(x: textX, y: top, width: timeWidth, height: firstHeight)
         let scopeX = min(textX + timeWidth, trailing)
@@ -705,10 +683,8 @@ private final class UsageEventButton: NSButton {
             symbol.frame = NSRect(x: detailX, y: secondY + (secondHeight - size.height) / 2, width: size.width, height: size.height)
             detailX += size.width + 3
         }
-        // The percentage keeps its fitted width; only the identity gives up space.
         let remainingWidth = Self.drawnWidth(remainingField)
         remainingField.frame = NSRect(x: detailX, y: secondY, width: remainingWidth, height: secondHeight)
-        // In the narrowest column the identity can shrink to nothing; the tooltip and label keep it.
         let identityX = min(detailX + remainingWidth, trailing)
         identityField.frame = NSRect(x: identityX, y: secondY, width: max(0, trailing - identityX), height: secondHeight)
         identityField.isHidden = identityField.frame.width < Self.identityMinimumWidth

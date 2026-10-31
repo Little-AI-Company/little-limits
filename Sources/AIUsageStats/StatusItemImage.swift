@@ -13,8 +13,6 @@ struct StatusItemSummary: Equatable {
 
 @MainActor
 enum StatusItemImage {
-    /// The app's talking-gauge mark: a speech bubble whose top is a fuel gauge with the needle near empty.
-    /// Shown when there are no readings to summarize. Drawn as a template so AppKit tints it.
     static let appGlyph: NSImage = {
         let image = NSImage(size: NSSize(width: 18, height: 16), flipped: false) { _ in
             NSColor.black.set()
@@ -22,7 +20,6 @@ enum StatusItemImage {
             bubble.lineWidth = 1.6
             bubble.lineJoinStyle = .round
             bubble.lineCapStyle = .round
-            // Gauge arc over the top, then the flat base with a tail at the lower left.
             bubble.appendArc(withCenter: NSPoint(x: 9.5, y: 7), radius: 6.6, startAngle: 0, endAngle: 180)
             bubble.line(to: NSPoint(x: 2.9, y: 6.2))
             bubble.line(to: NSPoint(x: 2.2, y: 1.6))

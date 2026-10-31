@@ -92,8 +92,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             platformControllers.removeValue(forKey: id)?.retire()
         }
         if accounts?.window?.isVisible == true { accounts?.render() }
-        // An open menu is not rebuilt, so keep its Reconnect… and Refresh All commands in step with refresh and
-        // account changes.
         if isMenuTracking {
             for item in statusMenu.items where item.action == #selector(reconnectAccountFromMenu(_:)) {
                 item.isEnabled = canReconnectFromMenu
@@ -103,15 +101,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
                 item.isEnabled = validateMenuItem(item)
             }
         }
-        // The number per provider prefers current readings, so an old or signed-out zero never hides a current
-        // value. With no current reading the provider shows its lowest last known value with the stale mark;
-        // `?` means it was never measured. The tooltip names the account and window behind the number.
         let now = Date()
         var showsLastKnown = false
         var readings: [StatusItemSummary.Reading] = []
         var descriptions: [String] = []
-        // By default one number per provider, the lowest across its accounts. Accounts chosen with Show in
-        // Menu Bar instead each get their own number, in sidebar order.
         let groups: [(provider: Provider, profiles: [AccountProfile])]
         if let chosen = model.menuBarAccountIDs {
             groups = model.profiles.filter { chosen.contains($0.id) }.map { ($0.provider, [$0]) }
@@ -165,7 +158,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
     }
 
-    /// Why an account's reading does not count toward the status item number, or nil when it is current.
     private static func notCurrentReason(_ summary: AccountQuotaSummary) -> String? {
         switch summary {
         case .available: nil
@@ -311,7 +303,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let policy: NSApplication.ActivationPolicy = hasOpenWindow ? .regular : .accessory
         if NSApp.activationPolicy() != policy { NSApp.setActivationPolicy(policy) }
     }
-    /// The standard About panel shows the bundle icon unless it is given one, so pass the icon chosen in Settings.
     @objc private func showAbout(_ sender: Any?) {
         NSApp.orderFrontStandardAboutPanel(options: [.applicationIcon: NSApp.applicationIconImage as Any])
     }
@@ -320,8 +311,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
     @objc func refreshAllAccounts(_ sender: Any?) { model.refresh() }
 
-    /// Show in Menu Bar ▸ Lowest per Provider (the default), then one checkmarked item per account; each checked
-    /// account gets its own number in the menu bar.
     private func menuBarAccountsItem() -> NSMenuItem {
         let item = NSMenuItem(title: "Show in Menu Bar", action: nil, keyEquivalent: "")
         let submenu = NSMenu(title: "Show in Menu Bar")
@@ -399,7 +388,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
     }
 
-    /// The account page's rule for Reconnect…: not demo, not refreshing, not changing accounts, no sheet open.
     private var canReconnectFromMenu: Bool {
         !model.isDemo && !model.isRefreshing && !model.isChangingAccounts && accounts?.window?.attachedSheet == nil
     }
@@ -414,7 +402,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             return
         }
         if model.hasAccountLoadFailure {
-            // Opens the window, whose Home page explains the failure and offers Retry.
             statusMenu.addItem(UsageMenu.stateLine("Accounts could not be loaded", detail: model.message,
                                                    target: self, action: #selector(showAccounts(_:))))
             statusMenu.addItem(command(title: "Retry Loading Accounts", action: #selector(reloadAccounts(_:))))
@@ -432,7 +419,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
                                            homeAction: #selector(showAccounts(_:)),
                                            openAction: #selector(openAccountFromMenu(_:)),
                                            reconnectAction: #selector(reconnectAccountFromMenu(_:))) {
-            // The status menu does not autoenable items, so validate Reconnect… here.
             if item.action == #selector(reconnectAccountFromMenu(_:)) { item.isEnabled = validateMenuItem(item) }
             statusMenu.addItem(item)
         }
@@ -496,7 +482,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
     }
 
-    /// Shows the account page, which reports the wait, then opens the login in Terminal.
     private func openLogin(command: String, accountID: UUID) -> Bool {
         accounts?.showAccount(id: accountID)
         do {
@@ -516,10 +501,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
     }
 
-    /// Asks whether a new Codex account reads this Mac's signed-in Codex CLI login or signs in separately.
     private func chooseCodexLogin(_ login: CodexCurrentLogin) async -> CodexLoginChoice {
         revealAccountsWindow(nil)
-        // Without a window to attach the question to, keep the separate sign-in that the add sheet described.
         guard let window = accounts?.window, window.attachedSheet == nil else { return .signInSeparately }
         return await AddAccountSheetController.chooseCodexLogin(login, in: window)
     }
@@ -539,7 +522,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         about.target = self
         appMenu.insertItem(about, at: 0)
         appMenu.insertItem(.separator(), at: 1)
-        // The standard Hide group sits above Quit, as in other Mac apps. The status menu does not get it.
         let quitIndex = appMenu.numberOfItems - 1
         let hideOthers = NSMenuItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
         hideOthers.keyEquivalentModifierMask = [.command, .option]
@@ -554,7 +536,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let fileMenu = NSMenu(title: "File")
         fileMenu.addItem(nilTargetItem("Add Account…", #selector(WindowCommandHandling.addAccount(_:)), "n"))
         fileMenu.addItem(.separator())
-        // Selected-account commands; disabled until the window or account page implements and validates them.
         fileMenu.addItem(nilTargetItem("Reconnect…", #selector(WindowCommandHandling.reconnectSelectedAccount(_:)), ""))
         let refreshAccount = nilTargetItem("Refresh Account", #selector(WindowCommandHandling.refreshSelectedAccount(_:)), "r")
         refreshAccount.keyEquivalentModifierMask = [.command, .shift]
@@ -603,7 +584,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
         sortAccounts.submenu = sortMenu
         viewMenu.addItem(sortAccounts)
-        // The toolbar Accounts filter as a menu command; Home supplies the items each time the submenu opens.
         let showAccount = NSMenuItem(title: "Show Account", action: nil, keyEquivalent: "")
         accountFilterMenu.delegate = self
         showAccount.submenu = accountFilterMenu
@@ -619,7 +599,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         NSApp.windowsMenu = windowMenu
         NSApp.mainMenu = menu
     }
-    /// A command dispatched through the responder chain; disabled when no responder implements it.
     private func nilTargetItem(_ title: String, _ action: Selector, _ key: String) -> NSMenuItem {
         NSMenuItem(title: title, action: action, keyEquivalent: key)
     }

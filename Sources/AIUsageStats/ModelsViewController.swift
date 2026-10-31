@@ -4,7 +4,6 @@ import SwiftUI
 import UsageHistory
 import UsageHistoryStore
 
-/// What the Models page shows. Replaced only when the report changes, so an unchanged reload does not redraw.
 @MainActor @Observable
 final class ModelsPageState {
     enum Content: Equatable {
@@ -16,7 +15,6 @@ final class ModelsPageState {
     var content = Content.loading
 }
 
-/// The Models page: per-model behavior metrics from the local usage history, hosted in the AppKit window.
 @MainActor
 final class ModelsViewController: NSViewController, WindowToolbarContributor {
     private let model: ApplicationModel
@@ -45,8 +43,6 @@ final class ModelsViewController: NSViewController, WindowToolbarContributor {
         return model.isDemo ? "Demo data · \(range)" : range
     }
 
-    /// Observes the history while the page shows. Each committed write, such as a log ingestion batch, delivers a
-    /// fresh report off the main thread; the page redraws only when the report changes.
     override func viewDidAppear() {
         super.viewDidAppear()
         guard observation == nil else { return }
@@ -77,7 +73,6 @@ final class ModelsViewController: NSViewController, WindowToolbarContributor {
         onToolbarStateChange?()
     }
 
-    /// Demo mode reads fictional rows from a temporary database, never the user's history.
     private func database() async throws -> HistoryDatabase? {
         guard model.isDemo else { return model.historyDatabase }
         if let demoDatabase { return demoDatabase }

@@ -1,8 +1,6 @@
 import AppKit
 import UsageCore
 
-/// The account page: usage and credit readings, API Credits controls, the manual balance editor, and Connection Details.
-/// Account-level commands live in the window toolbar through `WindowToolbarContributor`.
 @MainActor
 final class AccountDetailViewController: NSViewController, WindowToolbarContributor, NSMenuItemValidation {
     private static let refreshAllItem = NSToolbarItem.Identifier("AccountRefreshAll")
@@ -110,7 +108,6 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         item.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh All")
         item.isBordered = true
         item.autovalidates = false
-        // The application delegate refreshes every account; this page only sends the command.
         item.action = #selector(WindowCommandHandling.refreshAllAccounts(_:))
         return item
     }
@@ -255,7 +252,6 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         for view in [accountEditor, accountLoadError, emptyState, status] {
             view.widthAnchor.constraint(equalTo: detailStack.widthAnchor).isActive = true
         }
-        // The scroll view passes under the toolbar; its automatic content insets keep the first row visible.
         NSLayoutConstraint.activate([
             scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor),
@@ -269,8 +265,6 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         ])
     }
 
-    /// Shows `accountID` and applies current model data. Unfinished manual edits survive unless the account changes
-    /// or a saved change for this account has completed.
     func render(accountID: UUID?) {
         _ = view
         self.accountID = accountID
@@ -417,11 +411,9 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
                                           detail: awaitingSignIn ? Self.codexSignInWait
                                               : snapshot?.detail ?? "No usage reading yet. Choose Refresh Account to read usage.")]
             : windows.map { usage in
-                // The same value and timing as the status menu, so an outdated reading never passes for current.
                 let title = InterfaceFormatting.usageTitle(usage)
                 let reading = snapshot.map { InterfaceFormatting.reading(usage, snapshot: $0, now: now) }
                     ?? (value: InterfaceFormatting.remaining(usage), timing: "")
-                // The page has room for the absolute time beside the countdown: `Resets in 2d 4h · Fri 13:43`.
                 var timing = reading.timing
                 if timing.hasPrefix("Resets in "), let date = usage.resetsAt {
                     timing += " · \(HomeInterfaceFormatting.scheduleText(date, now: now, calendar: .current))"
@@ -448,8 +440,6 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         updateConnectionDetails(profile: profile, snapshot: snapshot)
     }
 
-    /// One state line with at most one recovery action: Reconnect… for failed sign-in, or Allow Keychain Access…
-    /// only when the saved sign-in exists but its Keychain read was refused.
     private func renderAttention(profile: AccountProfile, snapshot: AccountSnapshot?, now: Date) {
         var message = ""
         var recovery: NSButton?
@@ -506,7 +496,6 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         view.window?.recalculateKeyViewLoop()
     }
 
-    /// Identity, plan, source, last read, exact dates, and errors. Percentages stay in the readings above.
     private func updateConnectionDetails(profile: AccountProfile, snapshot: AccountSnapshot?) {
         let id = profile.id
         var details = ["Email: \(InterfaceFormatting.accountEmail(profile))"]
@@ -624,10 +613,8 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         return model.snapshots[id]?.credits.contains { $0.id == "monthly_grant" && $0.status == "Not linked" } == true
     }
 
-    /// File > Open Billing. Enabled under the same rule as the Billing toolbar item.
     @objc func openSelectedAccountBilling(_ sender: Any?) { openBilling(sender) }
 
-    /// File > Refresh Account and the Refresh Account toolbar item: reads only this account again.
     @objc func refreshSelectedAccount(_ sender: Any?) {
         guard canRefreshAccount, let id = accountID else { return }
         model.refreshAccount(id)
