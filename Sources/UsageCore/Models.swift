@@ -186,12 +186,19 @@ public struct AccountSnapshot: Codable, Sendable, Equatable {
     }
 }
 
-public enum UsageFormatting {
-    public static func percentage(_ value: Double?) -> String {
-        guard let value, value.isFinite else { return "Unavailable" }
-        return String(format: "%.0f%%", min(100, max(0, value)))
-    }
+public enum RemainingPercentText {
+    public static let lowRemainingThreshold: Double = 20
 
+    public static func format(_ remaining: Double) -> String {
+        guard remaining.isFinite else { return "Unknown" }
+        if remaining > 0, remaining < 0.1 { return "<0.1%" }
+        if remaining > lowRemainingThreshold, remaining < lowRemainingThreshold + 0.1 { return ">\(Int(lowRemainingThreshold))%" }
+        let tenths = (remaining * 10).rounded() / 10
+        return tenths == tenths.rounded() ? "\(Int(tenths))%" : String(format: "%.1f%%", tenths)
+    }
+}
+
+public enum UsageFormatting {
     public static func countdown(to date: Date?, now: Date = Date()) -> String {
         guard let date else { return "Reset time unknown" }
         let seconds = max(0, date.timeIntervalSince(now))

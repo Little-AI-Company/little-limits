@@ -291,7 +291,7 @@ enum HomeInterfaceFormatting {
             let value = remainingText(event.remainingPercent)
             let label = "\(scope) resets \(exact). \(event.provider.title) \(event.identity), \(value) now"
             return HomeCalendarEventModel(id: event.id, provider: event.provider, timeText: timeText(event.resetsAt),
-                                          scopeText: calendarScope(event.window), remainingText: "\(percentText(event.remainingPercent)) left",
+                                          scopeText: calendarScope(event.window), remainingText: "\(RemainingPercentText.format(event.remainingPercent)) left",
                                           tone: tone(for: event.remainingPercent), shortIdentity: event.shortIdentity,
                                           accessibilityLabel: label,
                                           toolTip: "\(label). Latest reading, not a forecast.", dayIndex: dayIndex)
@@ -365,7 +365,7 @@ enum HomeInterfaceFormatting {
     static func poolValue(_ pool: QuotaPool) -> String {
         if pool.countedAccountIDs.isEmpty, pool.unknownAccountIDs.isEmpty { return "Not supported" }
         guard let remaining = pool.remainingPercent else { return "Unknown" }
-        return "\(percentText(remaining)) of \(Int(pool.capacityPercent))% left"
+        return "\(RemainingPercentText.format(remaining)) of \(Int(pool.capacityPercent))% left"
     }
 
     /// `1 account unknown`, or nil when every account in the pool is counted.
@@ -426,7 +426,7 @@ enum HomeInterfaceFormatting {
 
     /// Value text with its state word: "17% left, Low".
     static func remainingText(_ remaining: Double) -> String {
-        let value = "\(percentText(remaining)) left"
+        let value = "\(RemainingPercentText.format(remaining)) left"
         return tone(for: remaining).word.map { "\(value), \($0)" } ?? value
     }
 
@@ -451,7 +451,7 @@ enum HomeInterfaceFormatting {
     static func tone(for remaining: Double) -> HomeReadingTone {
         guard remaining.isFinite else { return .neutral }
         if remaining == 0 { return .critical }
-        if remaining > 0, remaining <= 20 { return .warning }
+        if remaining > 0, remaining <= RemainingPercentText.lowRemainingThreshold { return .warning }
         return .neutral
     }
 
@@ -578,15 +578,15 @@ enum HomeInterfaceFormatting {
                 if basis != .current {
                     // `Last known` sits on its own line above the value, so the value never truncates.
                     let reason = basis == .authentication ? "Sign-in required" : "Stale reading"
-                    let spoken = "\(scope), Last known \(percentText(remaining)) left. \(exact). \(reason)."
-                    return HomeReadingLine(preface: preface(window) + ["Last known"], primary: "\(percentText(remaining)) left",
+                    let spoken = "\(scope), Last known \(RemainingPercentText.format(remaining)) left. \(exact). \(reason)."
+                    return HomeReadingLine(preface: preface(window) + ["Last known"], primary: "\(RemainingPercentText.format(remaining)) left",
                                            secondary: schedule, tertiary: nil, tone: .neutral,
                                            accessibilityLabel: spoken, toolTip: spoken)
                 }
                 // The table draws the state word on its own line, so the percentage and the word both stay whole.
                 let pace = role == .weekly ? QuotaPace(window: window, now: now) : nil
                 let spoken = "\(scope), \(remainingText(remaining)), \(exact)" + (pace.map { ". \(paceSentence($0))" } ?? "")
-                return HomeReadingLine(preface: preface(window), primary: "\(percentText(remaining)) left", secondary: schedule,
+                return HomeReadingLine(preface: preface(window), primary: "\(RemainingPercentText.format(remaining)) left", secondary: schedule,
                                        tertiary: pace.map { paceText($0.verdict) },
                                        tone: tone(for: remaining), accessibilityLabel: spoken, toolTip: spoken)
             })
@@ -752,7 +752,7 @@ enum HomeInterfaceFormatting {
         case .unavailable: return "Unavailable"
         case .absent: return "Unknown"
         case .historical, .authentication:
-            if let remaining = remainingPercent(window) { return "Last known \(percentText(remaining)) left" }
+            if let remaining = remainingPercent(window) { return "Last known \(RemainingPercentText.format(remaining)) left" }
             return "Unknown"
         case .current:
             guard let remaining = remainingPercent(window) else { return "Unknown" }

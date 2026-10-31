@@ -274,8 +274,8 @@ enum HomeForecastModel {
             parts.append("no history in this range")
         }
         if let projection, let start = projection.points.first, let end = projection.points.last {
-            parts.append("\(HomeInterfaceFormatting.percentText(start.remainingPercent)) now, "
-                + "projected \(HomeInterfaceFormatting.percentText(end.remainingPercent)) at the end of the \(range.title.lowercased())")
+            parts.append("\(RemainingPercentText.format(start.remainingPercent)) now, "
+                + "projected \(RemainingPercentText.format(end.remainingPercent)) at the end of the \(range.title.lowercased())")
         }
         return parts.joined(separator: "; ")
     }

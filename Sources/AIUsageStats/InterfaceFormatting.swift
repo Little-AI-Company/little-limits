@@ -32,7 +32,7 @@ enum InterfaceFormatting {
     static func remaining(_ window: UsageWindow) -> String {
         if window.isActive == false { return "Inactive" }
         guard let used = window.utilizationPercent, used.isFinite else { return "Unavailable" }
-        return "\(UsageFormatting.percentage(max(0, 100 - used))) left"
+        return "\(RemainingPercentText.format(max(0, 100 - used))) left"
     }
 
     /// Remaining quota with the Home status word: `Low` or `Limit reached`.

@@ -29,7 +29,7 @@ public enum AccountQuotaSummary: Sendable, Equatable {
               let used = limiting.utilizationPercent else { self = .unknown; return }
         let remaining = 100 - used
         self = .available(remainingPercent: remaining,
-                          severity: remaining > 20 ? .normal : remaining >= 10 ? .warning : .critical,
+                          severity: remaining > RemainingPercentText.lowRemainingThreshold ? .normal : remaining >= 10 ? .warning : .critical,
                           windowTitle: limiting.title)
     }
 

@@ -464,9 +464,12 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         switch summary {
         case let .available(remaining, _, windowTitle):
             let window = snapshot?.currentWindows.first(where: { $0.title == windowTitle }).map(InterfaceFormatting.usageTitle) ?? windowTitle
-            var value = "\(Self.remainingText(remaining)) left"
-            if remaining <= 0 { value += ", Limit reached"; indicator = .limitReached }
-            else if remaining <= 20 { value += ", Low"; indicator = .low }
+            var value = "\(RemainingPercentText.format(remaining)) left"
+            switch HomeInterfaceFormatting.tone(for: remaining) {
+            case .critical: value += ", Limit reached"; indicator = .limitReached
+            case .warning: value += ", Low"; indicator = .low
+            case .neutral: break
+            }
             text = "\(value) · \(window)"
             state = "\(value). Lowest remaining current quota: \(window)."
         case .unknown:
@@ -507,14 +510,6 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             $0.id != profile.id && InterfaceFormatting.accountIdentity($0).caseInsensitiveCompare(identity) == .orderedSame
         }
         return shared ? "\(InterfaceFormatting.provider(profile.provider)) · \(identity)" : identity
-    }
-
-    private static func remainingText(_ remaining: Double) -> String {
-        if remaining == remaining.rounded() { return String(format: "%.0f%%", remaining) }
-        // Keep the displayed side of each status boundary accurate after rounding.
-        if remaining > 20, remaining < 20.1 { return ">20%" }
-        if remaining > 0, remaining < 0.1 { return "<0.1%" }
-        return String(format: "%.1f%%", remaining)
     }
 
     private static func shortTime(_ date: Date) -> String {

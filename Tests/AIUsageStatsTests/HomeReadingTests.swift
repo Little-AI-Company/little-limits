@@ -194,6 +194,14 @@ func calendarEventsLeadWithTheResetTimeAndShowTheModelOfAScopedWindow() throws {
     #expect(homeLines(row.earned)[0].isQuiet)
 }
 
+@Test(arguments: [(0.0, "0%", HomeReadingTone.critical), (0.04, "<0.1%", .warning), (0.4, "0.4%", .warning),
+                  (19.96, "20%", .warning), (20.0, "20%", .warning), (20.04, ">20%", .neutral), (100.0, "100%", .neutral),
+                  (Double.nan, "Unknown", .neutral)])
+func remainingPercentTextNeverRoundsAcrossZeroOrTheLowThreshold(_ remaining: Double, _ text: String, _ tone: HomeReadingTone) {
+    #expect(RemainingPercentText.format(remaining) == text)
+    #expect(HomeInterfaceFormatting.tone(for: remaining) == tone)
+}
+
 @Test(arguments: [(299.0, false), (300.0, true)])
 func readingIsOutdatedFromTheFreshnessLimit(_ age: TimeInterval, _ outdated: Bool) {
     let snapshot = AccountSnapshot(profileID: homeReadingProfile.id, fetchedAt: homeReadingNow.addingTimeInterval(-age),

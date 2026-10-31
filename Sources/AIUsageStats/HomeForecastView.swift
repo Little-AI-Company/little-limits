@@ -221,6 +221,6 @@ struct HomeForecastChart: View {
     }
 
     private func valueText(_ remaining: Double, model: HomeForecastChartModel) -> String {
-        "\(HomeInterfaceFormatting.percentText(remaining)) of \(Int(model.capacityPercent))% left"
+        "\(RemainingPercentText.format(remaining)) of \(Int(model.capacityPercent))% left"
     }
 }
