@@ -93,12 +93,9 @@ protocol ClaudeCredentialStore: Sendable {
 enum ClaudeKeychainAccess {
     private static let lock = NSLock()
 
-    static func perform<Value>(allowInteraction: Bool, _ operation: () throws -> Value) throws -> Value {
+    static func withPromptsSuppressed<Value>(unless allowInteraction: Bool, _ operation: () throws -> Value) throws -> Value {
         try lock.withLock {
             guard !allowInteraction else { return try operation() }
-            // This store uses the file-based Keychain. LAContext alone does not
-            // suppress its ACL dialogs. Serialize the brief process-local setting
-            // with every store operation, including explicitly interactive ones.
             var previous = DarwinBoolean(false)
             guard SecKeychainGetUserInteractionAllowed(&previous) == errSecSuccess,
                   SecKeychainSetUserInteractionAllowed(false) == errSecSuccess else {
@@ -135,7 +132,7 @@ struct ClaudeKeychainStore: ClaudeCredentialStore {
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
-        let status = try ClaudeKeychainAccess.perform(allowInteraction: allowInteraction) {
+        let status = try ClaudeKeychainAccess.withPromptsSuppressed(unless: allowInteraction) {
             SecItemCopyMatching(query as CFDictionary, &result)
         }
         if status == errSecItemNotFound { return nil }
@@ -152,7 +149,7 @@ struct ClaudeKeychainStore: ClaudeCredentialStore {
         let data = try JSONEncoder().encode(credentials)
         let query = query(accountID: accountID, allowInteraction: allowInteraction)
         let changes = [kSecValueData as String: data]
-        let status = try ClaudeKeychainAccess.perform(allowInteraction: allowInteraction) {
+        let status = try ClaudeKeychainAccess.withPromptsSuppressed(unless: allowInteraction) {
             let status = SecItemUpdate(query as CFDictionary, changes as CFDictionary)
             guard status == errSecItemNotFound else { return status }
             var entry = query
@@ -166,7 +163,7 @@ struct ClaudeKeychainStore: ClaudeCredentialStore {
     }
 
     func remove(accountID: UUID, allowInteraction: Bool) throws {
-        let status = try ClaudeKeychainAccess.perform(allowInteraction: allowInteraction) {
+        let status = try ClaudeKeychainAccess.withPromptsSuppressed(unless: allowInteraction) {
             SecItemDelete(query(accountID: accountID, allowInteraction: allowInteraction) as CFDictionary)
         }
         guard status == errSecSuccess || status == errSecItemNotFound else {
