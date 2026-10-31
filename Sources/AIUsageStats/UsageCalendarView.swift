@@ -211,7 +211,7 @@ private struct CalendarSnapshot: Equatable {
     var calendarIdentifier: Calendar.Identifier
 }
 
-private enum CalendarMetrics {
+enum CalendarMetrics {
     static let headerHeight: CGFloat = 24
     /// The badge sits inside the date band with 4 pt above and below, clear of the week's grid line.
     static let todayDiameter: CGFloat = 22
@@ -222,6 +222,8 @@ private enum CalendarMetrics {
     static let monthRow: CGFloat = 72
     static let eventGap: CGFloat = 4
     static let dateBand: CGFloat = 30
+    static let revealMinimum = headerHeight + monthRow
+    static let revealTopMargin: CGFloat = 8
 }
 
 @MainActor

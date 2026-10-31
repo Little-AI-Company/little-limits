@@ -721,11 +721,9 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         let heading = calendarTitle.convert(calendarTitle.bounds, to: document)
         let calendarFrame = calendarView.convert(calendarView.bounds, to: document)
         let shown = visible.intersection(calendarFrame).height
-        // The 24 pt weekday header and one 72 pt month row. A lower row alone does not count: the period and
-        // weekday context are above it.
-        if heading.minY >= visible.minY, shown >= min(calendarFrame.height, 96) { return }
+        if heading.minY >= visible.minY, shown >= min(calendarFrame.height, CalendarMetrics.revealMinimum) { return }
         var target = clip.bounds
-        target.origin.y = heading.minY - 8 - insets.top
+        target.origin.y = heading.minY - CalendarMetrics.revealTopMargin - insets.top
         target = clip.constrainBoundsRect(target)
         clip.scroll(to: target.origin)
         scroll.reflectScrolledClipView(clip)
