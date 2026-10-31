@@ -18,6 +18,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private var platformControllers: [UUID: ClaudePlatformViewController] = [:]
     private var claudeSignIn: ClaudeSignInWindowController?
     private var accountsLoaded = false
+    private var statusItemPlacement: CheckedContinuation<Bool, Never>?
+    private var statusItemPlacementTimer: Timer?
+    private static let statusItemPlacementDeadline: TimeInterval = 2
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppIconChoice(defaults: .standard).apply()
@@ -58,9 +61,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             if CommandLine.arguments.contains("--show-settings") { showSettings(nil) }
             if CommandLine.arguments.contains("--show-about") { showAbout(nil) }
             if CommandLine.arguments.contains("--show-menu") || CommandLine.arguments.contains("--show-panel") {
-                // Let AppKit finish placing the status item before opening the real menu.
-                try? await Task.sleep(for: .milliseconds(200))
-                showStatusMenu()
+                if await statusItemPlaced() {
+                    showStatusMenu()
+                } else {
+                    FileHandle.standardError.write(Data("Little Limits: the status item is not visible, so the menu was not opened.\n".utf8))
+                }
             }
         }
     }
@@ -173,6 +178,37 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private func showStatusMenu() {
         guard let button = statusItem?.button else { return }
         statusMenu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
+    }
+
+    private func statusItemPlaced() async -> Bool {
+        guard statusItemPlacement == nil, let window = statusItem?.button?.window else { return false }
+        if window.occlusionState.contains(.visible) { return true }
+        return await withCheckedContinuation { continuation in
+            statusItemPlacement = continuation
+            NotificationCenter.default.addObserver(self, selector: #selector(statusItemWindowOcclusionChanged(_:)),
+                                                   name: NSWindow.didChangeOcclusionStateNotification, object: window)
+            statusItemPlacementTimer = Timer.scheduledTimer(timeInterval: Self.statusItemPlacementDeadline, target: self,
+                                                            selector: #selector(statusItemPlacementTimedOut(_:)),
+                                                            userInfo: nil, repeats: false)
+        }
+    }
+
+    @objc private func statusItemWindowOcclusionChanged(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window.occlusionState.contains(.visible) else { return }
+        finishStatusItemPlacement(placed: true)
+    }
+
+    @objc private func statusItemPlacementTimedOut(_ timer: Timer) {
+        finishStatusItemPlacement(placed: false)
+    }
+
+    private func finishStatusItemPlacement(placed: Bool) {
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didChangeOcclusionStateNotification, object: nil)
+        statusItemPlacementTimer?.invalidate()
+        statusItemPlacementTimer = nil
+        let placement = statusItemPlacement
+        statusItemPlacement = nil
+        placement?.resume(returning: placed)
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
