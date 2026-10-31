@@ -3,11 +3,6 @@
 # There are no pull requests or branches in this repository; this script is
 # how every change lands.
 #
-#   scripts/push_main.sh [--package] [--squash "<subject>"] [--no-swift "<why>"]
-#   scripts/push_main.sh --revert <sha> [--reason "<text>"]
-#   scripts/push_main.sh --verify [--package]     # check HEAD, push nothing
-#   scripts/push_main.sh --skip-checks "<why>"    # push without running any check
-#
 # It fetches origin/main, rebases the one commit ahead of it onto it, and checks
 # that exact commit:
 #
@@ -73,7 +68,12 @@ CAP="${PUSH_MAIN_CHECK_TIMEOUT:-600}"
 GRACE="${PUSH_MAIN_REMOTE_GRACE:-30}"
 
 usage() {
-  sed -n '6,9p' "$0" | sed 's/^# \{0,1\}//' >&2
+  cat >&2 <<'USAGE'
+  scripts/push_main.sh [--package] [--squash "<subject>"] [--no-swift "<why>"]
+  scripts/push_main.sh --revert <sha> [--reason "<text>"]
+  scripts/push_main.sh --verify [--package]     # check HEAD, push nothing
+  scripts/push_main.sh --skip-checks "<why>"    # push without running any check
+USAGE
   exit 1
 }
 say() { echo "push-main: $*" >&2; }
