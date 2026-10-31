@@ -22,7 +22,7 @@ These are not planned:
 
 For a bug fix, reproduce the problem on a named baseline commit before editing. Record repeatable steps, expected behavior, observed result, and the source location of the cause. Only claim a baseline failure when you observed it. State the gap when you lack that evidence.
 
-Define an observable result and choose the cheapest reliable check that could detect a failure. Reuse existing tests. Add a test when it protects a meaningful contract, catches a plausible regression, or exercises a consequential failure. Do not mirror implementation or create extra production layers to support tests.
+Define an observable result and choose the cheapest reliable check that could detect a failure. Reuse existing tests. Do not add unit or integration tests unless a maintainer asks for one; an end-to-end check of the packaged app is the way to add coverage. Do not add code comments. Do not mirror implementation or create extra production layers to support tests.
 
 Follow the [build instructions](README.md#build-from-source) and [verification requirements](AGENTS.md#verification). Preserve type safety and Swift concurrency checking. Update relevant docs in the same commit. For native UI, exercise the packaged app and record the actual views and interactions checked. Review screenshots for private account information before sharing.
 

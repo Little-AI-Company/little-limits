@@ -2,6 +2,43 @@
 
 Build a small native macOS menu bar utility for viewing Claude and Codex account usage. Keep the product focused, fast, and understandable without developer knowledge.
 
+## Rules for every agent
+
+These rules apply to every agent and every person here. Parker set them on 2026-10-31 for the move to trunk-based development. When one of them conflicts with an older sentence anywhere in this repository, this section wins.
+
+### Code
+
+- Build what the task needs now, not what it might need later.
+- When you delete code, leave no trace of it: no shim, re-export, `_unused` rename, "removed" note, or test that it stays deleted.
+- Leave style to the formatter and linter. Do not reflow, reorder or rename lines the change does not need.
+- To learn how a dependency behaves, read its source (`.build/checkouts/` after `swift package resolve`, or a clone under `/tmp`), not only its docs.
+- Scratch files go in `/tmp` or `.build/`, never beside the code.
+- Never edit a policy, baseline, threshold or allowance to silence a failing check.
+
+### Tests
+
+- Never write a new unit test or integration test unless the person explicitly asked for that test. You may write a new end-to-end or system-level test: the packaged `.app` opened and the changed control exercised, as the [Verification](#verification) table says.
+- Integration tests stay only where they were asked for: the `UsageHistory` parsers against redacted real logs, `UsageCore` account separation, and `UsageHistoryStore` database compatibility.
+- When a change breaks an existing test, fix it, or delete it when an end-to-end check or the compiler already covers what it checked. Delete a test that no longer protects anything.
+- A test checks behaviour through the code's real interface. It never reads source, docs or config text to look for words, and never asserts wiring, call order or that the code mirrors the implementation.
+- A test never waits on a timer or a sleep. It waits on the event, a completion signal or a test clock. A flaky test is fixed or deleted, never retried or given a longer timeout.
+- Doubles only at a process, network, clock, filesystem or keychain boundary. A fake fails on a call the test did not configure.
+- Pass `now`, the calendar, the locale, and the time zone as inputs. CI runs in UTC with a 12-hour US clock; a test that depends on the Mac's settings passes locally and fails there.
+- CI does not open the app. For layout, focus, and menu-bar behavior, the packaged app is the check.
+
+### Comments
+
+- Never add a new code comment. Put the why in a name, a type, a test, the commit message, or `docs/adr/` for a decision. Existing comments are being removed; never add one back to a file you touch.
+- A directive a tool reads is not a comment and stays: the shebang, `# shellcheck disable`, `// MARK:`, and `// swift-tools-version`.
+- Doc comments (Swift `///`, shell file headers) are comments too. A script that prints its own header as `--help` gets a `usage()` heredoc instead.
+
+### Shared company rules
+
+- A plan, crit, review, research or decision is a page on the HQ wiki (`Little-AI-Company/little-worker-hq`: `wiki/`, `explorations/`, or the MCP server at `https://hq.thelittleworker.com/mcp`), never a Claude Doc or artifact as the record. A follow-up found during work becomes a roadmap item there the same day.
+- Plain words. No em dashes. No jargon without saying what it is. One thing has one name everywhere.
+- Never on your own: send, publish, post, spend, change a price, release to users or contact anyone. Agents propose; Parker acts. Never print or commit a key, token or credential.
+- Heavy work (an app build, `swift test`, packaging) runs on the M4, never by hand on Parker's M1. From a cloud session, reach the M4 with little-worker's `scripts/m4-ssh-setup.sh`, then `ssh m4`.
+
 ## Repository map
 
 - `Package.swift`: Swift 6, macOS 14 minimum, Swift Package Manager. Dependencies: GRDB (macOS only) and facebook/zstd, pinned exactly.
@@ -78,14 +115,6 @@ Classify failures before changing code: compiler, assertion, crash, timing, envi
 
 Report exact commands, results, tested revision, skipped checks, and material limits. A build, launch, visual check, and trusted distribution are separate claims. Universal compilation does not establish Intel runtime or minimum-macOS coverage. Put durable evidence in `docs/VALIDATION.md`.
 
-### Tests
-
-- Test a contract or a real failure mode. Do not assert call order, callback wiring, or the implementation. Delete tests that no longer protect anything.
-- Use doubles only at process, network, clock, filesystem, and Keychain boundaries. A fake fails on a call the test did not configure.
-- Pass `now`, the calendar, the locale, and the time zone as inputs. CI runs in UTC with a 12-hour US clock; a test that depends on the Mac's settings passes locally and fails there.
-- Wait on a completion signal, never a sleep. No snapshots, no coverage target.
-- CI does not open the app. For layout, focus, and menu-bar behavior, the packaged app is the check.
-
 ### Data compatibility
 
 Any commit on `main` must be revertible without touching user data.
@@ -96,16 +125,18 @@ Any commit on `main` must be revertible without touching user data.
 
 ## Shipping on main
 
-Work lands on `main`. There are no branches, pull requests, or required checks in this repository (Parker, 2026-10-30). A bad commit costs one revert, and a gate costs every commit its wait, so we revert instead of adding gates. Only Parker changes the `main` ruleset and repository settings.
+Everyone, human or agent, commits straight to `main`. There are no pull requests, branches, stacks, batch landings, release freezes or CI gates (Parker, 2026-10-31). Two people and their agents work here and the product has few users, so a bad commit costs one revert and a gate costs every commit its wait. We revert instead of adding gates.
 
-- One commit, one purpose. Commit on a detached `origin/main`, never on a branch you push. Use a short conventional subject such as `fix: preserve account identity during refresh`; the body says what changed and why.
-- A `feat`, `fix`, or `perf` commit ends with a trailer `Customer-note: <one or two plain sentences>` that says what a person using the app can do now, or `Customer-note: none (<reason>)`. The scopes `release`, `website`, `ci`, `test`, and `repo` need none. The [changelog skill](.agents/skills/changelog/SKILL.md) writes each release from these notes.
-- Read every line of `git show HEAD` before you push. Passing checks do not replace reading it.
-- Push with `scripts/push_main.sh`. It rebases onto `origin/main`, runs `git diff --check` and, when the commit touches Swift, resources, scripts, or the package, the full `swift test` on that exact commit: on this Mac, or on the M4 over `ssh m4` from a cloud session (run little-worker's `scripts/m4-ssh-setup.sh` once). It writes a `Tested:` trailer for each check and the tree it passed on, then pushes `main`, retrying when `main` moved. Add `--package` for UI, lifecycle, resource, or packaging changes. `--verify` checks HEAD and pushes nothing. Exit 2 means a check failed and `main` is unchanged. Only the script writes `Tested:` trailers.
-- Never force-push, amend, or rewrite a pushed commit, and never push `main` any other way.
-- After the push, GitHub Actions builds and tests the commit on a clean macOS image. Nobody waits for it. Whoever pushed a commit that turns `main` red fixes it or reverts it within the hour: `scripts/push_main.sh --revert <sha> --reason "<what broke>"`.
+- One commit, one purpose, landed in the same session that wrote it. Split big work into commits that each stand alone: the stored field first, then the readers, then the writers, then the setting, then the cleanup. A thread never holds more than a few hours of unpushed work.
+- Every commit leaves `main` releasable: no half-wired screen, no stored field without its reader. Unfinished work that must land ships inert, behind a default-off setting; `accounts.json` and the history database stay revertible (see [Data compatibility](#data-compatibility)).
+- Commit on a detached `origin/main` or a worktree of it. Never push a branch. A branch the harness creates for a session stays local.
+- Use `type(scope): summary` subjects (`feat`, `fix`, `perf`, `docs`, `chore`, `refactor`, `test`); the body says what changed and why. A `feat`, `fix`, or `perf` commit ends with a trailer `Customer-note: <one or two plain sentences>` that says what a person using the app can do now, or `Customer-note: none (<reason>)`. The scopes `release`, `website`, `ci`, `test`, and `repo` need none. The [changelog skill](.agents/skills/changelog/SKILL.md) writes each release from these notes.
+- Read every line of the diff before you push. Passing checks do not replace reading it.
+- Push only with `scripts/push_main.sh`. It rebases onto `origin/main`, runs `git diff --check` and, when the commit touches Swift, resources, scripts, or the package, the full `swift test` on that exact commit: on this Mac, or on the M4 over `ssh m4` from a cloud session. `--package` adds packaging for UI, lifecycle, resource, or packaging changes; `--verify` checks HEAD and pushes nothing. It writes a `Tested:` trailer naming the tree that passed, and pushes, retrying when `main` moved. `--no-swift "<why>"` is always allowed and always recorded. Never write a `Tested:` line by hand, never push `main` another way, never force-push, amend or rewrite a pushed commit. See [docs/push-main.md](docs/push-main.md).
+- After the push nobody waits. GitHub Actions (`ci.yml`) builds, packages and tests the commit on macOS 27 until the M4 runs macOS 27. A red `main` is fixed forward or reverted within the hour by whoever pushed it, and by whoever sees it when the author is gone after 30 minutes: `scripts/push_main.sh --revert <sha> --reason "<why>"`. Nobody asks first. A rerun that passes with no code change is a flaky test to fix, not a pass.
 - Native UI still needs the packaged app checked by hand before the push, as the Verification table says. Put evidence in the commit body and `docs/VALIDATION.md`, not in a separate review.
-- Outside contributors cannot push. Their pull requests from forks are read like any other change; a maintainer lands the work with the push script and credits them with a `Co-authored-by:` trailer, then closes the pull request with a link to the commit.
+- Only Parker changes the `main` ruleset (no deletion, no force-push, linear history, no required status) and repository settings.
+- Outside contributors cannot push. A pull request from a fork is read as a proposal, landed as one commit with the push script and a `Co-authored-by:` trailer, then closed with a link to the commit.
 
 Releases follow [docs/RELEASING.md](docs/RELEASING.md). Follow [CONTRIBUTING.md](CONTRIBUTING.md) for evidence and disclosure.
 
