@@ -3,7 +3,6 @@ import Foundation
 public struct UsageOverview: Equatable, Sendable {
     public let accounts: [UsageOverviewAccount]
     public let resetEvents: [UsageResetEvent]
-    /// Weekly totals per provider with at least one account, Claude first.
     public let providers: [ProviderQuotaOverview]
 
     public init(profiles: [AccountProfile], snapshots: [UUID: AccountSnapshot], now: Date = Date()) {
@@ -19,7 +18,6 @@ public struct UsageOverview: Equatable, Sendable {
                                                summary: AccountQuotaSummary(snapshot: snapshot, accountID: profile.id, now: now),
                                                identity: names.identity, shortIdentity: names.shortIdentity)
             accounts.append(account)
-            // Missing percentages remove that window only; a reading that is not current removes the account.
             guard let snapshot, snapshot.isCurrent(at: now) else { continue }
             for window in snapshot.windows {
                 guard let event = Self.resetEvent(account: account, window: window, now: now) else { continue }
@@ -44,7 +42,6 @@ public struct UsageOverview: Equatable, Sendable {
                                remainingPercent: 100 - used, resetsAt: resetsAt)
     }
 
-    /// Short labels stay unique within one provider. A repeated full identity, including a missing or shared saved label, gains an ordinal in profile-identifier order.
     private static func identities(for profiles: [AccountProfile]) -> [UUID: (identity: String, shortIdentity: String)] {
         struct Draft {
             let id: UUID
@@ -181,7 +178,6 @@ public struct UsageCalendarPeriod: Equatable, Sendable {
     public let start: Date
     public let end: Date
 
-    /// Monday-first full weeks. Day steps use the calendar, so daylight-saving midnights stay one local day apart.
     public init(mode: UsageCalendarMode, containing date: Date, calendar: Calendar = .current) {
         var calendar = calendar
         calendar.firstWeekday = 2

@@ -111,7 +111,6 @@ enum ClaudeKeychainAccess {
 }
 
 struct ClaudeKeychainStore: ClaudeCredentialStore {
-    // Keeps the service name from the app's first name, AI Usage Stats, so saved sign-ins stay readable.
     private let service = "AI Usage Stats Claude OAuth"
 
     private func query(accountID: UUID, allowInteraction: Bool) -> [String: Any] {
@@ -228,7 +227,6 @@ struct ClaudeProviderProfile: Decodable, Sendable {
             uuid = try values.decode(UUID.self, forKey: .uuid)
             email = try values.decodeIfPresent(String.self, forKey: .email)
                 ?? values.decodeIfPresent(String.self, forKey: .email_address)
-            // A non-boolean flag must not reject the profile. The plan stays unknown.
             hasClaudeMax = Self.optionalBoolean(values, .has_claude_max)
             hasClaudePro = Self.optionalBoolean(values, .has_claude_pro)
         }
@@ -260,7 +258,6 @@ struct ClaudeProviderProfile: Decodable, Sendable {
     let account: Account
     let organization: Organization?
 
-    /// Team, Max, Pro, or Free from the profile flags already returned by the profile read. Missing or conflicting flags stay unknown.
     var planName: String? {
         if organization?.organizationType?.lowercased() == "claude_team",
            organization?.subscriptionStatus?.lowercased() == "active" {
@@ -288,7 +285,6 @@ struct ClaudeProviderProfile: Decodable, Sendable {
                UUID(uuidString: String(parts[1])) != reportedOrganization {
                 throw UsageError.authenticationRequired("This sign-in belongs to a different Claude organization. Add it as a separate account.")
             }
-            // An omitted organization cannot erase a known binding; account-only bindings remain valid.
             return expected
         }
         return account.uuid.uuidString + (reportedOrganization.map { "/" + $0.uuidString } ?? "")
@@ -348,7 +344,6 @@ struct ClaudeUsageResponse: Decodable, Sendable {
             .sorted { $0.stringValue < $1.stringValue }
             .compactMap { key in
                 if key.stringValue != "five_hour", key.stringValue != "seven_day" {
-                    // Named quota windows have quota fields, unlike seven_day_breakdown metadata.
                     guard let fields = try? values.superDecoder(forKey: key).container(keyedBy: Window.CodingKeys.self),
                           fields.contains(.utilization) || fields.contains(.resets_at) else { return nil }
                 }

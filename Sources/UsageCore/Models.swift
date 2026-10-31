@@ -11,7 +11,6 @@ public enum AccountSource: String, Codable, Sendable {
     case claudeCLI
     case claudeOAuth
     case codexCLI
-    /// Reads the Codex CLI's own login on this Mac (`$CODEX_HOME` or `~/.codex`) without changing it.
     case codexDefaultLogin
     case manual
     case demo
@@ -38,13 +37,11 @@ public struct AccountProfile: Identifiable, Codable, Sendable, Equatable {
     }
 }
 
-/// A signed-in Codex CLI login on this Mac that a new account can read without signing in again.
 public struct CodexCurrentLogin: Sendable, Equatable {
     public let email: String?
     public let home: URL
 }
 
-/// How waiting for a Terminal `codex login` ended.
 public enum CodexSignInOutcome: Sendable, Equatable {
     case signedIn(AccountSnapshot)
     case timedOut

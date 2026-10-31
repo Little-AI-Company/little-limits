@@ -68,7 +68,6 @@ public enum DemoFixtures {
         }
     }
 
-    /// One fresh Claude reading, one Claude sign-in request, one Codex reading from 18 minutes ago, and one Codex account with no reading.
     public static var homeReadingStateSnapshots: [AccountSnapshot] {
         let now = Date()
         let demonstrations = homeDemonstrations(at: now)
@@ -108,7 +107,6 @@ public enum DemoFixtures {
         let planName: String
     }
 
-    /// Durations are representative fixture data. A parser does not invent a duration the provider did not report.
     private static func homeDemonstrations(at now: Date) -> [HomeDemonstration] {
         let hour: TimeInterval = 3_600
         let day: TimeInterval = 86_400

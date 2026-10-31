@@ -37,7 +37,6 @@ public struct ClaudeQuotaCapture: Codable, Sendable {
         if let data = try? Data(contentsOf: url),
            let existing = try? JSONDecoder().decode(Self.self, from: data),
            existing.profileID == profileID, existing.windows == windows {
-            // Claude may repaint its status line without receiving new quota data.
             return
         }
         try UsagePaths.writePrivate(JSONEncoder().encode(self), to: url)
@@ -108,7 +107,6 @@ enum ClaudeCaptureInstallation {
         guard let settings = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any] else {
             throw UsageError.invalidConfiguration("Claude settings could not be checked after removing the old connection.")
         }
-        // A changed wrapper with our command still runs the helper. Keep its restoration record.
         return (settings["statusLine"] as? [String: Any])?["command"] as? String != installation.installedCommand
     }
 }

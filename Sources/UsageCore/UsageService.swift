@@ -22,7 +22,6 @@ public actor UsageService {
     private var completingClaudeAuthorizations: Set<UUID> = []
     private var claudeCaptureCleanupMessages: [UUID: String] = [:]
 
-    /// `codexDefaultHomeURL` replaces the Codex CLI's own home (`$CODEX_HOME`, else `~/.codex`) for tests.
     public init(directory: URL = UsagePaths.applicationSupport, captureHelperURL: URL? = nil,
                 codexExecutableURL: URL? = nil, codexDefaultHomeURL: URL? = nil) {
         storage = ConfigurationStorage(directory: directory)
@@ -90,7 +89,6 @@ public actor UsageService {
         }
         let code = try pending.authorization.code(from: callbackURL)
         let token = try await claudeClient.exchange(pending.authorization, code: code)
-        // Validate the requested scopes before using the returned token for any account request.
         _ = try token.credentials(identity: "")
         try validateClaudeAuthorization(pending, requestID: requestID)
         let providerProfile = try await claudeClient.profile(accessToken: token.access_token)
@@ -116,13 +114,11 @@ public actor UsageService {
                                      providerEmail: reportedEmail?.isEmpty == false ? reportedEmail : verifiedEmail)
         let credentials = try token.credentials(identity: identity)
         let previousCredentials = try claudeCredentials.read(accountID: profile.id, allowInteraction: true)
-        // Keep the generated identifier durable before writing an otherwise unlisted grant.
         if previousCredentials == nil { try storage.markClaudeCredentialForCleanup(accountID: profile.id) }
         try claudeCredentials.save(credentials, accountID: profile.id, allowInteraction: true)
         var updated = configuration
         if let index = updated.profiles.firstIndex(where: { $0.id == profile.id }) { updated.profiles[index] = profile }
         else { updated.profiles.append(profile) }
-        // A legacy capture cannot establish the identity of this new authorization.
         if existing?.providerAccountID == nil {
             updated.snapshots.removeAll { $0.profileID == profile.id }
         }
@@ -286,9 +282,6 @@ public actor UsageService {
         return profile
     }
 
-    /// The Codex CLI's default login on this Mac, when it is signed in with ChatGPT and no account reads it yet.
-    /// Uses only `account/read`, which neither reads usage nor renews tokens. Returns nil when the home is absent,
-    /// so detection never creates it.
     public func currentCodexLogin() async -> CodexCurrentLogin? {
         guard (try? ensureLoaded()) != nil else { return nil }
         let home = codexDefaultHome
@@ -303,8 +296,6 @@ public actor UsageService {
         return CodexCurrentLogin(email: email?.isEmpty == false ? email : nil, home: home)
     }
 
-    /// Adds an account that reads the Codex CLI's default login in place. Nothing is written to that home; its
-    /// credentials stay where the CLI stored them. Refuses a login whose Codex account is already listed.
     public func createCodexProfileUsingCurrentLogin(label: String) async throws -> AccountProfile {
         try ensureLoaded()
         let name = try validLabel(label)
@@ -317,7 +308,6 @@ public actor UsageService {
         let result = try await Task.detached(priority: .userInitiated) {
             try client.fetch(profileID: identifier, expectedIdentity: nil)
         }.value
-        // Check after the read: another change may have listed this login meanwhile.
         guard let identity = result.accountIdentity else {
             throw UsageError.providerFailure("The Codex CLI did not provide an account identifier. Update the CLI and try again.")
         }
@@ -336,8 +326,6 @@ public actor UsageService {
         return profile
     }
 
-    /// Waits for a Terminal `codex login` into this account's own home, then refreshes the account once.
-    /// Polls `account/read` every `interval`. Stops on sign-in, cancellation, removal of the account, or `timeout`.
     public func awaitCodexSignIn(id: UUID, interval: Duration = .seconds(3),
                                  timeout: Duration = .seconds(600)) async -> CodexSignInOutcome {
         let clock = ContinuousClock()
@@ -367,7 +355,6 @@ public actor UsageService {
               profile.provider == .codex, let sourcePath = profile.sourcePath else {
             throw UsageError.invalidConfiguration("Select a Codex profile first.")
         }
-        // Signing in here would replace the CLI's own login, which monitoring must never change.
         guard profile.source != .codexDefaultLogin else {
             throw UsageError.invalidConfiguration("This account reads the Codex CLI login on this Mac. To sign in again, run codex login in Terminal, then choose Refresh All.")
         }
@@ -383,7 +370,6 @@ public actor UsageService {
         configuration = updated
     }
 
-    /// Moves the account so it sits at `index` in the saved order, counted after the account is taken out of the list.
     public func moveAccount(id: UUID, toIndex index: Int) throws {
         try ensureLoaded()
         guard let source = configuration.profiles.firstIndex(where: { $0.id == id }) else { return }
@@ -430,7 +416,6 @@ public actor UsageService {
         }
         configuration = updated
         try? FileManager.default.removeItem(at: UsagePaths.captureURL(profileID: id, directory: storage.directory))
-        // Codex homes and their CLI-owned Keychain entries are retained. Removing a row must not revoke a login.
     }
 
     public func setManualCredit(accountID: UUID, credit: CreditBalance) throws {
@@ -525,7 +510,6 @@ public actor UsageService {
             let explanation = metadataErrors.isEmpty ? "Monthly grant details are unavailable." : metadataErrors.joined(separator: " ")
             if invoices == nil, let previous = configuration.consoleObservations[accountID.uuidString], previous.organizationID == connectedOrganization {
                 for credit in previous.credits where credit.id.hasPrefix("monthly_grant_") && !credits.contains(where: { $0.id == credit.id }) {
-                    // A cached monthly classification must not also appear as a fresh generic grant.
                     let genericID = "console_grant_" + credit.id.dropFirst("monthly_grant_".count)
                     credits.removeAll { $0.id == genericID }
                     credits.append(CreditBalance(id: credit.id, title: credit.title, amount: credit.amount, unit: credit.unit,
@@ -613,7 +597,6 @@ public actor UsageService {
                 let result = try await Task.detached(priority: .utility) {
                     try client.fetch(profileID: profile.id, expectedIdentity: profile.providerAccountID)
                 }.value
-                // Refuse to bind a second account to a listed Codex identity. Already bound profiles keep working.
                 if profile.providerAccountID == nil, let identity = result.accountIdentity, configuration.profiles.contains(where: {
                     $0.id != profile.id && $0.provider == .codex && $0.providerAccountID == identity
                 }) {
@@ -669,7 +652,6 @@ public actor UsageService {
                 throw UsageError.authenticationRequired("Claude access expired. Reconnect this account.")
             }
             credentials.refreshPending = true
-            // Persist before rotation: a crash or uncertain response must never retry this refresh token.
             try claudeCredentials.save(credentials, accountID: profile.id, allowInteraction: false)
             let pendingCredentials = credentials
             do {

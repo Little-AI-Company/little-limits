@@ -16,7 +16,6 @@ public enum UsageError: Error, LocalizedError, Sendable {
 }
 
 public enum UsagePaths {
-    /// Keeps the folder name from the app's first name, AI Usage Stats, so existing history and the installed helper stay in place.
     public static var applicationSupport: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/AI Usage Stats", isDirectory: true)

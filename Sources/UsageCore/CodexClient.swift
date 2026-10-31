@@ -92,7 +92,6 @@ public struct CodexUsageResponse: Decodable, Sendable {
                                            windowDurationMinutes: window.windowDurationMins))
             }
         }
-        // The subscription credit object appears on each meter; keep one balance.
         if let balance = groups.compactMap({ $0.1.credits }).first {
             let amount = balance.balance.flatMap { Decimal(string: $0, locale: Locale(identifier: "en_US_POSIX")) }
             let detail = balance.unlimited == true ? "Provider reports unlimited credits." : nil
@@ -125,7 +124,6 @@ public struct CodexUsageResponse: Decodable, Sendable {
         return displayPlanName(explicit)
     }
 
-    /// Maps a provider plan code to its name. Unrecognized codes stay as reported. Capacity multipliers are not inferred.
     private static func displayPlanName(_ raw: String?) -> String? {
         guard let raw else { return nil }
         switch raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
@@ -161,7 +159,6 @@ enum CodexExecutable {
         for directory in directories {
             let entry = URL(fileURLWithPath: directory).appendingPathComponent("codex").resolvingSymlinksInPath()
             if isNativeExecutable(entry) { return entry }
-            // Official npm installs expose a Node entry point. Use their shipped native executable instead.
             guard entry.lastPathComponent == "codex.js", entry.deletingLastPathComponent().lastPathComponent == "bin" else { continue }
             let package = entry.deletingLastPathComponent().deletingLastPathComponent()
             guard package.lastPathComponent == "codex", package.deletingLastPathComponent().lastPathComponent == "@openai" else { continue }
@@ -202,10 +199,8 @@ struct CodexClient: Sendable {
     var timeout: TimeInterval = 25
 
     struct Result: Sendable { let snapshot: AccountSnapshot; let accountIdentity: String?; let accountEmail: String? }
-    /// The `account/read` answer. Only a ChatGPT login reports subscription usage.
     struct Login: Sendable { let isSignedIn: Bool; let email: String?; let planType: String? }
 
-    /// Reads the login state of this Codex home without reading usage or renewing tokens.
     func readLogin() throws -> Login {
         let connection = try CodexConnection(executable: executable, home: home, timeout: timeout)
         defer { connection.close() }
@@ -235,7 +230,6 @@ struct CodexClient: Sendable {
         struct ClientInfo: Encodable {
             let name = "ai_usage_stats"
             let title = "Little Limits"
-            // The packaged app's version; tests and `swift run` have no bundle version.
             let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development"
         }
         struct Initialize: Encodable { let clientInfo = ClientInfo() }
@@ -307,7 +301,6 @@ private final class CodexConnection {
         try send(CodexRequest(id: identifier, method: method, params: parameters))
         while true {
             let line = try readLine()
-            // Decode only the response matching our request. Notifications have another shape.
             guard let header = try? JSONDecoder().decode(CodexResponseIdentifier.self, from: line) else { continue }
             guard header.id == identifier, header.method == nil else { continue }
             let envelope = try JSONDecoder().decode(CodexResponseEnvelope<Response>.self, from: line)

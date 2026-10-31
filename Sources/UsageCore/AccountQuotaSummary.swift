@@ -33,8 +33,6 @@ public enum AccountQuotaSummary: Sendable, Equatable {
                           windowTitle: limiting.title)
     }
 
-    /// The general windows of a snapshot: the 5-hour session and the general weekly window. A model-scoped limit
-    /// restricts only that model, so it never drives a provider-wide number. Unmeasured windows are skipped.
     private static func generalMeasuredWindows(_ snapshot: AccountSnapshot) -> [(remainingPercent: Double, title: String)] {
         snapshot.currentWindows.compactMap { window in
             guard window.role == .session || window.role == .weekly,
@@ -43,17 +41,11 @@ public enum AccountQuotaSummary: Sendable, Equatable {
         }
     }
 
-    /// The account and window with the lowest remaining quota among current readings, counting only each
-    /// account's general 5-hour and weekly windows, in stored account order for ties. Stale, sign-in-required,
-    /// unavailable, inactive, and unknown readings, and accounts with no measured general window, are excluded,
-    /// so an old value never stands for the provider. Nil when no account has a current reading.
     public static func lowestCurrent(accountIDs: [UUID], snapshots: [UUID: AccountSnapshot], now: Date = Date())
         -> (accountID: UUID, remainingPercent: Double, windowTitle: String)? {
         var lowest: (accountID: UUID, remainingPercent: Double, windowTitle: String)?
         for id in accountIDs {
             guard let snapshot = snapshots[id] else { continue }
-            // Judge freshness on the general windows only, so an unmeasured or past model limit cannot make the
-            // account's provider-wide reading look outdated.
             guard case .available = AccountQuotaSummary(snapshot: snapshot.generalWindowsOnly, accountID: id, now: now) else { continue }
             for window in generalMeasuredWindows(snapshot) where window.remainingPercent < lowest?.remainingPercent ?? .infinity {
                 lowest = (id, window.remainingPercent, window.title)
@@ -62,10 +54,6 @@ public enum AccountQuotaSummary: Sendable, Equatable {
         return lowest
     }
 
-    /// The account and window with the lowest last known remaining quota among general windows, from any reading
-    /// with a trustworthy observation time: stale, sign-in required, older than five minutes, or past a reset.
-    /// The status item shows it, with its stale mark, only when `lowestCurrent` is nil. Nil when no account was
-    /// ever measured.
     public static func lowestLastKnown(accountIDs: [UUID], snapshots: [UUID: AccountSnapshot], now: Date = Date())
         -> (accountID: UUID, remainingPercent: Double, windowTitle: String)? {
         var lowest: (accountID: UUID, remainingPercent: Double, windowTitle: String)?
@@ -81,8 +69,6 @@ public enum AccountQuotaSummary: Sendable, Equatable {
 }
 
 extension AccountSnapshot {
-    /// The same reading with only the 5-hour and general weekly windows. The status item judges freshness and
-    /// numbers on these, so an unmeasured or past model limit does not make the provider-wide reading outdated.
     public var generalWindowsOnly: AccountSnapshot {
         AccountSnapshot(profileID: profileID, fetchedAt: fetchedAt,
                         windows: windows.filter { $0.role == .session || $0.role == .weekly }, state: state)

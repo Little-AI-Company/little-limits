@@ -1,6 +1,5 @@
 import Foundation
 
-/// Console data is fetched by an isolated browser session. This type never owns provider cookies.
 public enum ClaudeConsoleClient {
     public static let accountURL = URL(string: "https://platform.claude.com/api/account")!
 
@@ -69,7 +68,6 @@ public struct ClaudeConsoleMoney: Sendable, Equatable {
     public let amount: Decimal
 }
 
-/// Plan linkage identifies eligibility and allowance, not an individual promotional grant's origin.
 public struct ClaudeConsoleLinkState: Sendable, Equatable {
     public enum Status: String, Decodable, Sendable { case eligible, linked, ineligible }
 
@@ -120,7 +118,6 @@ public struct ClaudeConsoleLinkState: Sendable, Equatable {
     }
 }
 
-/// Invoice names establish origin; balances and expiry still come from the matching promotional tranche.
 public struct ClaudeConsoleInvoices: Sendable, Equatable {
     public let organizationID: String
     private let monthlyReferences: [ConsoleMonthlyGrantReference]
@@ -188,7 +185,6 @@ public struct ClaudeConsoleGrant: Sendable, Equatable, Identifiable {
 public struct ClaudeConsoleBalance: Sendable, Equatable {
     public let organizationID: String
     public let observedAt: Date
-    /// The raw aggregate is retained separately. It must not be labeled as a monthly allowance.
     public let totalBalance: ClaudeConsoleMoney?
     public let purchasedBalances: [ClaudeConsoleMoney]
     public let promotionalGrants: [ClaudeConsoleGrant]
@@ -243,7 +239,6 @@ public struct ClaudeConsoleBalance: Sendable, Equatable {
             let remaining = try ConsoleCurrency.majorUnits(tranche.remaining_amount_minor_units, currency: currency)
             purchased[currency, default: 0] += remaining
         }
-        // A present empty purchased list establishes a zero purchased balance for the main currency.
         if response.tranches != nil, purchased.isEmpty, let total { purchased[total.currency] = 0 }
         var grants: [ClaudeConsoleGrant] = []
         var identifiers: Set<String> = []
@@ -272,7 +267,6 @@ public struct ClaudeConsoleBalance: Sendable, Equatable {
         return Self(organizationID: identifier, observedAt: observedAt, totalBalance: total,
                     purchasedBalances: purchased.keys.sorted().map { ClaudeConsoleMoney(currency: $0, amount: purchased[$0]!) },
                     promotionalGrants: grants, linkState: linkState,
-                    // Array positions cannot identify the same grant across refreshes.
                     monthlyGrantNames: (invoices?.matchingMonthlyGrants(grants) ?? [:])
                         .filter { providerGrantIdentifiers.contains($0.key) })
     }

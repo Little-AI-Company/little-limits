@@ -1,7 +1,6 @@
 import Foundation
 import UsageCore
 
-// Claude calls this helper with its status-line input. Only quota fields are saved.
 let arguments = CommandLine.arguments
 func value(after name: String) -> String? {
     guard let index = arguments.firstIndex(of: name), arguments.indices.contains(index + 1) else { return nil }
