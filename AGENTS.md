@@ -56,6 +56,7 @@ These rules apply to every agent and every person here. Parker set them on 2026-
 - `docs/VALIDATION.md`, `docs/RELEASING.md`: observed evidence, limits, and packaging procedure.
 - `CHANGELOG.md`, `website/changelog/`: what changed in each public release. Write them with the [changelog skill](.agents/skills/changelog/SKILL.md).
 - `docs/research/`: source research and provider limitations.
+- `docs/adr/`: decision records, one file per decision.
 - `docs/USAGE-ANALYTICS-PLAN.md`: usage history features, settled decisions, and the work split.
 - `docs/VERIFICATION-AND-DELIVERY-PLAN.md`: the test, data, and revert rules and where they came from. Its pull request flow ended on 2026-10-30.
 
@@ -122,7 +123,7 @@ Any commit on `main` must be revertible without touching user data.
 
 - `accounts.json`: add a field as optional and decode it with `decodeIfPresent`. Never rename or remove a stored key.
 - A new case in a stored enum (`Provider`, `AccountSource`, `SnapshotState`, `CreditUnit`, `CreditSource`) makes an older build unable to read `accounts.json`. Ship the reader in a release before any build writes the case.
-- History database: add columns as nullable or with a default, and never change the meaning of an existing column. An older build opens a newer database and still writes to it. The database is derived from local logs, so a migration may clear it to force a reread.
+- History database: add columns as nullable or with a default, and never change the meaning of an existing column. An older build opens a newer database and still writes to it. The database is derived from local logs, so a migration may clear it to force a reread. [ADR 0001](docs/adr/0001-history-database-rereads.md) records the migrations and reread rules.
 - Raise `CommandClassifier.version` whenever a classification rule changes. Stored command rows keep the version that produced them, and a row whose source log is gone is never reclassified.
 - Preferences keep their stored values; never rename a stored raw value. The stored icon choice (`AppIconChoice`) keeps the raw value `enamel` for Paper, the bundle icon's name before the Little Limits artwork, and a missing or unknown value reads as Paper. `MenuBarAccountIDs` lists the accounts with their own menu bar number. The first version stored hidden accounts under `MenuBarHiddenAccountIDs` instead; the app converts that key once against the loaded accounts, so accounts added later are not chosen, and then removes it.
 
