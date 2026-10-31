@@ -97,8 +97,14 @@ extension AccountSnapshot {
     /// can judge each window by its own reset. `.stale` is never fresh: a failed refresh keeps the previous
     /// observation time and marks the reading stale, so the state cannot show that the values were confirmed.
     func isFresh(at now: Date) -> Bool {
-        guard state == .available, let fetchedAt, fetchedAt <= now else { return false }
-        return now.timeIntervalSince(fetchedAt) < 300
+        guard state == .available, let fetchedAt else { return false }
+        return Self.isObservationCurrent(fetchedAt, now: now)
+    }
+
+    public static let freshnessLimit: TimeInterval = 300
+
+    public static func isObservationCurrent(_ observedAt: Date, now: Date) -> Bool {
+        observedAt <= now && now.timeIntervalSince(observedAt) < freshnessLimit
     }
 }
 

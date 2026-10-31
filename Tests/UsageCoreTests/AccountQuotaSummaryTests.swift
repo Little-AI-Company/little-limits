@@ -64,6 +64,24 @@ func quotaSummaryPreservesUnknownCurrentValues(_ percent: Double?) {
                                 accountID: accountID, now: observationDate) == .unknown)
 }
 
+@Test(arguments: [(299.0, true), (300.0, false)])
+func freshnessLimitAgreesAcrossSummaryOverviewAndSavedSnapshot(_ age: TimeInterval, _ current: Bool) async throws {
+    let now = observationDate.addingTimeInterval(age)
+    let snapshot = quotaSnapshot([quotaWindow("quota", used: 40)])
+    #expect((AccountQuotaSummary(snapshot: snapshot, accountID: accountID, now: now) == .stale) == !current)
+    #expect(snapshot.isFresh(at: now) == current)
+
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("AccountQuotaSummaryTests-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    var configuration = StoredConfiguration()
+    configuration.profiles = [AccountProfile(id: accountID, provider: .codex, label: "Account", source: .demo)]
+    configuration.snapshots = [snapshot]
+    try ConfigurationStorage(directory: directory).save(configuration)
+    let service = UsageService(directory: directory)
+    _ = try await service.load()
+    #expect(await service.snapshot(for: accountID, now: now)?.state == (current ? .available : .stale))
+}
+
 @Test func quotaSummaryExpiresAtFiveMinutesAndAtReset() {
     let snapshot = quotaSnapshot([quotaWindow("quota", used: 40)])
     #expect(AccountQuotaSummary(snapshot: snapshot, accountID: accountID,

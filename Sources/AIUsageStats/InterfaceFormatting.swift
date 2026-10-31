@@ -59,7 +59,7 @@ enum InterfaceFormatting {
         case .authenticationRequired, .stale: return true
         case .unavailable: return false
         case .available:
-            return snapshot.fetchedAt.map { now.timeIntervalSince($0) >= 300 || $0 > now } == true
+            return snapshot.fetchedAt.map { !AccountSnapshot.isObservationCurrent($0, now: now) } == true
                 || snapshot.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
         }
     }
@@ -163,7 +163,7 @@ enum InterfaceFormatting {
         else if balance.doesNotExpire { parts.append("No expiry") }
         else if balance.amount != nil { parts.append("Expiry unknown") }
         if balance.source != .manual,
-           balance.status == "Stale" || balance.asOf.map({ now.timeIntervalSince($0) >= 300 }) == true {
+           balance.status == "Stale" || balance.asOf.map({ !AccountSnapshot.isObservationCurrent($0, now: now) }) == true {
             parts.append("Stale")
         }
         return parts.joined(separator: " · ")
@@ -191,7 +191,7 @@ enum InterfaceFormatting {
         let timing = nextExpiry.map { "Next expires in \(UsageFormatting.countdown(to: $0, now: now))" } ?? ""
         let observed = summary?.asOf ?? now
         let grantExpired = grants.contains { $0.expiresAt.map { $0 > observed && $0 <= now } == true }
-        let oldObservation = summary?.asOf.map { now.timeIntervalSince($0) >= 300 || $0 > now } == true
+        let oldObservation = summary?.asOf.map { !AccountSnapshot.isObservationCurrent($0, now: now) } == true
         let value = grantExpired || oldObservation || !isCurrentReading ? "Last known \(count) available" : "\(count) available"
         var lines = ["Earned resets: \(value)"]
         for grant in grants.sorted(by: { ($0.expiresAt ?? .distantFuture) < ($1.expiresAt ?? .distantFuture) }) {

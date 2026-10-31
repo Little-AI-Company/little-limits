@@ -194,6 +194,13 @@ func calendarEventsLeadWithTheResetTimeAndShowTheModelOfAScopedWindow() throws {
     #expect(homeLines(row.earned)[0].isQuiet)
 }
 
+@Test(arguments: [(299.0, false), (300.0, true)])
+func readingIsOutdatedFromTheFreshnessLimit(_ age: TimeInterval, _ outdated: Bool) {
+    let snapshot = AccountSnapshot(profileID: homeReadingProfile.id, fetchedAt: homeReadingNow.addingTimeInterval(-age),
+                                   windows: [homeWindow(used: 30)], state: .available)
+    #expect(InterfaceFormatting.isOutdated(snapshot, now: homeReadingNow) == outdated)
+}
+
 private let homeReadingNow = Date(timeIntervalSince1970: 1_700_000_000)
 private let homeReadingProfile = AccountProfile(provider: .codex, label: "Work", source: .demo,
                                                 providerEmail: "work@example.invalid")

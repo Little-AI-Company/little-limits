@@ -216,11 +216,11 @@ final class ApplicationModel {
         onChange?()
     }
 
-    func refreshIfNeeded() {
+    func refreshIfNeeded(now: Date = Date()) {
         guard profiles.contains(where: { profile in
             guard let snapshot = snapshots[profile.id], let date = snapshot.fetchedAt else { return true }
-            if snapshot.currentWindows.contains(where: { $0.resetsAt.map { $0 <= Date() } == true }) { return true }
-            return Date().timeIntervalSince(date) >= 300
+            if snapshot.currentWindows.contains(where: { $0.resetsAt.map { $0 <= now } == true }) { return true }
+            return !AccountSnapshot.isObservationCurrent(date, now: now)
         }) else { return }
         refresh()
     }

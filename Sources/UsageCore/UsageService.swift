@@ -21,7 +21,6 @@ public actor UsageService {
     private var claudeAuthorizations: [UUID: PendingClaudeAuthorization] = [:]
     private var completingClaudeAuthorizations: Set<UUID> = []
     private var claudeCaptureCleanupMessages: [UUID: String] = [:]
-    private let freshnessInterval: TimeInterval = 300
 
     /// `codexDefaultHomeURL` replaces the Codex CLI's own home (`$CODEX_HOME`, else `~/.codex`) for tests.
     public init(directory: URL = UsagePaths.applicationSupport, captureHelperURL: URL? = nil,
@@ -222,7 +221,7 @@ public actor UsageService {
         }
     }
 
-    public func snapshot(for accountID: UUID) -> AccountSnapshot? {
+    public func snapshot(for accountID: UUID, now: Date = Date()) -> AccountSnapshot? {
         guard let profile = configuration.profiles.first(where: { $0.id == accountID }) else { return nil }
         let saved = configuration.snapshots.first(where: { $0.profileID == accountID })
             ?? AccountSnapshot(profileID: accountID, state: .unavailable,
@@ -231,8 +230,8 @@ public actor UsageService {
                                   ? "Refresh to read this Claude account's current quota."
                                   : "Reconnect this account in your browser to read usage immediately.")
                                : "Sign in to this Codex profile, then refresh.")
-        let stale = saved.state == .available && (saved.fetchedAt.map { Date().timeIntervalSince($0) > freshnessInterval } == true
-                                                 || saved.currentWindows.contains { $0.resetsAt.map { $0 <= Date() } == true })
+        let stale = saved.state == .available && (saved.fetchedAt.map { !AccountSnapshot.isObservationCurrent($0, now: now) } == true
+                                                 || saved.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true })
         return decorate(saved, state: stale ? .stale : saved.state,
                         detail: stale ? "Saved usage is old or a reported reset has passed. Refresh to check again." : saved.detail)
     }
@@ -603,8 +602,9 @@ public actor UsageService {
                     throw UsageError.providerFailure("The captured usage belongs to another profile.")
                 }
                 let currentWindows = capture.windows.filter { $0.isActive != false }
-                let stale = Date().timeIntervalSince(capture.observedAt) > freshnessInterval
-                    || currentWindows.contains { $0.resetsAt.map { $0 <= Date() } == true }
+                let now = Date()
+                let stale = !AccountSnapshot.isObservationCurrent(capture.observedAt, now: now)
+                    || currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
                 observed = AccountSnapshot(profileID: profile.id, fetchedAt: capture.observedAt,
                                            windows: capture.windows, state: currentWindows.isEmpty ? .unavailable : stale ? .stale : .available,
                                            detail: currentWindows.isEmpty

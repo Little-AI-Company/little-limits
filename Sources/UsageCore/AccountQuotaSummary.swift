@@ -21,8 +21,7 @@ public enum AccountQuotaSummary: Sendable, Equatable {
         let windows = snapshot.currentWindows
         guard !snapshot.windows.isEmpty else { self = .unknown; return }
         guard let fetchedAt = snapshot.fetchedAt, fetchedAt <= now else { self = .unknown; return }
-        // Match the five-minute freshness limit in the account detail and refresh checks.
-        guard now.timeIntervalSince(fetchedAt) < 300,
+        guard AccountSnapshot.isObservationCurrent(fetchedAt, now: now),
               !windows.contains(where: { $0.resetsAt.map { $0 <= now } == true }) else { self = .stale; return }
         guard !windows.isEmpty else { self = .inactive; return }
         guard windows.allSatisfy({ $0.utilizationPercent?.isFinite == true }),

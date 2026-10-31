@@ -471,7 +471,7 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
             case .unavailable: message = "Unavailable. Choose Refresh Account to try again."
             case .stale: message = staleMessage(snapshot.fetchedAt)
             case .available:
-                if snapshot.fetchedAt.map({ now.timeIntervalSince($0) >= 300 }) == true
+                if snapshot.fetchedAt.map({ !AccountSnapshot.isObservationCurrent($0, now: now) }) == true
                     || snapshot.currentWindows.contains(where: { $0.resetsAt.map { $0 <= now } == true }) {
                     message = staleMessage(snapshot.fetchedAt)
                 } else if snapshot.fetchedAt == nil && !snapshot.windows.isEmpty { message = "Last read time unknown." }

@@ -146,7 +146,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let stale = model.profiles.contains {
             guard model.menuBarAccountIDs?.contains($0.id) ?? true, let snapshot = model.snapshots[$0.id] else { return false }
             return snapshot.state == .stale || snapshot.state == .authenticationRequired
-                || snapshot.fetchedAt.map { now.timeIntervalSince($0) >= 300 } == true
+                || snapshot.fetchedAt.map { !AccountSnapshot.isObservationCurrent($0, now: now) } == true
                 || snapshot.generalWindowsOnly.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
         }
         let summary = StatusItemSummary(readings: readings, isStale: stale || showsLastKnown)

@@ -526,7 +526,7 @@ enum HomeInterfaceFormatting {
         }
         guard let fetchedAt = snapshot.fetchedAt, fetchedAt <= now else { return .absent }
         if snapshot.state == .stale { return .historical }
-        if now.timeIntervalSince(fetchedAt) >= 300 { return .historical }
+        if !AccountSnapshot.isObservationCurrent(fetchedAt, now: now) { return .historical }
         if snapshot.currentWindows.contains(where: { $0.resetsAt.map { $0 <= now } == true }) {
             return .historical
         }
@@ -664,9 +664,9 @@ enum HomeInterfaceFormatting {
             return true
         }
         let passedExpiry = reportedGrants.compactMap(\.expiresAt).filter { $0 > observed && $0 <= now }.min()
-        let stale = now.timeIntervalSince(observed) >= 300 || aggregate.status?.lowercased() == "stale" || passedExpiry != nil
+        let stale = !AccountSnapshot.isObservationCurrent(observed, now: now) || aggregate.status?.lowercased() == "stale" || passedExpiry != nil
         let grants = reportedGrants.filter { credit in
-            stale || credit.asOf.map { now.timeIntervalSince($0) < 300 } == true
+            stale || credit.asOf.map { AccountSnapshot.isObservationCurrent($0, now: now) } == true
         }
         let earliest = passedExpiry ?? grants.compactMap(\.expiresAt).filter { $0 > now }.min()
         let count = wholeNumber(amount)

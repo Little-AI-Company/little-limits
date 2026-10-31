@@ -157,7 +157,7 @@ enum UsageMenu {
             if let date = credit.expiresAt { timing.append(InterfaceFormatting.compactExpiry(date, now: now)) }
             else if credit.doesNotExpire { timing.append("No expiry") }
             if credit.source != .manual,
-               credit.asOf.map({ now.timeIntervalSince($0) >= 300 }) == true || credit.status == "Stale" {
+               credit.asOf.map({ !AccountSnapshot.isObservationCurrent($0, now: now) }) == true || credit.status == "Stale" {
                 timing.append("Stale" + (credit.asOf.map { " · last read \($0.formatted(date: .omitted, time: .shortened))" } ?? ""))
             }
             metrics.append(Metric(label: InterfaceFormatting.compactCreditTitle(credit), value: InterfaceFormatting.credit(credit),
@@ -186,7 +186,7 @@ enum UsageMenu {
         // A grant that expired after the count was observed, or an old or future observation, makes the count
         // historical, as on Home.
         let grantExpired = grants.contains { $0.expiresAt.map { $0 <= now } == true }
-        let oldObservation = summary?.asOf.map { now.timeIntervalSince($0) >= 300 || $0 > now } == true
+        let oldObservation = summary?.asOf.map { !AccountSnapshot.isObservationCurrent($0, now: now) } == true
         let value = grantExpired || oldObservation ? "Last known \(count) available" : "\(count) available"
         var lines = ["Earned resets: \(value)"]
         for grant in grants.sorted(by: { ($0.expiresAt ?? .distantFuture) < ($1.expiresAt ?? .distantFuture) }) {
