@@ -36,9 +36,13 @@ UNIVERSAL=1 scripts/package_app.sh
 
 Universal compilation targets Apple silicon and Intel. Record actual runtime checks separately; do not infer Intel or macOS 14 execution from a successful build on another machine.
 
+SwiftPM's default build system records SDK 14.0 in the binary, which makes current macOS keep the pre-Liquid Glass appearance. `package_app.sh` passes `-platform_version macos 14.0 <sdk>` to the linker, so the binary records the SDK it was built with (evidence in the `vtool -show-build` rows of [VALIDATION.md](VALIDATION.md)).
+
 ## App icons
 
-The bundle icon is Paper. Night is an alternate that the running app shows when the person picks it in Settings; see [NATIVE-DESIGN.md](NATIVE-DESIGN.md). Every master is a 1024 px PNG already placed on the macOS icon grid by `scripts/compose_icon_master.sh` from the full-bleed artwork in `assets/branding/app-icon/artwork/`. See [assets/branding/README.md](../assets/branding/README.md) for how the artwork was made.
+The bundle icon is Paper. Night is an alternate that the running app shows when the person picks it in Settings; see [NATIVE-DESIGN.md](NATIVE-DESIGN.md). macOS has no alternate-icon API for Mac apps, and a custom Finder icon on the bundle breaks its code signature. So Night replaces Paper only in the running app (the Dock and app switcher while a window is open, and About Little Limits). Finder and Launchpad keep Paper. The About panel shows the bundle icon unless it is given one, so the app passes the icon chosen in Settings.
+
+Every master is a 1024 px PNG already placed on the macOS icon grid by `scripts/compose_icon_master.sh` from the full-bleed artwork in `assets/branding/app-icon/artwork/`. See [assets/branding/README.md](../assets/branding/README.md) for how the artwork was made.
 
 | Output | 64 to 1024 px slots | 16 and 32 px slots |
 | --- | --- | --- |
@@ -62,6 +66,8 @@ Verify both images and attribution in the actual app bundle, not only `.build`. 
 
 ## Capture helper location
 
+The helper never fails the status-line command: a capture error is dropped, and the original command still runs with the same input.
+
 Connecting a Claude profile copies the packaged helper to `~/Library/Application Support/AI Usage Stats/UsageCapture`. The folder keeps the app's earlier name so existing capture configurations keep working. Its status-line configuration points to this stable copy, so moving the app bundle does not break capture. Keep that helper while a Claude configuration uses it.
 
 Removing a Claude profile restores its original status-line setting only when the current setting still matches the app's installed command and options. Later user edits are preserved. Existing settings-file symlinks are preserved during installation and restoration.
@@ -82,7 +88,7 @@ Public releases are signed with the Developer ID Application certificate of RAPT
      OUTPUT_DIRECTORY="$PWD/dist/release" scripts/package_app.sh
    ```
 
-   `DISTRIBUTION=1` refuses any identity other than Developer ID Application and signs the helper and app with `--options runtime --timestamp`. With `NOTARY_PROFILE` set to a saved `xcrun notarytool store-credentials` profile, the script also notarizes, staples, validates, and runs a Gatekeeper assessment before creating the final archive.
+   `DISTRIBUTION=1` refuses any identity other than Developer ID Application and signs the helper and app with `--options runtime --timestamp`, because notarization requires both a hardened runtime and a secure timestamp. Local builds sign with `--timestamp=none`. With `NOTARY_PROFILE` set to a saved `xcrun notarytool store-credentials` profile, the script also notarizes, staples, validates, and runs a Gatekeeper assessment before creating the final archive.
 
 2. Without a notary profile, notarize through the Xcode account that is signed in to the release team. Wrap the signed app, upload it, and export the notarized app after Apple accepts it:
 
@@ -94,6 +100,8 @@ Public releases are signed with the Developer ID Application certificate of RAPT
    ```
 
    `build/XcodeUploadOptions.plist` (ignored) sets `method` `developer-id`, `destination` `upload`, `signingStyle` `manual`, `signingCertificate` to the certificate SHA-1, and `teamID` `9FL5S77YVH`. Upload success is not acceptance; `-exportNotarizedApp` succeeds only after Apple accepts the submission.
+
+   `create_xcode_archive.sh` wraps an app that is already packaged in an `.xcarchive`. Xcode's archive layout is not a published API, so keep the wrapper small and confirm `xcodebuild -exportArchive` after every Xcode update.
 
 3. Verify the notarized app before archiving it: `codesign --verify --deep --strict`, `xcrun stapler validate`, `spctl --assess --type execute --verbose=2`, and `lipo -archs` on both executables. Create the release archive with `ditto -c -k --keepParent` and record its `shasum -a 256`.
 

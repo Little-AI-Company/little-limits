@@ -78,6 +78,7 @@ These rules apply to every agent and every person here. Parker set them on 2026-
 - Never display, log, commit, or include credentials in screenshots. Never change the user's Claude or Codex login as a side effect of monitoring.
 - Keep monitoring read-only. Do not purchase credits, alter plans, consume model requests as a probe, or add telemetry.
 - Usage history reads local Claude Code and Codex logs and stores derived facts only. Never store or log prompts, replies, tool output, file contents, or command text. Logs never leave the Mac.
+- `ProjectKey` is a salted 64-bit FNV-1a hash of the full working-directory path. It groups records by project without storing folder names, and keeps apart folders whose last component is the same. It does not protect against someone who holds both the database and its salt and guesses paths.
 
 ## Native interface
 
@@ -122,6 +123,8 @@ Any commit on `main` must be revertible without touching user data.
 - `accounts.json`: add a field as optional and decode it with `decodeIfPresent`. Never rename or remove a stored key.
 - A new case in a stored enum (`Provider`, `AccountSource`, `SnapshotState`, `CreditUnit`, `CreditSource`) makes an older build unable to read `accounts.json`. Ship the reader in a release before any build writes the case.
 - History database: add columns as nullable or with a default, and never change the meaning of an existing column. An older build opens a newer database and still writes to it. The database is derived from local logs, so a migration may clear it to force a reread.
+- Raise `CommandClassifier.version` whenever a classification rule changes. Stored command rows keep the version that produced them, and a row whose source log is gone is never reclassified.
+- Preferences keep their stored values; never rename a stored raw value. The stored icon choice (`AppIconChoice`) keeps the raw value `enamel` for Paper, the bundle icon's name before the Little Limits artwork, and a missing or unknown value reads as Paper. `MenuBarAccountIDs` lists the accounts with their own menu bar number. The first version stored hidden accounts under `MenuBarHiddenAccountIDs` instead; the app converts that key once against the loaded accounts, so accounts added later are not chosen, and then removes it.
 
 ## Shipping on main
 

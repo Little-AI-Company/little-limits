@@ -39,6 +39,9 @@ Observed on 2026-10-14 on the development Mac. Only key names and counts were in
 - No quota percentages in normal entries. Claude quota history must come from the app's own readings.
 - Account identity appears in only some sessions.
 - Claude Code deletes logs after 30 days by default.
+- Meta lines (`isMeta`) and compaction summaries (`isCompactSummary`) are written as user lines; neither is a prompt or a tool result.
+- Local errors are logged as assistant messages with model `<synthetic>`. They are not API responses.
+- A read resumes at the human prompt that opened the last turn, so the last response is emitted again complete: its tokens, tool results, request time and turn.
 
 ### Codex
 
@@ -51,6 +54,13 @@ Observed on 2026-10-14 on the development Mac. Only key names and counts were in
 - Quota history: `token_count.payload.rate_limits.primary.used_percent`, `resets_at`, `window_minutes`. This allows a Codex quota backfill.
 - Account identity: `session_meta.payload.creator_account_id`.
 - A file only grows while active. Later it can be moved or compressed, so a byte offset is valid only until then.
+- A line is `{"timestamp", "type", "payload"}`. An event is either its own `type` or `event_msg` with the event name in `payload.type`.
+- A response is the assistant output after a prompt or tool result. Older subagent logs write completed `AgentMessage` and `Reasoning` items instead. Usage can follow the tool results. `token_usage_record` wins over `token_count`, and a repeated `token_count` is ignored.
+- A response's id is the conversation id plus the offset of its first output line, so a moved, compressed or resumed file gives the same ids. The conversation UUID comes from `rollout-<time>-<conversation id>.jsonl`, and a reverted thread's `_<rollout id>` suffix keeps it. File names start with their time, so name order is close to observation order.
+- The model and turn id are written once per turn, so a read resumes at the first line of the last response's turn. The account (`session_meta.payload.creator_account_id`) and the working directory are written only in the first line, so a read starting later passes the first line first. A forked session copies its parent's `session_meta` later in the file; only the first one counts.
+- `command` is an argument list (`[zsh, -lc, script]`). `source: user_shell` marks a `/shell` command run by the user, which is not a model command.
+- A message from another agent can arrive while a response streams; it is input for the next response.
+- Codex timestamps a line when it saves it, and logs have no command start line. A command belongs to the response active at completion time minus duration, with `commandStartTolerance` (1 s) of slack. Reset times for one window can differ by seconds; a real reset moves them by hours.
 
 ### Platform
 
