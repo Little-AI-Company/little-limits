@@ -36,7 +36,6 @@ func tinyPositiveQuotaIsDifferentFromMeasuredExhaustion() {
     #expect(homeLines(small.session)[0].accessibilityLabel.contains("left, Low"))
     #expect(!homeLines(small.session)[0].primary.hasPrefix("0%"))
     let zero = homeRow(windows: [homeWindow(used: 100)])
-    // The table draws the state word on its own line; the spoken label keeps the whole phrase.
     #expect(homeLines(zero.session)[0].primary == "0% left")
     #expect(homeLines(zero.session)[0].tone == .critical)
     #expect(homeLines(zero.session)[0].accessibilityLabel.contains("0% left, Limit reached"))

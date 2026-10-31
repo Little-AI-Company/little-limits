@@ -21,7 +21,6 @@ struct ClassifierCase: Sendable, CustomTestStringConvertible {
 }
 
 let classifierCases: [ClassifierCase] = [
-    // Quoted text and here-document bodies are never programs.
     ClassifierCase("quoted pipeline is an argument", #"echo "grep | head""#, sequence: "echo"),
     ClassifierCase("single-quoted pipeline is an argument", "echo 'rg x | tail' && ls", sequence: "echo && ls"),
     ClassifierCase("grep inside a here-document body", "cat <<EOF > notes.txt\ngrep -r x . | head\nEOF",
@@ -31,7 +30,6 @@ let classifierCases: [ClassifierCase] = [
                    gitCommit: true, sequence: "git commit"),
     ClassifierCase("escaped pipe is an argument", #"echo a \| grep b"#, sequence: "echo"),
 
-    // Search programs and pipes.
     ClassifierCase("ripgrep piped into head", "rg -n x | head -20", search: .ripgrep, pipesIntoHeadOrTail: true,
                    sequence: "rg | head"),
     ClassifierCase("grep piped into tail", "grep -rn 'TODO' Sources | tail -5", search: .grep,
@@ -45,7 +43,6 @@ let classifierCases: [ClassifierCase] = [
     ClassifierCase("pipe after a loop", "for f in *.swift; do\n  grep -c x \"$f\"\ndone | head",
                    search: .grep, pipesIntoHeadOrTail: true, sequence: "grep | head"),
 
-    // Only a file search counts. A search that reads a pipe, here-string, or here-document is a filter.
     ClassifierCase("grep filtering git output", "git log | grep x", sequence: "git log | grep"),
     ClassifierCase("grep filtering cat output", "cat f | grep x", sequence: "cat | grep"),
     ClassifierCase("grep reading a here-string", #"grep x <<< "$v""#, sequence: "grep <<<string"),
@@ -67,7 +64,6 @@ let classifierCases: [ClassifierCase] = [
     ClassifierCase("piped recursive grep searches the directory", "git log | grep -rn needle", search: .grep,
                    sequence: "git log | grep"),
 
-    // Git.
     ClassifierCase("git status with a directory option", "git -C repo status --short", gitStatus: true,
                    sequence: "git status"),
     ClassifierCase("git status then commit", "git status && git commit -am 'msg'", gitStatus: true,
@@ -77,7 +73,6 @@ let classifierCases: [ClassifierCase] = [
     ClassifierCase("cd before git", "cd ~/src/app && git status", gitStatus: true, sequence: "cd && git status"),
     ClassifierCase("unlisted git subcommand", "git stash pop", sequence: "git"),
 
-    // Wrappers.
     ClassifierCase("assignment, sudo, env, and time are stripped",
                    "FOO=1 sudo -u admin env -i BAR=2 time -p rg x", search: .ripgrep, sequence: "rg"),
     ClassifierCase("allow-listed build tools", "swift build -c release; npm run lint || cargo test --all",
@@ -92,7 +87,6 @@ let classifierCases: [ClassifierCase] = [
     ClassifierCase("conditional keyword", "if grep -q x f; then echo y; fi", search: .grep,
                    sequence: "grep; echo"),
 
-    // Inline Python purposes.
     ClassifierCase("python heredoc that edits a file in place",
                    "python3 - <<'EOF'\np = 'Sources/App.swift'\ns = open(p).read()\nopen(p, 'w').write(s.replace('a', 'b'))\nEOF",
                    interpreter: .python, purpose: .editsFileInPlace, lines: 3, sequence: "python3 <<heredoc"),
@@ -122,7 +116,6 @@ let classifierCases: [ClassifierCase] = [
     ClassifierCase("versioned python through a path", ".venv/bin/python3.12 -c 'print(1)'", interpreter: .python,
                    purpose: .other, lines: 1, sequence: "python3.12"),
 
-    // JavaScript and saved scripts.
     ClassifierCase("node option value is not a script",
                    "node --input-type module --inspect-port 9229 -e 'console.log(1)'",
                    interpreter: .javascript, lines: 1, sequence: "node"),
@@ -141,7 +134,6 @@ let classifierCases: [ClassifierCase] = [
     ClassifierCase("script written then run", "cat > /tmp/x.py <<'EOF'\nprint(1)\nEOF\npython3 /tmp/x.py",
                    savedScript: true, sequence: "cat <<heredoc; python3"),
 
-    // Privacy: arguments, paths, and strings never reach the program sequence.
     ClassifierCase("secret-looking token is dropped",
                    "GITHUB_TOKEN=ghp_abc123SECRET curl -H 'Authorization: Bearer sk-ant-api03-SECRET' https://api.example.com | head",
                    pipesIntoHeadOrTail: true, sequence: "curl | head"),

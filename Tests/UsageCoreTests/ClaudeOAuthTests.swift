@@ -116,7 +116,6 @@ import Testing
                 #expect(try fixture.credentials.read(accountID: profile.id, allowInteraction: false) == credentials)
                 #expect(try JSONDecoder().decode(Settings.self, from: Data(contentsOf: settingsURL)) == edited)
             }
-            // Repairing the saved wrapper allows idempotent maintenance to finish, without a new login.
             let statusLine = try JSONDecoder().decode(Settings.StatusLine.self, from: installation.installedStatusLine)
             try UsagePaths.writePrivate(JSONEncoder().encode(Settings(statusLine: statusLine, theme: "dark")), to: settingsURL)
             _ = try await fixture.service.load()
@@ -309,7 +308,6 @@ func refusedKeychainReadAsksForKeychainPermission(_ status: OSStatus, _ needsPer
     #expect(permissions?.intValue == 0o600)
     try FileManager.default.removeItem(at: accountsURL)
     try UsagePaths.writePrivate(originalConfiguration, to: accountsURL)
-    // A fresh service proves cleanup does not depend on the failed request's memory.
     let restarted = UsageService(directory: fixture.directory, claudeClient: ClaudeOAuthClient(transport: fixture.transport), claudeCredentials: fixture.credentials)
     fixture.credentials.failNextRemoval()
     #expect(try await restarted.load() == [committed])
@@ -376,7 +374,6 @@ func refusedKeychainReadAsksForKeychainPermission(_ status: OSStatus, _ needsPer
     #expect(await fixture.service.pendingManualCredits(for: profile.id) == [oldMonthly])
     #expect(await fixture.service.snapshot(for: profile.id)?.credits.first { $0.id == "api_balance" }?.amount == 5)
     #expect(await fixture.service.snapshot(for: profile.id)?.credits.first { $0.id == "monthly_grant" }?.amount == nil)
-    // A same-identity reconnect preserves independently confirmed financial data.
     try await fixture.service.setClaudeConsoleConnection(accountID: profile.id, organizationID: organization, expectedIdentity: profile.providerAccountID)
     try await fixture.service.updateClaudeConsoleCredits(accountID: profile.id, organizationID: organization, responseData: response, expectedIdentity: profile.providerAccountID)
     let previousSnapshot = try #require(await fixture.service.snapshot(for: profile.id))

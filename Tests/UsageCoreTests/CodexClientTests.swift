@@ -228,7 +228,6 @@ final class CodexClientTests: XCTestCase {
     #expect(await service.snapshot(for: profile.id)?.windows.isEmpty == false)
     #expect(!FileManager.default.fileExists(atPath: fixture.home.appendingPathComponent("config.toml").path))
 
-    // The same login, or another profile signed in to the same Codex account, is refused.
     #expect(await service.currentCodexLogin() == nil)
     await #expect(throws: UsageError.self) { try await service.createCodexProfileUsingCurrentLogin(label: "Again") }
     await #expect(throws: UsageError.self) { try await service.codexLoginCommand(accountID: profile.id) }
@@ -317,11 +316,9 @@ private struct CodexProcessFixture {
 
     """#
 
-    /// `account/read` reports no login.
     static let signedOut = responses.replacingOccurrences(of: #"{"type":"chatgpt","email":"fixture@example.com","planType":"plus"}"#,
                                                           with: "null")
 
-    /// `account/read` reports no login for the first two launches, as while `codex login` is still open.
     static let signedInAfterThirdRead = responses.replacingOccurrences(of: signedInReply, with:
         #"reads=$(($(cat "$CODEX_HOME/reads" 2>/dev/null || echo 0) + 1)); echo "$reads" > "$CODEX_HOME/reads"; "#
         + #"if [ "$reads" -lt 3 ]; then printf '%s\n' '{"id":2,"result":{"account":null,"requiresOpenaiAuth":true}}'; "#

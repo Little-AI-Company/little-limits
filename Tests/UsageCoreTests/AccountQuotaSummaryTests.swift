@@ -124,8 +124,6 @@ func quotaSummaryDoesNotPresentRetainedFailedReadings(_ state: SnapshotState, _ 
     #expect(AccountQuotaSummary.lowestCurrent(accountIDs: [stale, signedOut], snapshots: snapshots, now: observationDate) == nil)
 }
 
-/// MENU-12: with no current reading, the status item falls back to the lowest last known value; `?` remains only
-/// for a provider that was never measured or has no trustworthy observation time.
 @Test func lowestLastKnownUsesOutdatedReadingsAndSkipsUnmeasuredOnes() {
     let stale = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
     let signedOut = UUID(uuidString: "00000000-0000-0000-0000-000000000004")!
@@ -162,7 +160,6 @@ func quotaSummaryDoesNotPresentRetainedFailedReadings(_ state: SnapshotState, _ 
             == .available(remainingPercent: 75, severity: .normal, windowTitle: "seven_day"))
 }
 
-/// MENU-16: a model-scoped limit restricts only that model, so it never drives the status item number.
 @Test func lowestReadingsIgnoreModelScopedWindows() {
     let snapshots = [accountID: quotaSnapshot([
         generalWindow("five_hour", used: 1), generalWindow("seven_day", used: 25), modelWindow(used: 49)

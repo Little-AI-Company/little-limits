@@ -16,7 +16,6 @@ private func segment(_ account: UUID, from start: TimeInterval, to end: TimeInte
     ], containsChangeOnlyReadings: false)
 }
 
-/// A gap in either account is a gap in the pooled line, never a drop to one account's value or a joined line.
 @Test func pooledHistorySumsAccountsAndKeepsEachAccountsGap() {
     let segments = [
         segment(firstAccount, from: -7_200, to: 0, remaining: 60),
@@ -30,12 +29,10 @@ private func segment(_ account: UUID, from start: TimeInterval, to end: TimeInte
     #expect(runs.last?.allSatisfy { $0.remainingPercent == 80 } == true)
     #expect(runs.first?.last?.date == forecastNow.addingTimeInterval(-4_800))
     #expect(runs.last?.first?.date == forecastNow.addingTimeInterval(-3_600))
-    // An account with no history at all leaves no pooled line.
     #expect(HomeForecastModel.pooledHistory(Array(segments.prefix(1)), accounts: [firstAccount, secondAccount],
                                             from: forecastNow.addingTimeInterval(-7_200), to: forecastNow).isEmpty)
 }
 
-/// Only each account's general weekly window joins the forecast, decided by UsageCore's window rules.
 @Test func forecastReadsOnlyTheGeneralWeeklyWindow() {
     let claude = UsageOverviewAccount.forecastAccount(firstAccount, provider: .claude, windows: [
         UsageWindow(id: "seven_day", title: "7 days", utilizationPercent: 10, resetsAt: nil),
@@ -68,8 +65,6 @@ private extension UsageOverviewAccount {
     }
 }
 
-/// History older than the observed span stays out of the chart rows, but its latest reading still gives Updated,
-/// so old history is not reported as none.
 @Test @MainActor
 func databaseHistoryKeepsTheLatestReadingOfAnyAge() async throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

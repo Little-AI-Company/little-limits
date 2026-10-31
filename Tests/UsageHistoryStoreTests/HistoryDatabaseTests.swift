@@ -36,7 +36,6 @@ private func temporaryDatabaseURL() -> URL {
                                             classifierVersion: 1)
     let command = ShellCommandRecord(event: event(succeeded: true), classification: classification, classifierVersion: 1)
 
-    // The first read ends before the response's final usage line and the command's result.
     let database = try HistoryDatabase(url: url)
     try database.pool.write { db in
         try reading.insert(db)
@@ -50,7 +49,6 @@ private func temporaryDatabaseURL() -> URL {
     }
 
     let reopened = try HistoryDatabase(url: url)
-    // A new salt would split every project's history at the reopen.
     #expect(reopened.projectKeySalt == database.projectKeySalt)
     #expect(database.projectKeySalt.count == 16)
     let stored = try reopened.pool.read { db in
@@ -75,8 +73,6 @@ private func temporaryDatabaseURL() -> URL {
     #expect(try database.pool.read(SourceFilePosition.fetchAll) == [second])
 }
 
-/// A v2 database keeps its quota history, gains the index, and forgets its read positions, so every log is read
-/// again with the current Codex command attribution.
 @Test func freshAndPreviousVersionDatabasesMigrateCleanly() throws {
     let freshURL = temporaryDatabaseURL()
     let previousURL = temporaryDatabaseURL()

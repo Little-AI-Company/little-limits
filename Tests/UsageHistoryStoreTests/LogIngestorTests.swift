@@ -4,8 +4,6 @@ import Testing
 import UsageHistory
 @testable import UsageHistoryStore
 
-// Synthetic log lines. Every prompt, command, and account id below is invented.
-
 private func temporaryHome() throws -> URL {
     let home = FileManager.default.temporaryDirectory.appendingPathComponent("LogIngestorTests-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
@@ -17,7 +15,6 @@ private func write(_ lines: [String], to url: URL) throws {
     try Data(lines.map { $0 + "\n" }.joined().utf8).write(to: url)
 }
 
-/// `startSecond` moves every line later, so sessions can overlap in time.
 private func codexSession(account: String, usedPercent: [Int], startSecond: Int = 0) -> [String] {
     func line(_ second: Int, _ type: String, _ payload: String) -> String {
         #"{"timestamp":"2026-10-14T10:00:\#(10 + startSecond + second).000Z","type":"\#(type)","payload":\#(payload)}"#
@@ -63,12 +60,10 @@ private func rowCounts(_ database: HistoryDatabase) throws -> [Int] {
     let ingestor = LogIngestor(database: database, homeDirectory: home)
     let linked = UUID(), firstShared = UUID(), secondShared = UUID()
 
-    // Read before the account is linked: every reading is dropped.
     var summary = await ingestor.ingest(codexAccounts: [])
     #expect(summary.quotaReadingsMatched == 0)
     #expect(try await database.pool.read(QuotaReading.fetchCount) == 0)
 
-    // Linking the account reads the logs again. A Codex account id shared by two app accounts matches neither.
     summary = await ingestor.ingest(codexAccounts: [
         CodexAccountLink(accountID: linked, providerAccountID: "acct-linked"),
         CodexAccountLink(accountID: firstShared, providerAccountID: "acct-shared"),
@@ -79,7 +74,6 @@ private func rowCounts(_ database: HistoryDatabase) throws -> [Int] {
     #expect(summary.quotaReadingsUnmatched == 2)
     let readings = try await database.pool.read(QuotaReading.fetchAll)
     #expect(Set(readings.map(\.accountID)) == [linked])
-    // Only changes are kept: 10, then 20.
     #expect(readings.sorted { $0.observedAt < $1.observedAt }.map(\.usedPercent) == [10, 20])
     #expect(readings.allSatisfy { $0.source == .codexLogBackfill && $0.windowID == "codex_primary" })
 }
@@ -88,7 +82,6 @@ private func rowCounts(_ database: HistoryDatabase) throws -> [Int] {
     let home = try temporaryHome()
     defer { try? FileManager.default.removeItem(at: home) }
     let sessions = home.appendingPathComponent(".codex/sessions/2026/10/14")
-    // The session that started first is read first, but its readings come after the other session's reading.
     try write(codexSession(account: "acct", usedPercent: [10, 20], startSecond: 20),
               to: sessions.appendingPathComponent("rollout-2026-10-14T09-00-00-0199e2a1-0000-7000-8000-000000000001.jsonl"))
     try write(codexSession(account: "acct", usedPercent: [10], startSecond: 1),
@@ -179,14 +172,12 @@ private func usedPercents(_ database: HistoryDatabase) async throws -> [Double] 
     let counts = try rowCounts(database)
     #expect(counts == [2, 3, 3])
 
-    // Folder and user names never reach the database.
     let savedPositions = try await database.pool.read(SourceFilePosition.fetchAll)
     #expect(savedPositions.count == 2 && savedPositions.allSatisfy { !$0.path.contains("/") })
 
     let unchanged = await ingestor.ingest(codexAccounts: accounts)
     #expect(unchanged.filesUnchanged == 2 && unchanged.filesRead == 0)
 
-    // Codex archives a session by moving it; the new path is read from the start.
     let archived = home.appendingPathComponent(".codex/archived_sessions/\(name)")
     try FileManager.default.createDirectory(at: archived.deletingLastPathComponent(), withIntermediateDirectories: true)
     try FileManager.default.moveItem(at: codexFile, to: archived)
@@ -203,8 +194,6 @@ private func usedPercents(_ database: HistoryDatabase) async throws -> [Double] 
     let database = try HistoryDatabase(url: home.appendingPathComponent("history.sqlite"))
     let ingestor = LogIngestor(database: database, homeDirectory: home)
     _ = await ingestor.ingest(codexAccounts: [])
-    // Stand in for an older classifier whose reclassification was interrupted: rows already carry the current
-    // version, but the completed version was never advanced, so their facts may be stale.
     try await database.pool.write { db in
         try db.execute(sql: "UPDATE shellCommand SET searchProgram = 'none'")
         try db.execute(sql: "UPDATE completedClassifierVersion SET version = 0")
@@ -232,7 +221,6 @@ private func usedPercents(_ database: HistoryDatabase) async throws -> [Double] 
         try db.execute(sql: "UPDATE completedClassifierVersion SET version = 0")
     }
 
-    // The log is away while the reclassification completes, then returns unchanged at the same path.
     try FileManager.default.moveItem(at: log, to: parked)
     _ = await ingestor.ingest(codexAccounts: [])
     try FileManager.default.moveItem(at: parked, to: log)
@@ -280,7 +268,6 @@ private func usedPercents(_ database: HistoryDatabase) async throws -> [Double] 
     }
 
     #expect(try database.recordQuotaReadings([reading("five_hour", at: 0, used: 10), reading("seven_day", at: 0, used: 30)]) == 2)
-    // A failed refresh keeps the earlier reading time; an older capture reports an earlier one.
     #expect(try database.recordQuotaReadings([reading("five_hour", at: 0, used: 10), reading("seven_day", at: 0, used: 30)]) == 0)
     #expect(try database.recordQuotaReadings([reading("five_hour", at: -60, used: 5)]) == 0)
     #expect(try database.recordQuotaReadings([reading("five_hour", at: 300, used: 12)]) == 1)

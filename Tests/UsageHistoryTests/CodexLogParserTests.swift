@@ -51,7 +51,6 @@ private func toolResult(_ second: Int) -> String {
     entry(second, "response_item", #"{"type":"custom_tool_call_output","call_id":"call","output":"x"}"#)
 }
 
-/// Codex writes a command as an argument list; `script` becomes `["/bin/zsh", "-lc", script]`.
 private func commandCompleted(_ second: Int, item: String, _ script: String, exitCode: Int) -> String {
     commandCompleted(second, item: item, arguments: #"["/bin/zsh","-lc","\#(script)"]"#, exitCode: exitCode)
 }
@@ -83,7 +82,6 @@ private func offsets(_ lines: [String]) -> [Int64] {
     }
 }
 
-/// Parses `lines` from `start`. A resumed read passes the file's first line first.
 private func parse(_ lines: [String], from start: Int64 = 0) -> LogParseOutput {
     var parser = CodexLogParser(filePath: logPath, projectKeySalt: salt)
     if start > 0 { parser.consume(line: Data(lines[0].utf8), at: 0) }
@@ -125,7 +123,6 @@ private func parse(_ lines: [String], from start: Int64 = 0) -> LogParseOutput {
         commandCompleted(6, item: "exec-1", "rg TODO src", exitCode: 0),
         commandCompleted(7, item: "exec-2", "git status", exitCode: 1),
         toolResult(8),
-        // A command can complete before its response's usage line.
         toolCall(9), commandCompleted(10, item: "exec-3", "ls", exitCode: 0),
         usageRecord(11, output: 20, reasoning: 0), toolResult(12),
         toolCall(13, "shell"), toolCall(13, "shell"), usageRecord(14, output: 20, reasoning: 0),
@@ -174,8 +171,6 @@ private func parse(_ lines: [String], from start: Int64 = 0) -> LogParseOutput {
     #expect(parser.finish().responses.map(\.responseID) == ["\(sessionID):200"])
 }
 
-/// Older subagent logs keep only the final reply as a response item. Each earlier response is a completed
-/// `AgentMessage` or `Reasoning` item followed by `token_count`, and usage can follow a tool result, here a tool search.
 @Test func olderSubagentLogsGiveOneResponsePerUsageLine() {
     let lines = [
         sessionMeta(account: "account-1"), taskStarted(1, "turn-1"), turnContext(1, model: "gpt-5.5"), userPrompt(2),
@@ -195,7 +190,6 @@ private func parse(_ lines: [String], from start: Int64 = 0) -> LogParseOutput {
     #expect(output.responses.allSatisfy { $0.model == "gpt-5.5" })
 }
 
-/// A forked session copies its parent's `session_meta` later in the file.
 @Test func onlyTheFirstSessionMetaSetsTheAccount() {
     let lines = [
         sessionMeta(account: "account-1"),
@@ -243,8 +237,6 @@ private let rateLimitsWithID = #"""
     #expect(parse(failedTurn).resumeByteOffset == Int64(failedTurn.map { $0.utf8.count + 1 }.reduce(0, +)))
 }
 
-/// A command can complete after a later turn starts; it stays with the response that started it. A `/shell`
-/// command run by the user is not a model command.
 @Test func lateCommandsKeepTheirResponseAndUserShellCommandsAreSkipped() {
     func completed(_ second: Int, _ item: String, source: String, seconds: Int) -> String {
         let fields = #""source":"\#(source)","duration":{"secs":\#(seconds),"nanos":0},"exit_code":0"#
@@ -265,9 +257,6 @@ private let rateLimitsWithID = #"""
     #expect(output.commands.map(\.responseID) == output.responses.map(\.responseID))
 }
 
-/// Within a turn, a command belongs to the response that was active when it started, not to a later response that
-/// is active when it completes. A response whose first line is written up to a second after the computed start still
-/// owns the command, because Codex timestamps a line when it saves it.
 @Test func commandsBelongToTheResponseActiveWhenTheyStarted() {
     func completed(_ second: Int, _ item: String, seconds: Int, nanos: Int) -> String {
         let fields = #""duration":{"secs":\#(seconds),"nanos":\#(nanos)},"exit_code":0"#
@@ -277,10 +266,8 @@ private let rateLimitsWithID = #"""
         sessionMeta(account: "account-1"), taskStarted(1, "turn-1"), turnContext(1), userPrompt(2),
         toolCall(3), usageRecord(4, output: 1, reasoning: 0), toolResult(5),
         reasoning(6), usageRecord(7, output: 1, reasoning: 0), toolResult(8),
-        // Started at 4.25, during the first response, and completes during the second.
         completed(9, "exec-1", seconds: 5, nanos: 0),
         toolCall(10), usageRecord(10, output: 1, reasoning: 0),
-        // Started at 10.0, a quarter second before the third response's tool call line.
         completed(12, "exec-2", seconds: 2, nanos: 250_000_000)
     ]
     let output = parse(lines)
@@ -290,14 +277,12 @@ private let rateLimitsWithID = #"""
     #expect(output.commands.map(\.responseID) == [responseIDs[0], responseIDs[2]])
 }
 
-/// In multi-agent sessions a message from another agent is input; hosted image generation is a tool call.
 @Test func agentMessagesAreInputAndImageGenerationIsAToolCall() {
     let lines = [
         sessionMeta(account: "account-1"), taskStarted(1, "turn-1"), turnContext(1),
         entry(2, "response_item", #"{"type":"agent_message","author":"parent","recipient":"child","content":[]}"#),
         entry(3, "response_item", #"{"type":"image_generation_call","id":"image","status":"completed"}"#),
         usageRecord(4, output: 7, reasoning: 0),
-        // A message that arrives while a response streams does not split it.
         reasoning(5), entry(6, "response_item", #"{"type":"agent_message","author":"parent","content":[]}"#),
         assistantReply(7), usageRecord(8, output: 9, reasoning: 0)
     ]
@@ -343,7 +328,6 @@ private let rateLimitsWithID = #"""
         commandCompleted(10, item: "exec-1", "rg needle", exitCode: 0),
         commandCompleted(11, item: "exec-2", "wc -l", exitCode: 0),
         toolResult(12), reasoning(13), assistantReply(14),
-        // Written after the first read.
         usageRecord(15, output: 70, reasoning: 40),
         tokenCount(15, rateLimits: #"{"primary":{"used_percent":8,"window_minutes":300}}"#), taskComplete(16)
     ]
@@ -371,7 +355,6 @@ private let rateLimitsWithID = #"""
     #expect(resumed.resumeByteOffset == turnTwoStart)
 }
 
-/// A prompt that interrupts a turn is written before the next turn starts, so the resume offset moves back to it.
 @Test func resumingKeepsAPromptWrittenBeforeTheTurnStart() {
     let lines = [
         sessionMeta(account: "account-1"),

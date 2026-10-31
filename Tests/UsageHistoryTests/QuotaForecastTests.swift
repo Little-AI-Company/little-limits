@@ -29,14 +29,12 @@ private func isClose(_ value: Double?, _ expected: Double) -> Bool {
     let history = [
         reading(accountA, hoursAgo: 10, used: 20, resetsAt: oldReset),
         reading(accountA, hoursAgo: 8, used: 90, resetsAt: oldReset),
-        // Reset happened 5 hours ago: used fell to 0. That pair is skipped, not counted as a gain or loss.
         reading(accountA, hoursAgo: 4, used: 0, resetsAt: laterReset),
         reading(accountA, hoursAgo: 2, used: 4, resetsAt: laterReset)
     ]
     let drain = try #require(QuotaForecast.drainRate(
         provider: .claude, history: history,
         counted: [CountedQuota(accountID: accountA, remainingPercent: 96, resetsAt: laterReset)], now: now))
-    // (70 + 4) over 2 + 2 covered hours.
     #expect(abs(drain.percentPerHour - 74.0 / 4) < 1e-9)
 }
 
@@ -56,7 +54,6 @@ private func isClose(_ value: Double?, _ expected: Double) -> Bool {
         reading(accountB, hoursAgo: 4, used: 20, resetsAt: laterReset),
         reading(accountB, hoursAgo: 2, used: 60, resetsAt: laterReset)
     ]
-    // B's reading is now stale, so the pooled total loses B's 40% remaining. That drop is not drain.
     let drain = try #require(QuotaForecast.drainRate(
         provider: .claude, history: history,
         counted: [CountedQuota(accountID: accountA, remainingPercent: 88, resetsAt: laterReset)], now: now))
@@ -90,7 +87,6 @@ private func isClose(_ value: Double?, _ expected: Double) -> Bool {
     #expect(short.lookback == hours(6))
     #expect(abs(short.percentPerHour - 1) < 1e-9)
 
-    // A pair starting 30 hours ago is cut at the 24 hour boundary, its increase in proportion.
     let full = try #require(QuotaForecast.drainRate(
         provider: .claude,
         history: [reading(accountA, hoursAgo: 30, used: 0, resetsAt: laterReset),
@@ -112,7 +108,6 @@ private func isClose(_ value: Double?, _ expected: Double) -> Bool {
     #expect(result.drain == nil)
     #expect(result.projection == nil)
 
-    // A measured flat history is a known 0, not unknown.
     let flat = QuotaForecast.drainRate(
         provider: .claude,
         history: [reading(accountA, hoursAgo: 2, used: 20, resetsAt: laterReset),
@@ -141,7 +136,6 @@ private func isClose(_ value: Double?, _ expected: Double) -> Bool {
                    CountedQuota(accountID: accountB, remainingPercent: 10, resetsAt: nil)]
     let projection = QuotaForecast.project(counted: counted, percentPerHour: 2, now: now, horizon: .oneDay)
     #expect(projection.resets == [QuotaResetEvent(accountID: accountA, date: resetA, gainPercent: 90)])
-    // 20 - 11 = 9 at the reset, plus 90 gives 99; then 99 / 2 = 49.5 hours more, beyond one day.
     #expect(abs(projection.points[6].remainingPercent - 98) < 1e-9)
     #expect(projection.reachesZeroAt == nil)
 

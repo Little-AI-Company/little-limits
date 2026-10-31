@@ -5,8 +5,6 @@ import UsageHistory
 private let salt: [UInt8] = Array(0..<16)
 private let cwd = "/Users/a/clients/acme/web"
 
-// Synthetic log lines. Every prompt, reply, and command below is invented.
-
 private func prompt(_ uuid: String, at time: String, cwd: String = cwd) -> String {
     #"{"type":"user","uuid":"\#(uuid)","timestamp":"2026-06-09T\#(time)Z","sessionId":"s1","cwd":"\#(cwd)","message":{"role":"user","content":"synthetic prompt"}}"#
 }
@@ -38,8 +36,6 @@ private func date(_ time: String) -> Date {
     try! Date("2026-06-09T\(time)Z", strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true))
 }
 
-/// Feeds newline-terminated lines starting at `startOffset`, as an ingestor reading a file would, and returns each
-/// line's absolute offset.
 @discardableResult
 private func feed(_ lines: [String], into parser: inout ClaudeLogParser, from startOffset: Int64 = 0) -> [Int64] {
     var offset = startOffset
@@ -90,7 +86,6 @@ private func parse(_ lines: [String]) -> LogParseOutput {
         assistant("msg_A", at: "12:00:02.000", block: thinkingBlock, outputTokens: 5, thinkingTokens: 4),
         assistant("msg_A", at: "12:00:03.000", block: textBlock, outputTokens: 9),
         assistant("msg_B", at: "12:00:04.000", block: textBlock, outputTokens: 0, thinkingTokens: 2),
-        // A final line without usage.
         #"{"type":"assistant","uuid":"a-B-end","timestamp":"2026-06-09T12:00:05.000Z","sessionId":"s1","message":{"id":"msg_B","model":"claude-test-1","content":[],"stop_reason":"end_turn"}}"#
     ])
 
@@ -145,7 +140,6 @@ private func parse(_ lines: [String]) -> LogParseOutput {
 
     #expect(output.responses.map(\.turnID) == ["p1", "p1", "msg_C"])
     #expect(output.responses[1].requestedAt == date("12:00:02.000"))
-    // A response after a closed turn with no new prompt has no request time, so a resumed read gives the same row.
     #expect(output.responses[2].requestedAt == nil)
     #expect(output.resumeByteOffset == offsets[7])
     var resumed = ClaudeLogParser(filePath: "/synthetic/s1.jsonl", projectKeySalt: salt)
@@ -203,7 +197,6 @@ private func parse(_ lines: [String]) -> LogParseOutput {
     let offsets = feed(written, into: &first)
     let firstOutput = first.finish()
     #expect(firstOutput.responses.last?.outputTokens == nil)
-    // The last turn starts at prompt p2, before msg_C's first line.
     #expect(firstOutput.resumeByteOffset == offsets[2])
     #expect(firstOutput.resumeByteOffset <= offsets[5])
 

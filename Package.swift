@@ -1,8 +1,6 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
-// Cloud sessions run Linux, where only UsageHistory builds. The app targets, their Apple-only
-// frameworks, and GRDB are declared on macOS alone.
 var products: [Product] = [
     .library(name: "UsageHistory", targets: ["UsageHistory"])
 ]

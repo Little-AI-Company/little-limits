@@ -3,7 +3,6 @@ import libzstd
 import Testing
 import UsageHistory
 
-/// Synthetic lines of varied length, enough to cross read and decompression buffer boundaries many times.
 private let syntheticLines: [String] = (0..<6_000).map { index in
     #"{"index":\#(index),"text":"\#(String(repeating: "x", count: (index * 37) % 400))"}"#
 }
@@ -36,7 +35,6 @@ private func compress(_ data: Data) -> Data {
     return Data(compressed[..<size])
 }
 
-/// Writes `content` as `log.jsonl` and `log.jsonl.zst` in a new temporary directory.
 private func writeLogFiles(_ content: String) throws -> (plain: String, compressed: String) {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -77,7 +75,6 @@ private func writeLogFiles(_ content: String) throws -> (plain: String, compress
     #expect(try readAll(files.compressed, maximumLineLength: 1_000) == [expected[0], expected[2]])
 }
 
-/// The frame's last call fills the output buffer exactly; the reader must not treat the finished frame as truncated.
 @Test func frameEndingOnAFullOutputBufferIsComplete() throws {
     let lineLength = 1_023
     let lines = (0..<(ZSTD_DStreamOutSize() / (lineLength + 1))).map { _ in String(repeating: "z", count: lineLength) }

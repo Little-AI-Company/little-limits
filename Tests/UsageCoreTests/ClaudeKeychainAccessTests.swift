@@ -4,7 +4,6 @@ import Testing
 @testable import UsageCore
 
 @Test func backgroundKeychainAccessDisallowsInteractionAndRestoresItAfterFailure() throws {
-    // Inspect only this test process's UI policy; never read or alter a Keychain item.
     var original = DarwinBoolean(false)
     #expect(SecKeychainGetUserInteractionAllowed(&original) == errSecSuccess)
     let returned = try ClaudeKeychainAccess.withPromptsSuppressed(unless: false) {

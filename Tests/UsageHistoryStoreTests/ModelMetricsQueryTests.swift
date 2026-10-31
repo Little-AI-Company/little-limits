@@ -33,8 +33,6 @@ private func command(_ id: String, model: String = "claude-opus-5-5", project: S
     return ShellCommandRecord(event: event, classification: classification, classifierVersion: 1)
 }
 
-/// A response without a final usage line still counts as a request and a step, but adds nothing to output speed
-/// or thinking share. Reading it as zero tokens would pull both down.
 @Test func unknownTokenCountsAreLeftOutRatherThanCountedAsZero() async throws {
     try await withDatabase { database in
         try await database.pool.write { db in
@@ -42,9 +40,7 @@ private func command(_ id: String, model: String = "claude-opus-5-5", project: S
                          parallel: true).insert(db)
             try response("b", turn: "t1", seconds: 10, outputTokens: 500, thinkingTokens: 100).insert(db)
             try response("c", turn: "t2", seconds: 10, outputTokens: nil, thinkingTokens: nil).insert(db)
-            // Known output with unknown thinking stays out of the thinking share.
             try response("d", turn: "t2", seconds: nil, outputTokens: 900, thinkingTokens: nil).insert(db)
-            // A session without tool calls does not count toward steps per turn.
             try response("e", session: "s2", turn: "t3", outputTokens: 10, thinkingTokens: 0).insert(db)
             try response("x", provider: .codex, model: "gpt-6.1-sol", outputTokens: 300, thinkingTokens: 30).insert(db)
         }
@@ -54,10 +50,8 @@ private func command(_ id: String, model: String = "claude-opus-5-5", project: S
         #expect(opus.responseCount == 5)
         #expect(opus.thinkingTokens == MetricRatio(count: 500, total: 1_510))
         #expect(opus.parallelToolCallResponses == MetricRatio(count: 1, total: 5))
-        // 100, 50, and 1 tokens per second; "c" has no tokens and "d" has no start.
         #expect(opus.outputSpeed?.sampleCount == 3)
         #expect(opus.outputSpeed?.median == 50)
-        // Session s1 has turns of 2 and 2 responses; s2 has no tool calls.
         #expect(opus.stepsPerTurn?.sampleCount == 2)
         #expect(opus.stepsPerTurn?.mean == 2)
         #expect(opus.isSmallSample)
@@ -66,7 +60,6 @@ private func command(_ id: String, model: String = "claude-opus-5-5", project: S
     }
 }
 
-/// A visible Models page must catch rows that ingestion commits after the page first read the history.
 @Test func updatesDeliverRowsCommittedAfterTheFirstReport() async throws {
     try await withDatabase { database in
         var updates = database.modelMetricsUpdates().makeAsyncIterator()
@@ -96,11 +89,9 @@ private func command(_ id: String, model: String = "claude-opus-5-5", project: S
             try command("12", project: "quiet", interpreter: .javascript, scriptLines: 4).insert(db)
             try command("13", project: nil, interpreter: .python, purpose: .readsJSON, scriptLines: 6).insert(db)
             try command("14", project: "quiet").insert(db)
-            // Another model works mostly in "quiet", so its busiest project is "quiet", not the overall "busy".
             try command("15", model: "claude-fable-5-1", project: "quiet").insert(db)
             try command("16", model: "claude-fable-5-1", project: "quiet", interpreter: .python).insert(db)
             try command("17", model: "claude-fable-5-1", project: "busy", interpreter: .python).insert(db)
-            // Only a commit whose result is not logged yet: no successful commits, and no NULL sum.
             try command("18", model: "claude-sonnet-5", succeeded: nil, gitCommit: true).insert(db)
         }
         let models = try await database.modelMetrics().models
@@ -109,13 +100,10 @@ private func command(_ id: String, model: String = "claude-opus-5-5", project: S
         #expect(models.first { $0.model == "claude-sonnet-5" }?.gitStatusPerCommit == MetricRatio(count: 0, total: 0))
         let opus = try #require(models.first { $0.model == "claude-opus-5-5" })
         #expect(opus.shellCommandCount == 14)
-        // Only searches count: commands without grep or rg stay out of the denominator.
         #expect(opus.grepSearches == MetricRatio(count: 2, total: 3))
-        // Failed and unknown commits are not successful commits.
         #expect(opus.gitStatusPerCommit == MetricRatio(count: 3, total: 1))
         #expect(opus.inlineCode == MetricRatio(count: 4, total: 14))
         #expect(opus.inlinePython.count == 3)
-        // "busy" holds 9 commands. Outside it, 4 commands have a known project and 3 run inline code.
         #expect(opus.inlineOutsideBusiestProject == MetricRatio(count: 3, total: 4))
         #expect(opus.inlinePythonPurposes == [.readsJSON: 2, .editsFileInPlace: 1])
         #expect(opus.inlineScriptLines?.median == 5)
