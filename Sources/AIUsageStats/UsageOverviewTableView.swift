@@ -68,9 +68,12 @@ final class UsageOverviewTableView: NSView, NSTableViewDataSource, NSTableViewDe
         return NSSize(width: NSView.noIntrinsicMetric, height: ceil(header + max(body, 36)))
     }
 
-    /// AppKit autoresizes columns only once they already fill the clip view, so fit them when they do not.
     override func layout() {
         super.layout()
+        fitColumnsToClipView()
+    }
+
+    private func fitColumnsToClipView() {
         let width = scroll.contentView.bounds.width
         guard width > 1, table.numberOfColumns > 0 else { return }
         let extent = table.rect(ofColumn: table.numberOfColumns - 1).maxX
