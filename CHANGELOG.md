@@ -4,7 +4,7 @@ What changed in each public release of Little Limits, newest first. The same ent
 
 To add a release, follow the [changelog skill](.agents/skills/changelog/SKILL.md).
 
-## 0.3.0 (2026-10-22)
+## 0.3.0 (2026-10-31)
 
 The app is now called Little Limits, with new Paper and Night icons. Reset times on Home also fit on a 12-hour clock.
 
