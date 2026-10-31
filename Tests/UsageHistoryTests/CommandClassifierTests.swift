@@ -55,6 +55,7 @@ let classifierCases: [ClassifierCase] = [
     ClassifierCase("ripgrep then grep filter", "rg x | grep y", search: .ripgrep, sequence: "rg | grep"),
     ClassifierCase("piped grep with a path searches the path", "git diff | grep x file.swift", search: .grep,
                    sequence: "git diff | grep"),
+    ClassifierCase("a redirected file descriptor is not a path", "git log | grep x 2>&1", sequence: "git log | grep"),
     ClassifierCase("ripgrep with a path ignores a here-string", #"rg x Sources <<< "$t""#, search: .ripgrep,
                    sequence: "rg <<<string"),
     ClassifierCase("option value is not a path", "ps | grep -A 2 x", sequence: "ps | grep"),

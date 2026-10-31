@@ -897,13 +897,11 @@ private final class ShellParser {
                     case .input, .other:
                         break
                     }
-                } else if word.isUnquoted, word.text.allSatisfy(\.isASCIIDigit), current == "<" || current == ">" {
-                    // A file descriptor number, as in `2>&1`.
                 } else if word.isUnquoted, word.text == "case", isInCommandPosition(command) {
                     skipCaseSubject()
                     separate(.group)
                     if skipCasePattern() { openCaseCount += 1 }
-                } else {
+                } else if !isRedirectionFileDescriptor(word) {
                     if word.isUnquoted, word.text == "esac", openCaseCount > 0, isInCommandPosition(command) {
                         // The last arm may omit `;;`.
                         openCaseCount -= 1
@@ -914,6 +912,10 @@ private final class ShellParser {
         }
         if !command.isEmpty { elements.append(.command(command)) }
         return elements
+    }
+
+    private func isRedirectionFileDescriptor(_ word: ShellWord) -> Bool {
+        word.isUnquoted && word.text.allSatisfy(\.isASCIIDigit) && (current == "<" || current == ">")
     }
 
     /// True when the next word would be the program, after any reserved words such as `then` or `do`.
