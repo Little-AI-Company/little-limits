@@ -1,10 +1,19 @@
 #!/bin/bash
 # Places full-bleed square icon artwork on the macOS app icon grid.
-# Usage: compose_icon_master.sh <artwork.png> <output_1024.png> <output_256.png>
 # Result: 1024 px transparent canvas, 824 px rounded-square body inset 100 px with a
 # 185.4 px corner radius, and a drop shadow 10 px down, 10 px blur, 30 percent black.
-# Requires ImageMagick 7 (magick) and librsvg (rsvg-convert).
 set -euo pipefail
+usage() {
+  cat >&2 <<'USAGE'
+Usage: compose_icon_master.sh <artwork.png> <output_1024.png> <output_256.png>
+USAGE
+  exit 1
+}
+[[ $# -eq 3 ]] || usage
+command -v magick >/dev/null && command -v rsvg-convert >/dev/null || {
+  printf 'compose_icon_master.sh requires ImageMagick 7 (magick) and librsvg (rsvg-convert).\n' >&2
+  exit 1
+}
 artwork="$1"; output="$2"; preview="$3"
 temporary="$(mktemp -d)"
 trap 'rm -rf "$temporary"' EXIT
