@@ -52,6 +52,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
     var onBack: (() -> Void)?
     private var isPaneVisible = false
     private let billingURL = URL(string: "https://platform.claude.com/settings/billing")!
+    private let parkingURL = ClaudeConsoleClient.accountURL
 
     init(profile: AccountProfile, model: ApplicationModel) {
         self.profile = profile
@@ -403,9 +404,12 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "ClaudeConsoleObservation")
-        // Replacing the document cancels pending JavaScript without changing the saved login store.
-        webView.loadHTMLString("", baseURL: nil)
+        cancelPendingJavaScript()
         if isViewLoaded { view.removeFromSuperview() }
+    }
+
+    private func cancelPendingJavaScript() {
+        webView.loadHTMLString("", baseURL: nil)
     }
 
     private func responseFromOfficialPage(for url: URL) async throws -> Data {
@@ -485,8 +489,7 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
     private func parkBrowser() {
         webView.isHidden = true
         webView.stopLoading()
-        // The authenticated JSON document has no application interface or ongoing visual animation.
-        webView.load(URLRequest(url: ClaudeConsoleClient.accountURL))
+        webView.load(URLRequest(url: parkingURL))
     }
 
     @objc private func disconnect(_ sender: Any?) {
