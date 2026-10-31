@@ -47,6 +47,10 @@ The script:
 
 The last line on standard output is `PUSH: <state> <sha>`. Exit codes: `0` pushed or verified, `1` usage or git error, `2` a check failed (a timeout is not a failure) and `main` is unchanged, `3` rebase conflict (aborted), `4` `main` kept moving for 10 tries, `5` not pushable (dirty, nothing to push, several commits, no Customer-note, no Swift).
 
+## No new comments
+
+After `git diff --check` the script counts comment lines in the commit's tree: whole-line `//` and `/*` in Swift, `#` in shell and YAML, leaving out the directives (`// MARK:`, `// swift-tools-version`, shebangs, `# shellcheck`). When the count is higher than on `origin/main` it prints the new lines and writes `Tested: no-new-comments warn (<before> to <after> lines)`. From 2026-11-02 (UTC) a higher count is a failed check instead (`fail`, exit 2, `main` unchanged). A lower or equal count writes `Tested: no-new-comments pass (<n> lines)`. The baseline on 2026-10-31 is 10 lines, all in the vendored `.agents/skills/crit/scripts/capture_windows.swift`.
+
 ## The 10 minute cap
 
 `swift test` (with `--package`, the packaging too) gets 10 minutes, here or on the M4. On the M4 the 10 minutes include the wait for the one checkout. When they run out the script drops the ssh session, warns, and pushes anyway. The M4 keeps a watchdog on the job: a little after the cap it stops the whole process group and frees the lock, so nothing is left running there. The commit says what happened in place of the pass line:

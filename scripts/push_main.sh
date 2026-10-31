@@ -9,6 +9,11 @@ SWIFT_PATHS='^(Sources/|Tests/|Resources/|scripts/|Package\.(swift|resolved)$)'
 REPO_URL="https://github.com/Little-AI-Company/little-limits.git"
 M4_HOST="${PUSH_MAIN_M4:-m4}"
 M4_CHECKOUT='$HOME/Developer/little-limits-push'
+SWIFT_COMMENT='^[[:space:]]*(//|/\*)'
+SWIFT_DIRECTIVE='^[[:space:]]*//[[:space:]]*(MARK:|swift-tools-version)'
+SHELL_COMMENT='^[[:space:]]*#'
+SHELL_DIRECTIVE='^[[:space:]]*#(!|[[:space:]]*shellcheck[[:space:]])'
+COMMENT_RATCHET_REFUSES_FROM="2026-11-02"
 RETRIES=10
 CAP="${PUSH_MAIN_CHECK_TIMEOUT:-600}"
 GRACE="${PUSH_MAIN_REMOTE_GRACE:-30}"
@@ -245,6 +250,16 @@ m4_run() {
     <"$tmp/head.bundle"
 }
 
+comment_lines() {
+  { git grep -hE "$SWIFT_COMMENT" "$1" -- '*.swift' | grep -Ev "$SWIFT_DIRECTIVE" || true
+    git grep -hE "$SHELL_COMMENT" "$1" -- '*.sh' '*.yml' | grep -Ev "$SHELL_DIRECTIVE" || true; } | grep -c . || true
+}
+
+new_comment_lines() {
+  { git diff -U0 origin/main HEAD -- '*.swift' | sed -n 's/^+//p' | grep -v '^++' | grep -E "$SWIFT_COMMENT" | grep -Ev "$SWIFT_DIRECTIVE" || true
+    git diff -U0 origin/main HEAD -- '*.sh' '*.yml' | sed -n 's/^+//p' | grep -v '^++' | grep -E "$SHELL_COMMENT" | grep -Ev "$SHELL_DIRECTIVE" || true; }
+}
+
 run_checks() {
   local tree start code where log="$tmp/swift.log"
   tree="$(tree12)"
@@ -261,6 +276,21 @@ run_checks() {
     TESTED+=("Tested: git diff --check fail tree $tree")
     STATE=fail
     cat "$tmp/diffcheck.log" >&2
+  fi
+  local before after
+  before="$(comment_lines origin/main)"
+  after="$(comment_lines HEAD)"
+  if [ "$after" -gt "$before" ]; then
+    say "comment lines rose from $before to $after; AGENTS.md bans new code comments. New lines:"
+    new_comment_lines >&2
+    if [[ "$(date -u +%F)" < "$COMMENT_RATCHET_REFUSES_FROM" ]]; then
+      TESTED+=("Tested: no-new-comments warn ($before to $after lines) tree $tree")
+    else
+      TESTED+=("Tested: no-new-comments fail ($before to $after lines) tree $tree")
+      STATE=fail
+    fi
+  else
+    TESTED+=("Tested: no-new-comments pass ($after lines) tree $tree")
   fi
 
   if ! git diff --name-only origin/main HEAD | grep -Eq "$SWIFT_PATHS"; then
