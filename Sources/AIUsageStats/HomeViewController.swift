@@ -193,6 +193,15 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
     }
 
     func render() {
+        renderPage()
+        rebuildKeyViewLoopAfterRender()
+    }
+
+    private func rebuildKeyViewLoopAfterRender() {
+        view.window?.recalculateKeyViewLoop()
+    }
+
+    private func renderPage() {
         if !isViewLoaded { _ = view }
         let now = Date()
         let calendar = Calendar.current
@@ -214,9 +223,6 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         applyPlaceholder(loaded: loaded, failed: failed, hasAccounts: hasAccounts)
         publishToolbarState(subtitle: showsReadings
             ? HomeInterfaceFormatting.periodTitle(mode: mode, period: period, anchor: anchor, calendar: calendar) : "")
-        // Hidden stacks detach their views, and refresh adds and removes calendar events and Reconnect… buttons,
-        // so the loop is recalculated after each render; otherwise Tab could never leave the sidebar.
-        defer { view.window?.recalculateKeyViewLoop() }
         guard showsReadings else {
             if popover.isShown { dismissDetails() }
             return
