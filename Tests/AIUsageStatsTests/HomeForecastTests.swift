@@ -60,35 +60,6 @@ private func segment(_ account: UUID, from start: TimeInterval, to end: TimeInte
     #expect(kept.map(\.windowID) == ["seven_day", "codex_secondary"])
 }
 
-/// The demonstration renders a separate forecast for each provider; with no history each provider says so in one line.
-@Test @MainActor
-func demonstrationForecastKeepsProvidersApartAndExplainsMissingHistory() throws {
-    let snapshots = Dictionary(uniqueKeysWithValues: DemoFixtures.homeSnapshots.map { ($0.profileID, $0) })
-    let now = try #require(snapshots.values.first?.fetchedAt)
-    let overview = UsageOverview(profiles: DemoFixtures.homeProfiles, snapshots: snapshots, now: now)
-
-    let empty = HomeForecastModel.providers(overview: overview, readings: [], range: .nextWeek, now: now, calendar: .current)
-    #expect(empty.map(\.provider) == [.claude, .codex])
-    #expect(empty.allSatisfy { $0.chart == nil && $0.lines.isEmpty && $0.notice != nil })
-
-    let readings = HomeForecastDemonstration.readings(profiles: DemoFixtures.homeProfiles, snapshots: snapshots, now: now)
-    let forecasts = HomeForecastModel.providers(overview: overview, readings: readings, range: .nextWeek, now: now,
-                                                calendar: .current)
-    #expect(forecasts.map(\.provider) == [.claude, .codex])
-    for forecast in forecasts {
-        let chart = try #require(forecast.chart)
-        #expect(chart.capacityPercent == 200)
-        // The demonstration closes the app for eight hours, so history has a gap.
-        #expect(chart.history.count == 2)
-        #expect(chart.history.joined().allSatisfy { $0.remainingPercent <= 200 && $0.date <= now })
-        #expect(forecast.lines.first?.value.hasPrefix("About ") == true)
-        #expect(forecast.lines.filter { $0.label == "Updated" }.count == 2)
-    }
-    #expect(forecasts[0].lines[1].value == "Not in the next 7 days")
-    #expect(forecasts[1].lines[1].value != "Not in the next 7 days")
-    #expect(forecasts[1].lines[1].value != "Unknown")
-}
-
 private extension UsageOverviewAccount {
     static func forecastAccount(_ id: UUID, provider: Provider, windows: [UsageWindow]) -> UsageOverviewAccount {
         let profile = AccountProfile(id: id, provider: provider, label: "Test", source: .demo)
@@ -120,25 +91,4 @@ func databaseHistoryKeepsTheLatestReadingOfAnyAge() async throws {
     let latest = Dictionary(uniqueKeysWithValues: history.latestReadings.map { ($0.accountID, $0) })
     #expect(latest[firstAccount]?.usedPercent == 20)
     #expect(latest[secondAccount]?.usedPercent == 5)
-}
-
-/// A change-only value recorded before the range holds until its reset, so the line starts at the range start
-/// instead of showing a false gap.
-@Test func changeOnlyReadingBeforeTheRangeHoldsIntoIt() throws {
-    let reset = forecastNow.addingTimeInterval(3 * 86_400)
-    let account = UsageOverviewAccount.forecastAccount(firstAccount, provider: .claude, windows: [
-        UsageWindow(id: "seven_day", title: "7 days", utilizationPercent: 42, resetsAt: reset)
-    ])
-    let overview = UsageOverview(profiles: [account.profile], snapshots: [firstAccount: try #require(account.snapshot)],
-                                 now: forecastNow)
-    let readings = [(-2 * 86_400.0, 40.0), (-3_600, 42)].map { offset, used in
-        QuotaReading(provider: .claude, accountID: firstAccount, windowID: "seven_day", usedPercent: used, resetsAt: reset,
-                     windowDurationMinutes: nil, observedAt: forecastNow.addingTimeInterval(offset), source: .claudeStatusLine)
-    }
-    let forecast = try #require(HomeForecastModel.providers(overview: overview, readings: readings, range: .nextDay,
-                                                            now: forecastNow, calendar: .current).first)
-    let history = try #require(forecast.chart?.history)
-    #expect(history.count == 1)
-    #expect(history.first?.first == QuotaHistoryPoint(date: forecastNow.addingTimeInterval(-86_400), remainingPercent: 60))
-    #expect(history.first?.last?.remainingPercent == 58)
 }

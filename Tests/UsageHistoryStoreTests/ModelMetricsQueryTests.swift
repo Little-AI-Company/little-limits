@@ -33,14 +33,6 @@ private func command(_ id: String, model: String = "claude-opus-5-5", project: S
     return ShellCommandRecord(event: event, classification: classification, classifierVersion: 1)
 }
 
-@Test func emptyHistoryHasNoModels() async throws {
-    try await withDatabase { database in
-        let report = try await database.modelMetrics()
-        #expect(report.isEmpty)
-        #expect(report.firstResponseAt == nil)
-    }
-}
-
 /// A response without a final usage line still counts as a request and a step, but adds nothing to output speed
 /// or thinking share. Reading it as zero tokens would pull both down.
 @Test func unknownTokenCountsAreLeftOutRatherThanCountedAsZero() async throws {

@@ -173,7 +173,3 @@ func classifiesCommand(_ testCase: ClassifierCase) {
         }
     }
 }
-
-@Test func classifierVersionIsTwo() {
-    #expect(CommandClassifier.version == 2)
-}

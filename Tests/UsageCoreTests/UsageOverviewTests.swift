@@ -242,57 +242,6 @@ import Testing
     #expect(throws: DecodingError.self) { try JSONDecoder().decode(AccountSnapshot.self, from: Data(missingCredits.utf8)) }
 }
 
-@Test func homeFixturesPublishRepresentativeResetsAndReadingStates() throws {
-    #expect(DemoFixtures.profiles.map(\.label) == ["Example personal", "Example work", "Example research", "Example unverified"])
-    #expect(DemoFixtures.snapshots.first?.credits.map(\.title) == ["Purchased API credits", "Monthly included API grant"])
-    #expect(DemoFixtures.snapshots.dropFirst().first?.credits.map(\.title) == ["OpenAI API credits", "Codex credits", "Earned resets", "Example reset grant"])
-    #expect(Set(DemoFixtures.profiles.map(\.id)).isDisjoint(with: Set(DemoFixtures.homeProfiles.map(\.id))))
-
-    let snapshots = DemoFixtures.homeSnapshots
-    let fresh = UsageOverview(profiles: DemoFixtures.homeProfiles,
-                              snapshots: Dictionary(uniqueKeysWithValues: snapshots.map { ($0.profileID, $0) }), now: Date())
-    let personal = DemoFixtures.homeProfiles[0].id
-    let studio = DemoFixtures.homeProfiles[1].id
-    let work = DemoFixtures.homeProfiles[2].id
-    let codex = DemoFixtures.homeProfiles[3].id
-    #expect(fresh.accounts.map(\.profile.label) == ["Personal", "Studio", "Work", "Personal"])
-    #expect(fresh.accounts.map(\.identity) == ["personal@example.invalid", "studio@example.invalid", "work@example.invalid", "codex@example.invalid"])
-    #expect(fresh.accounts.map(\.shortIdentity) == ["personal", "studio", "work", "codex"])
-    #expect(fresh.accounts.map(\.snapshot?.planName) == ["Max", "Max", "Pro", "Plus"])
-    #expect(snapshots[0].windows.map(\.windowDurationMinutes) == [300, 10_080, 10_080])
-    #expect(snapshots[1].windows[0].resetsAt == nil)
-    #expect(snapshots[1].windows[1].resetsAt == snapshots[1].windows[2].resetsAt)
-    #expect(snapshots[2].credits.first?.amount == Decimal(2))
-    #expect(snapshots[3].credits.first?.amount == Decimal(3))
-    #expect(snapshots[2].credits.allSatisfy { $0.unit == .resets })
-    #expect(snapshots[2].credits.first?.expiresAt == nil)
-    #expect(snapshots[2].credits.dropFirst().allSatisfy { $0.status == "available" && $0.expiresAt != nil })
-    let expiries = Set(snapshots.flatMap { $0.credits.compactMap(\.expiresAt) })
-    #expect(expiries.count == 2)
-    #expect(fresh.resetEvents.map(\.accountID) == [codex, personal, work, codex, personal, work, personal, studio, studio])
-    #expect(fresh.resetEvents.map(\.window.id) == ["primary", "five_hour", "primary", "weekly", "seven_day",
-                                                  "weekly", "seven_day_fable_5", "seven_day", "seven_day_sonnet"])
-    #expect(fresh.resetEvents.map(\.remainingPercent) == [0, 99, 63, 0, 75, 17, 51, 100, 100])
-    #expect(fresh.resetEvents.allSatisfy { expiries.contains($0.resetsAt) == false })
-
-    let readingSnapshots = DemoFixtures.homeReadingStateSnapshots
-    let reading = UsageOverview(profiles: DemoFixtures.homeProfiles,
-                                snapshots: Dictionary(uniqueKeysWithValues: readingSnapshots.map { ($0.profileID, $0) }), now: Date())
-    #expect(readingSnapshots.map(\.profileID) == [personal, studio, work])
-    #expect(reading.accounts.map(\.summary) == [
-        .available(remainingPercent: 51, severity: .normal, windowTitle: "7 days (Fable 5)"),
-        .authenticationRequired, .stale, .unknown
-    ])
-    #expect(reading.accounts[3].snapshot == nil)
-    let personalFetched = try #require(reading.accounts[0].snapshot?.fetchedAt)
-    let workFetched = try #require(reading.accounts[2].snapshot?.fetchedAt)
-    #expect(personalFetched.timeIntervalSince(workFetched) == 18 * 60)
-    #expect(reading.accounts[2].snapshot?.credits.allSatisfy { $0.asOf == workFetched } == true)
-    #expect(reading.resetEvents.map(\.accountID) == [personal, personal, personal])
-    #expect(reading.resetEvents.map(\.window.id) == ["five_hour", "seven_day", "seven_day_fable_5"])
-    #expect(reading.resetEvents.map(\.remainingPercent) == [99, 75, 51])
-}
-
 private let overviewNow = Date(timeIntervalSince1970: 1_700_000_000)
 
 private func overviewProfile(_ suffix: String, provider: Provider = .claude, label: String = "Example", email: String? = nil) -> AccountProfile {

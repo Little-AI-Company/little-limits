@@ -141,8 +141,6 @@ public struct CreditBalance: Identifiable, Codable, Sendable, Equatable {
         self.currencyCode = currencyCode
         self.originalAmount = originalAmount
     }
-
-    public static func dollars(fromCents cents: Decimal) -> Decimal { cents / 100 }
 }
 
 public struct AccountSnapshot: Codable, Sendable, Equatable {

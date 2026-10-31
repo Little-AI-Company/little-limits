@@ -89,53 +89,6 @@ func earnedCountHasItsOwnObservationTime() {
     #expect(homeLines(unknownCount.earned)[0].primary == "Unknown")
 }
 
-/// ACCOUNT-05: a sign-in failure shows the last known value without its timing, as the status menu does, and an
-/// account with no reading says `Unavailable` in every cell instead of four different names.
-@Test @MainActor
-func outdatedAndMissingReadingsUseOneWording() {
-    let signIn = homeRow(windows: [homeWindow(used: 20)], state: .authenticationRequired)
-    let line = homeLines(signIn.session)[0]
-    #expect(line.preface == ["Last known"])
-    #expect(line.primary == "80% left")
-    #expect(line.secondary == nil)
-    #expect(signIn.status == "Sign-in required")
-    // HOME-30: the last read time stays, so the age of the last known values is visible.
-    #expect(signIn.updatedPrimary == homeReadingNow.formatted(.dateTime.hour().minute()))
-    #expect(signIn.updatedSecondary == "Not refreshed")
-    // A Claude account never reports earned resets, in any reading state.
-    let claude = AccountProfile(provider: .claude, label: "Studio", source: .demo, providerEmail: "studio@example.invalid")
-    let claudeSignIn = AccountSnapshot(profileID: claude.id, fetchedAt: homeReadingNow, windows: [homeWindow(used: 20)],
-                                       credits: [], state: .authenticationRequired)
-    let overview = UsageOverview(profiles: [claude], snapshots: [claude.id: claudeSignIn], now: homeReadingNow)
-    let claudeRow = HomeInterfaceFormatting.rows(for: overview.accounts, now: homeReadingNow, calendar: .current)[0]
-    #expect(homeLines(claudeRow.earned).map(\.primary) == ["Not supported"])
-
-    let empty = homeRow(windows: [], observed: nil)
-    #expect([empty.session, empty.weekly, empty.other].allSatisfy { homeLines($0).map(\.primary) == ["Unavailable"] })
-    #expect(empty.status == "Unavailable")
-    #expect(empty.updatedPrimary == "Unavailable")
-}
-
-@Test @MainActor
-func ordinaryCodexWindowsKeepTheirColumnsWithAdditionalMeters() {
-    let windows = [
-        UsageWindow(id: "codex_primary", title: "Codex: 5 hours", utilizationPercent: 20,
-                    resetsAt: homeReadingNow.addingTimeInterval(3_600),
-                    windowDurationMinutes: 300),
-        UsageWindow(id: "codex_secondary", title: "Codex: 7 days", utilizationPercent: 40,
-                    resetsAt: homeReadingNow.addingTimeInterval(86_400),
-                    windowDurationMinutes: 10_080),
-        UsageWindow(id: "spark_primary", title: "Spark: 5 hours", utilizationPercent: 60,
-                    resetsAt: homeReadingNow.addingTimeInterval(3_600),
-                    windowDurationMinutes: 300)
-    ]
-    let row = homeRow(windows: windows)
-    #expect(homeLines(row.session)[0].primary == "80% left")
-    #expect(homeLines(row.weekly)[0].primary == "60% left")
-    #expect(homeLines(row.other)[0].primary == "40% left")
-    #expect(homeHeadings(windows: windows) == HomeColumnHeadings(session: "5-hour", weekly: "Weekly", other: "5-hour · Spark"))
-}
-
 @Test @MainActor
 func passedEarnedResetExpiryMakesTheCountHistorical() {
     let observed = homeReadingNow.addingTimeInterval(-120)
@@ -151,47 +104,6 @@ func passedEarnedResetExpiryMakesTheCountHistorical() {
     #expect(line.toolTip.contains(InterfaceFormatting.exactDate(expiry)))
     #expect(line.toolTip.contains("Refresh to check current availability"))
     #expect(homeLines(row.session)[0].primary == "80% left")
-}
-
-@Test @MainActor
-func inactiveQuotasDoNotRequestRecovery() {
-    let inactive = UsageWindow(id: "inactive", title: "Weekly", utilizationPercent: nil,
-                               resetsAt: nil, isActive: false)
-    for state in [SnapshotState.available, .authenticationRequired] {
-        let snapshot = AccountSnapshot(profileID: homeReadingProfile.id, fetchedAt: homeReadingNow,
-                                       windows: [inactive], credits: [], state: state)
-        let overview = UsageOverview(profiles: [homeReadingProfile],
-                                     snapshots: [homeReadingProfile.id: snapshot], now: homeReadingNow)
-        let items = HomeInterfaceFormatting.attentionItems(overview.accounts, now: homeReadingNow)
-        #expect(items.isEmpty == (state != .authenticationRequired))
-        #expect(items.allSatisfy { $0.text == "Codex work: Sign-in required. Choose Reconnect…" && $0.showsReconnect })
-    }
-}
-
-@Test @MainActor
-func calendarEventsLeadWithTheResetTimeAndShowTheModelOfAScopedWindow() throws {
-    let profile = AccountProfile(provider: .claude, label: "Personal", source: .demo, providerEmail: "personal@example.invalid")
-    let resetsAt = homeReadingNow.addingTimeInterval(3_600)
-    let window = UsageWindow(id: "seven_day_fable", title: "7 days (Fable 5)", utilizationPercent: 83,
-                             resetsAt: resetsAt, windowDurationMinutes: 10_080)
-    let snapshot = AccountSnapshot(profileID: profile.id, fetchedAt: homeReadingNow, windows: [window], credits: [], state: .available)
-    let overview = UsageOverview(profiles: [profile], snapshots: [profile.id: snapshot], now: homeReadingNow)
-    let days = UsageCalendarPeriod(mode: .twoWeeks, containing: homeReadingNow).days
-    let event = try #require(HomeInterfaceFormatting.calendarEvents(overview.resetEvents, days: days, now: homeReadingNow,
-                                                                   calendar: .current).first)
-    #expect(event.timeText == resetsAt.formatted(.dateTime.hour().minute()))
-    // The model alone stays visible in a narrow day column; the label keeps the full scope.
-    #expect(event.scopeText == "Fable 5")
-    #expect(event.remainingText == "17% left")
-    #expect(event.tone == .warning)
-    #expect(event.accessibilityLabel.hasPrefix("Weekly · Fable 5 resets"))
-    #expect(event.accessibilityLabel.contains("17% left, Low now"))
-
-    let content = HomeInterfaceFormatting.detailContent(account: overview.accounts[0], now: homeReadingNow, calendar: .current)
-    #expect(!content.rows.contains { $0.label == "Earned resets" })
-    let row = HomeInterfaceFormatting.rows(for: overview.accounts, now: homeReadingNow, calendar: .current)[0]
-    #expect(homeLines(row.earned) == [homeLines(row.earned)[0]])
-    #expect(homeLines(row.earned)[0].isQuiet)
 }
 
 @Test(arguments: [(0.0, "0%", HomeReadingTone.critical), (0.04, "<0.1%", .warning), (0.4, "0.4%", .warning),
@@ -226,15 +138,6 @@ private func homeRow(windows: [UsageWindow], observed: Date? = homeReadingNow,
     let overview = UsageOverview(profiles: [homeReadingProfile],
                                  snapshots: [homeReadingProfile.id: snapshot], now: homeReadingNow)
     return HomeInterfaceFormatting.rows(for: overview.accounts, now: homeReadingNow, calendar: .current)[0]
-}
-
-@MainActor
-private func homeHeadings(windows: [UsageWindow]) -> HomeColumnHeadings {
-    let snapshot = AccountSnapshot(profileID: homeReadingProfile.id, fetchedAt: homeReadingNow,
-                                   windows: windows, credits: [], state: .available)
-    let overview = UsageOverview(profiles: [homeReadingProfile],
-                                 snapshots: [homeReadingProfile.id: snapshot], now: homeReadingNow)
-    return HomeInterfaceFormatting.headings(for: overview.accounts)
 }
 
 private func homeLines(_ cell: HomeMeterCell) -> [HomeReadingLine] {

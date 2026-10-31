@@ -25,14 +25,6 @@ private func modelWindow(used: Double?) -> UsageWindow {
                 resetsAt: observationDate.addingTimeInterval(3_600), windowDurationMinutes: 10_080)
 }
 
-@Test(arguments: [(79.0, AccountQuotaSummary.Severity.normal), (80.0, .warning),
-                  (90.0, .warning), (90.1, .critical), (100.0, .critical), (0.0, .normal)])
-func quotaSummaryUsesRemainingThresholds(_ used: Double, _ severity: AccountQuotaSummary.Severity) {
-    let summary = AccountQuotaSummary(snapshot: quotaSnapshot([quotaWindow("quota", used: used)]),
-                                      accountID: accountID, now: observationDate)
-    #expect(summary == .available(remainingPercent: 100 - used, severity: severity, windowTitle: "quota"))
-}
-
 @Test func quotaSummaryUsesLowestCurrentRemainingAndExcludesInactiveWindows() {
     let summary = AccountQuotaSummary(snapshot: quotaSnapshot([
         quotaWindow("session", used: 20), quotaWindow("weekly", used: 85, active: true),

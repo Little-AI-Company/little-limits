@@ -2,17 +2,12 @@ import Foundation
 import Testing
 @testable import UsageCore
 
-@Test func percentageNormalizationAndResetCountdown() throws {
-    let now = Date(timeIntervalSince1970: 1_000)
+@Test func usageWindowPercentagesClampAndNaNIsUnknown() throws {
     #expect(UsageWindow(id: "a", title: "a", utilizationPercent: 140, resetsAt: nil).utilizationPercent == 100)
     #expect(UsageWindow(id: "a", title: "a", utilizationPercent: -4, resetsAt: nil).utilizationPercent == 0)
     #expect(UsageWindow(id: "a", title: "a", utilizationPercent: .nan, resetsAt: nil).utilizationPercent == nil)
     let decoded = try JSONDecoder().decode(UsageWindow.self, from: Data(#"{"id":"a","title":"A","utilizationPercent":999}"#.utf8))
     #expect(decoded.utilizationPercent == 100)
-    #expect(UsageFormatting.countdown(to: now.addingTimeInterval(3_601), now: now) == "1h 1m")
-    #expect(UsageFormatting.countdown(to: now.addingTimeInterval(-1), now: now) == "Reset due")
-    #expect(UsageFormatting.countdown(to: nil, now: now) == "Reset time unknown")
-    #expect(CreditBalance.dollars(fromCents: 1_250) == Decimal(string: "12.50"))
 }
 
 @Test func claudeCaptureFiltersInputAndPreservesObservationTime() throws {

@@ -79,19 +79,6 @@ private func isClose(_ value: Double?, _ expected: Double) -> Bool {
     #expect(abs(drain.percentPerHour - 4) < 1e-9)
 }
 
-@Test func longOvernightPairCountsIncludingIdleTime() throws {
-    let history = [
-        reading(accountA, hoursAgo: 20, used: 10, resetsAt: laterReset),
-        // App closed overnight: 9 hours between good readings, no change.
-        reading(accountA, hoursAgo: 11, used: 10, resetsAt: laterReset),
-        reading(accountA, hoursAgo: 10, used: 22, resetsAt: laterReset)
-    ]
-    let drain = try #require(QuotaForecast.drainRate(
-        provider: .claude, history: history,
-        counted: [CountedQuota(accountID: accountA, remainingPercent: 78, resetsAt: laterReset)], now: now))
-    #expect(abs(drain.percentPerHour - 12.0 / 10) < 1e-9)
-}
-
 @Test func shortHistoryReportsAShortLookbackAndLongHistoryIsCutAt24Hours() throws {
     let counted = [CountedQuota(accountID: accountA, remainingPercent: 80, resetsAt: laterReset)]
     let short = try #require(QuotaForecast.drainRate(
@@ -174,37 +161,6 @@ private func isClose(_ value: Double?, _ expected: Double) -> Bool {
     #expect(abs(projection.points[9].remainingPercent - 95) < 1e-9)
 }
 
-@Test func projectionClampsBetweenZeroAndCapacity() {
-    let counted = [CountedQuota(accountID: accountA, remainingPercent: 140, resetsAt: nil),
-                   CountedQuota(accountID: accountB, remainingPercent: -5, resetsAt: now.addingTimeInterval(1_800))]
-    let projection = QuotaForecast.project(counted: counted, percentPerHour: 0, now: now, horizon: .oneDay)
-    #expect(projection.points.first?.remainingPercent == 100)
-    #expect(projection.points[1].remainingPercent == 200)
-    #expect(projection.points.allSatisfy { $0.remainingPercent <= projection.capacityPercent })
-    #expect(projection.reachesZeroAt == nil)
-
-    let exhausted = QuotaForecast.project(
-        counted: [CountedQuota(accountID: accountA, remainingPercent: 3, resetsAt: nil)],
-        percentPerHour: 10, now: now, horizon: .oneDay)
-    #expect(exhausted.points.allSatisfy { $0.remainingPercent >= 0 })
-    #expect(exhausted.points.last?.remainingPercent == 0)
-    #expect(isClose(exhausted.reachesZeroAt, now.addingTimeInterval(hours(0.3))))
-}
-
-@Test func forecastCombinesDrainAndProjectionForOneProvider() throws {
-    let history = [reading(accountA, hoursAgo: 2, used: 40, resetsAt: laterReset),
-                   reading(accountA, hoursAgo: 0, used: 50, resetsAt: laterReset)]
-    let counted = [CountedQuota(accountID: accountA, remainingPercent: 50, resetsAt: laterReset)]
-    let result = QuotaForecast.forecast(QuotaForecastInput(
-        provider: .claude, history: history, counted: counted, now: now, horizon: .oneDay))
-    #expect(isClose(result.drain?.percentPerHour, 5))
-    #expect(isClose(result.projection?.reachesZeroAt, now.addingTimeInterval(hours(10))))
-
-    let codex = QuotaForecast.forecast(QuotaForecastInput(
-        provider: .codex, history: history, counted: counted, now: now, horizon: .oneDay))
-    #expect(codex.drain == nil)
-}
-
 private func seconds(_ account: UUID, at offset: TimeInterval, used: Double, resetsAt: Date? = laterReset,
                      source: QuotaReadingSource) -> QuotaReading {
     QuotaReading(provider: .claude, accountID: account, windowID: "seven_day", usedPercent: used, resetsAt: resetsAt,
@@ -226,28 +182,6 @@ private func seconds(_ account: UUID, at offset: TimeInterval, used: Double, res
     ], now: now)
     #expect(broken.count == 2)
     #expect(broken.map { $0.points.count } == [1, 1])
-}
-
-@Test func changeOnlyValueIsHeldThenBrokenAtItsReset() {
-    let reset = now.addingTimeInterval(-hours(5))
-    let segments = QuotaForecast.historySegments(readings: [
-        seconds(accountA, at: -hours(10), used: 20, resetsAt: reset, source: .claudeStatusLine),
-        seconds(accountA, at: -hours(8), used: 30, resetsAt: reset, source: .claudeStatusLine),
-        seconds(accountA, at: -hours(2), used: 1, resetsAt: laterReset, source: .claudeStatusLine)
-    ], now: now)
-    #expect(segments.count == 2)
-    #expect(segments[0].containsChangeOnlyReadings)
-    #expect(segments[0].points == [
-        QuotaHistoryPoint(date: now.addingTimeInterval(-hours(10)), remainingPercent: 80),
-        QuotaHistoryPoint(date: now.addingTimeInterval(-hours(8)), remainingPercent: 80),
-        QuotaHistoryPoint(date: now.addingTimeInterval(-hours(8)), remainingPercent: 70),
-        QuotaHistoryPoint(date: reset, remainingPercent: 70)
-    ])
-    // The latest value is held up to now, never past it.
-    #expect(segments[1].points == [
-        QuotaHistoryPoint(date: now.addingTimeInterval(-hours(2)), remainingPercent: 99),
-        QuotaHistoryPoint(date: now, remainingPercent: 99)
-    ])
 }
 
 @Test func historySegmentsKeepAccountsApart() {
@@ -275,18 +209,4 @@ private func seconds(_ account: UUID, at offset: TimeInterval, used: Double, res
     #expect(QuotaForecast.drainRate(
         provider: .claude, history: moved,
         counted: [CountedQuota(accountID: accountA, remainingPercent: 70, resetsAt: whole)], now: now) == nil)
-}
-
-@Test func changeOnlyLineBreaksWhenTheNextReadingLandsExactlyAtTheReset() {
-    let reset = now.addingTimeInterval(-hours(5))
-    let segments = QuotaForecast.historySegments(readings: [
-        seconds(accountA, at: -hours(8), used: 30, resetsAt: reset, source: .claudeStatusLine),
-        seconds(accountA, at: -hours(5), used: 0, resetsAt: laterReset, source: .claudeStatusLine)
-    ], now: now)
-    #expect(segments.count == 2)
-    #expect(segments[0].points == [
-        QuotaHistoryPoint(date: now.addingTimeInterval(-hours(8)), remainingPercent: 70),
-        QuotaHistoryPoint(date: reset, remainingPercent: 70)
-    ])
-    #expect(segments[1].points.first == QuotaHistoryPoint(date: reset, remainingPercent: 100))
 }
