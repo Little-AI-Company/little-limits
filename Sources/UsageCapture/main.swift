@@ -12,11 +12,7 @@ let input = FileHandle.standardInput.readDataToEndOfFile()
 if let identifier = value(after: "--profile"), let profileID = UUID(uuidString: identifier) {
     let directory = value(after: "--storage-directory").map { URL(fileURLWithPath: $0, isDirectory: true) }
         ?? UsagePaths.applicationSupport
-    do {
-        try ClaudeQuotaCapture.decodeStatusLine(input, profileID: profileID).save(directory: directory)
-    } catch {
-        // Capture failures must not break an existing status-line command.
-    }
+    try? ClaudeQuotaCapture.decodeStatusLine(input, profileID: profileID).save(directory: directory)
 }
 
 if let command = value(after: "--original-command") {
