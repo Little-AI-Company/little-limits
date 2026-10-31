@@ -6,6 +6,7 @@
 #   scripts/push_main.sh [--package] [--squash "<subject>"] [--no-swift "<why>"]
 #   scripts/push_main.sh --revert <sha> [--reason "<text>"]
 #   scripts/push_main.sh --verify [--package]     # check HEAD, push nothing
+#   scripts/push_main.sh --skip-checks "<why>"    # push without running any check
 #
 # It fetches origin/main, rebases the one commit ahead of it onto it, and checks
 # that exact commit:
@@ -26,10 +27,21 @@
 #   Tested: git diff --check pass tree 3f2a9c1d7e0b
 #   Tested: swift test pass (m4, macOS 26.7.2, Xcode 27.1, 41s) tree 3f2a9c1d7e0b
 #
+# The swift test run has 10 minutes, here or on the M4 (queue for its checkout
+# included). Past that it is stopped (on the M4 too), the script warns and
+# pushes anyway, and the commit says so:
+#
+#   Tested: swift test timed out after 10m
+#
+# --skip-checks runs no check, not even `git diff --check`. It needs a
+# non-empty reason, which the commit keeps instead of every other Tested: line:
+#
+#   Tested: skipped: <why>
+#
 # A feat, fix or perf commit needs a `Customer-note:` trailer for the changelog
 # (scopes release, website, ci, test and repo need none). Then it runs
 # `git push origin <sha>:refs/heads/main`. When main moved meanwhile it
-# fetches, rebases, checks again and retries, 3 times. GitHub Actions then
+# fetches, rebases, checks again and retries, 10 times. GitHub Actions then
 # builds, packages and tests the pushed commit on a clean macOS image; nobody
 # waits for that run, and whoever pushed fixes or reverts a red one.
 #
@@ -37,9 +49,9 @@
 # "PUSH: <state> <sha>", and the exit code says what to do next:
 #   0  pushed (or checked, with --verify)
 #   1  usage, or a git error
-#   2  a check failed (main is unchanged)
+#   2  a check failed (main is unchanged); a timeout is not a failure
 #   3  the rebase conflicts (it is aborted and HEAD left as it was)
-#   4  main kept moving for 3 tries
+#   4  main kept moving for 10 tries
 #   5  not pushable: dirty tree, nothing to push, more than one commit
 #      without --squash, no Customer-note, or no Swift to test with
 set -euo pipefail
@@ -54,13 +66,24 @@ SWIFT_PATHS='^(Sources/|Tests/|Resources/|scripts/|Package\.(swift|resolved)$)'
 REPO_URL="https://github.com/Little-AI-Company/little-limits.git"
 M4_HOST="${PUSH_MAIN_M4:-m4}"
 M4_CHECKOUT='$HOME/Developer/little-limits-push'
-RETRIES=3
+RETRIES=10
+# Seconds the swift test run may take. Tests set PUSH_MAIN_CHECK_TIMEOUT, and
+# PUSH_MAIN_REMOTE_GRACE (the M4's own backstop after the cap), to a few seconds.
+CAP="${PUSH_MAIN_CHECK_TIMEOUT:-600}"
+GRACE="${PUSH_MAIN_REMOTE_GRACE:-30}"
 
 usage() {
-  sed -n '6,8p' "$0" | sed 's/^# \{0,1\}//' >&2
+  sed -n '6,9p' "$0" | sed 's/^# \{0,1\}//' >&2
   exit 1
 }
 say() { echo "push-main: $*" >&2; }
+[[ "$CAP" =~ ^[1-9][0-9]*$ ]] && [[ "$GRACE" =~ ^[0-9]+$ ]] || {
+  say "PUSH_MAIN_CHECK_TIMEOUT must be a number of seconds"
+  exit 1
+}
+cap_label() {
+  if [ $((CAP % 60)) -eq 0 ]; then echo "$((CAP / 60))m"; else echo "${CAP}s"; fi
+}
 finish() {
   local code="$1"
   shift
@@ -74,8 +97,18 @@ squash=""
 no_swift=""
 revert=""
 reason=""
+skip_why=""
 while [ $# -gt 0 ]; do
   case "$1" in
+    --skip-checks)
+      [ $# -ge 2 ] && [[ "$2" =~ [^[:space:]] ]] || {
+        say '--skip-checks needs a reason: --skip-checks "<why>"'
+        usage
+      }
+      case "$2" in *$'\n'* | *$'\r'*) say "the --skip-checks reason is one line" && usage ;; esac
+      skip_why="$2"
+      shift
+      ;;
     --squash | --no-swift | --revert | --reason)
       [ $# -ge 2 ] && [ -n "$2" ] || usage
       case "$1" in
@@ -97,7 +130,13 @@ done
 [ "$verify" -eq 0 ] || [ -z "$revert$squash" ] || usage
 
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/push-main.XXXXXX")"
-trap 'rm -rf "$tmp"' EXIT
+CAPPED_PID=""
+cleanup() {
+  [ -z "$CAPPED_PID" ] || kill -TERM -- "-$CAPPED_PID" 2>/dev/null || true
+  rm -rf "$tmp"
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
 
 [ -z "$(git status --porcelain)" ] || finish 5 "dirty - : commit or stash first"
 git fetch --quiet origin main || finish 1 "fetch-failed - : git fetch origin main"
@@ -177,29 +216,99 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:\$PATH"
 dir="$M4_CHECKOUT"
 bundle="\$(mktemp)"
 cat >"\$bundle"
-# One run at a time in this checkout. A lock left by a dead run is taken over.
-lock="\$dir.lock"
-for _ in \$(seq 360); do
-  if mkdir "\$lock" 2>/dev/null; then echo \$\$ >"\$lock/pid"; break; fi
-  kill -0 "\$(cat "\$lock/pid" 2>/dev/null || echo 0)" 2>/dev/null || rm -rf "\$lock"
-  sleep 5
-done
-[ -d "\$lock" ] && [ "\$(cat "\$lock/pid" 2>/dev/null)" = \$\$ ] || { echo "the checkout stayed locked for 30 minutes" >&2; exit 1; }
-trap 'rm -rf "\$lock" "\$bundle"' EXIT
-[ -d "\$dir/.git" ] || git clone -q $REPO_URL "\$dir"
-cd "\$dir"
-git fetch -q origin main
-git fetch -q "\$bundle" HEAD
-git checkout -q --force --detach FETCH_HEAD
-git clean -fdq
-echo "TREE \$(git rev-parse HEAD^{tree})"
-echo "HOSTINFO m4, macOS \$(sw_vers -productVersion), \$(xcodebuild -version | head -1)"
-swift test
-if [ "\${PACKAGE:-0}" = 1 ]; then
-  scripts/package_app.sh
-  codesign --verify --strict --verbose=2 "dist/Little Limits.app"
-fi
+trap 'rm -f "\$bundle"' EXIT
+work() {
+  # One run at a time in this checkout. A lock left by a dead run is taken over.
+  lock="\$dir.lock"
+  for _ in \$(seq 360); do
+    if mkdir "\$lock" 2>/dev/null; then echo \$\$ >"\$lock/pid"; break; fi
+    kill -0 "\$(cat "\$lock/pid" 2>/dev/null || echo 0)" 2>/dev/null || rm -rf "\$lock"
+    sleep 5
+  done
+  [ -d "\$lock" ] && [ "\$(cat "\$lock/pid" 2>/dev/null)" = \$\$ ] || { echo "the checkout stayed locked for 30 minutes" >&2; exit 1; }
+  trap 'rm -rf "\$lock"' EXIT
+  [ -d "\$dir/.git" ] || git clone -q $REPO_URL "\$dir"
+  cd "\$dir"
+  git fetch -q origin main
+  git fetch -q "\$bundle" HEAD
+  git checkout -q --force --detach FETCH_HEAD
+  git clean -fdq
+  echo "TREE \$(git rev-parse HEAD^{tree})"
+  echo "HOSTINFO m4, macOS \$(sw_vers -productVersion), \$(xcodebuild -version | head -1)"
+  swift test
+  if [ "\${PACKAGE:-0}" = 1 ]; then
+    scripts/package_app.sh
+    codesign --verify --strict --verbose=2 "dist/Little Limits.app"
+  fi
+}
+# The lock wait and the checks run in their own process group. The pushing
+# side stops waiting at the cap and drops this ssh session; this watchdog is
+# the backstop that stops the group a little after the cap, so nothing
+# is left running on the M4.
+set -m
+work &
+wp=\$!
+set +m
+(
+  start=\$SECONDS
+  while kill -0 "\$wp" 2>/dev/null; do
+    if [ \$((SECONDS - start)) -ge \$((\${CAP:-600} + $GRACE)) ]; then
+      kill -TERM -- "-\$wp" 2>/dev/null
+      sleep 3
+      kill -KILL -- "-\$wp" 2>/dev/null
+      break
+    fi
+    sleep 2
+  done
+) >/dev/null 2>&1 &
+wd=\$!
+rc=0
+wait "\$wp" || rc=\$?
+kill "\$wd" 2>/dev/null || true
+[ "\$rc" -lt 128 ] || rc=124
+exit "\$rc"
 EOF
+}
+
+# Runs a command in its own process group with its output in a log file. It
+# gets CAP seconds; after that the whole group is stopped and TIMED_OUT is 1.
+# Returns the command's status.
+TIMED_OUT=0
+capped() {
+  local log="$1" rc=0 start
+  shift
+  TIMED_OUT=0
+  set -m
+  "$@" >"$log" 2>&1 &
+  CAPPED_PID=$!
+  set +m
+  start=$SECONDS
+  while kill -0 "$CAPPED_PID" 2>/dev/null; do
+    if [ $((SECONDS - start)) -ge "$CAP" ]; then
+      TIMED_OUT=1
+      kill -TERM -- "-$CAPPED_PID" 2>/dev/null || true
+      sleep 2
+      kill -KILL -- "-$CAPPED_PID" 2>/dev/null || true
+      break
+    fi
+    sleep 1
+  done
+  wait "$CAPPED_PID" 2>/dev/null || rc=$?
+  CAPPED_PID=""
+  return "$rc"
+}
+
+local_mac_run() {
+  swift test &&
+    if [ "$package" -eq 1 ]; then
+      scripts/package_app.sh && codesign --verify --strict --verbose=2 "dist/Little Limits.app"
+    fi
+}
+
+m4_run() {
+  ssh -o BatchMode=yes "$M4_HOST" \
+    "f=\$(mktemp); echo $(base64 <"$tmp/remote.sh" | tr -d '\n') | base64 -d >\"\$f\"; PACKAGE=$package CAP=$CAP bash \"\$f\"; rc=\$?; rm -f \"\$f\"; exit \$rc" \
+    <"$tmp/head.bundle"
 }
 
 # Runs the checks on HEAD and sets TESTED (trailer lines) and STATE.
@@ -208,6 +317,11 @@ run_checks() {
   tree="$(tree12)"
   TESTED=()
   STATE=pass
+  if [ -n "$skip_why" ]; then
+    say "skipping every check: $skip_why"
+    TESTED+=("Tested: skipped: $skip_why")
+    return 0
+  fi
   if git diff --check origin/main HEAD >"$tmp/diffcheck.log" 2>&1; then
     TESTED+=("Tested: git diff --check pass tree $tree")
   else
@@ -227,19 +341,12 @@ run_checks() {
   if [ "$(uname -s)" = Darwin ] && command -v swift >/dev/null 2>&1; then
     where="here, macOS $(sw_vers -productVersion), $(xcodebuild -version 2>/dev/null | head -1)"
     say "running swift test here"
-    {
-      swift test &&
-        if [ "$package" -eq 1 ]; then
-          scripts/package_app.sh && codesign --verify --strict --verbose=2 "dist/Little Limits.app"
-        fi
-    } >"$log" 2>&1 || code=$?
+    capped "$log" local_mac_run || code=$?
   elif ssh -o BatchMode=yes -o ConnectTimeout=10 "$M4_HOST" true >/dev/null 2>&1; then
     say "running swift test on the M4 ($M4_HOST)"
     git bundle create --quiet "$tmp/head.bundle" HEAD ^origin/main
     remote_script >"$tmp/remote.sh"
-    ssh -o BatchMode=yes "$M4_HOST" \
-      "f=\$(mktemp); echo $(base64 <"$tmp/remote.sh" | tr -d '\n') | base64 -d >\"\$f\"; PACKAGE=$package bash \"\$f\"; rc=\$?; rm -f \"\$f\"; exit \$rc" \
-      <"$tmp/head.bundle" >"$log" 2>&1 || code=$?
+    capped "$log" m4_run || code=$?
     where="$(sed -n 's/^HOSTINFO //p' "$log" | head -1)"
     local remote_tree
     remote_tree="$(sed -n 's/^TREE //p' "$log" | head -1)"
@@ -250,7 +357,7 @@ run_checks() {
   elif command -v swift >/dev/null 2>&1; then
     where="here, Linux: UsageHistory only"
     say "running swift test here (Linux builds only UsageHistory)"
-    swift test >"$log" 2>&1 || code=$?
+    capped "$log" swift test || code=$?
   elif [ -n "$no_swift" ]; then
     TESTED+=("Tested: swift test not-run ($no_swift) tree $tree")
     say "swift test not run: $no_swift"
@@ -261,7 +368,13 @@ run_checks() {
 
   local label="swift test"
   [ "$package" -eq 0 ] || label="swift test + package"
-  if [ "$code" -eq 0 ]; then
+  [ "$TIMED_OUT" -eq 0 ] || code=124
+  if [ "$code" -eq 124 ]; then
+    # Pushed anyway: the state stays pass and the trailer says what happened.
+    TESTED+=("Tested: $label timed out after $(cap_label)")
+    tail -10 "$log" >&2 || true
+    say "WARNING: $label ran past $(cap_label) and was stopped; pushing anyway, and the Tested: trailer says so"
+  elif [ "$code" -eq 0 ]; then
     TESTED+=("Tested: $label pass (${where:-unknown host}, $(($(date +%s) - start))s) tree $tree")
   else
     TESTED+=("Tested: $label fail (${where:-unknown host}, exit $code) tree $tree")

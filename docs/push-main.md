@@ -22,6 +22,8 @@ git show HEAD         # read every line
 scripts/push_main.sh  # --package for UI, lifecycle, resource, or packaging changes
 ```
 
+`scripts/push_main_test.sh` tests the script against a temporary origin with stubbed `ssh` and `swift`: the cap, `--skip-checks`, the retries, and the check paths. Run it after you change `push_main.sh`.
+
 The script:
 
 1. Refuses a dirty tree, no commit ahead of `origin/main`, or several commits (`--squash "<subject>"` folds them into one).
@@ -39,11 +41,31 @@ The script:
    Tested: swift test pass (m4, macOS 26.7.2, Xcode 27.1, 41s) tree 3f2a9c1d7e0b
    ```
 
-6. Pushes `git push origin <sha>:refs/heads/main`. If `main` moved, it fetches, rebases, checks again, and retries, 3 times.
+6. Pushes `git push origin <sha>:refs/heads/main`. If `main` moved, it fetches, rebases, checks again, and retries, 10 times.
 
-`--verify` runs the checks on HEAD and pushes nothing.
+`--verify` runs the checks on HEAD and pushes nothing. [The 10 minute cap](#the-10-minute-cap) and [`--skip-checks`](#skipping-the-checks) are below.
 
-The last line on standard output is `PUSH: <state> <sha>`. Exit codes: `0` pushed or verified, `1` usage or git error, `2` a check failed and `main` is unchanged, `3` rebase conflict (aborted), `4` `main` kept moving, `5` not pushable (dirty, nothing to push, several commits, no Customer-note, no Swift).
+The last line on standard output is `PUSH: <state> <sha>`. Exit codes: `0` pushed or verified, `1` usage or git error, `2` a check failed (a timeout is not a failure) and `main` is unchanged, `3` rebase conflict (aborted), `4` `main` kept moving for 10 tries, `5` not pushable (dirty, nothing to push, several commits, no Customer-note, no Swift).
+
+## The 10 minute cap
+
+`swift test` (with `--package`, the packaging too) gets 10 minutes, here or on the M4. On the M4 the 10 minutes include the wait for the one checkout. When they run out the script drops the ssh session, warns, and pushes anyway. The M4 keeps a watchdog on the job: a little after the cap it stops the whole process group and frees the lock, so nothing is left running there. The commit says what happened in place of the pass line:
+
+```text
+Tested: swift test timed out after 10m
+```
+
+A timeout is not a failure, so the exit code is 0, and it is not a pass either: run the tests yourself when the commit matters. A check that fails inside the 10 minutes still exits 2. `git diff --check` is not capped. `PUSH_MAIN_CHECK_TIMEOUT` and `PUSH_MAIN_REMOTE_GRACE` (seconds the M4's watchdog waits past the cap, default 30) are for the test script.
+
+The M4 run is one ssh session that carries the bundle and the output, not a detached job that the script polls. If a long session proves to drop through the cloud proxy, the cap ends it at 10 minutes and the push goes ahead with the timeout recorded.
+
+## Skipping the checks
+
+```sh
+scripts/push_main.sh --skip-checks "<why>"
+```
+
+Runs no check, not even `git diff --check`, and writes only `Tested: skipped: <why>`. The reason is required and one line; an empty or missing one is a usage error (exit 1) and nothing changes. The `Customer-note:` gate still applies. `--no-swift "<why>"` is narrower: it still runs `git diff --check` and only covers a machine with no Swift and no `ssh m4`.
 
 ## After the push
 
@@ -63,4 +85,4 @@ It reverts the commit on top of `origin/main`, adds `Customer-note: none (revert
 
 - Push `main` any other way, force-push, or amend a pushed commit.
 - Write a `Tested:` trailer by hand.
-- Skip or weaken a test to get the check green.
+- Skip or weaken a test to get the check green. `--skip-checks` is for a commit the checks cannot say anything about, with the reason written down.
