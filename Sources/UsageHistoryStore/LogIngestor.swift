@@ -82,30 +82,24 @@ public actor LogIngestor {
         let appliedVersion = completedClassifierVersion ?? (hasCommands ? 0 : CommandClassifier.version)
         let reclassifies = appliedVersion < CommandClassifier.version
         for file in claudeFiles {
-            let succeeded = ingest(file, as: ClaudeLogParser.self,
-                                   position: reclassifies ? nil : positions[file.positionKey], accounts: [:],
-                                   summary: &summary)
-            if reclassifies, !succeeded {
-                _ = try? database.pool.write { db in try SourceFilePosition.deleteOne(db, key: file.positionKey) }
-            }
+            ingest(file, as: ClaudeLogParser.self, position: reclassifies ? nil : positions[file.positionKey],
+                   accounts: [:], summary: &summary)
         }
+        var everyCodexLogRead = unreadableCodex == 0
         for file in codexFiles {
             // A newly linked account needs every Codex log read again; unique keys make that add only its readings.
             let rereads = reclassifies || !newLinks.isEmpty
             let succeeded = ingest(file, as: CodexLogParser.self, position: rereads ? nil : positions[file.positionKey],
                                    accounts: accountsByProviderID, summary: &summary)
-            // A reread that failed must start over next time, because newer runs will not reread it again.
-            if rereads, !succeeded {
-                _ = try? database.pool.write { db in try SourceFilePosition.deleteOne(db, key: file.positionKey) }
-            }
+            if !succeeded { everyCodexLogRead = false }
         }
+        // A log missing from this scan keeps its older facts. Dropping its saved position means it is read,
+        // and reclassified, if it comes back.
+        let discovered = Set((claudeFiles + codexFiles).map(\.positionKey))
+        let missing = positions.keys.filter { !discovered.contains($0) }
         // Recorded only after a scan with no failures, so an interrupted or failed reclassification runs again.
         if summary.filesFailed == 0, completedClassifierVersion != CommandClassifier.version {
             do {
-                // A log missing from this scan keeps its older facts. Dropping its saved position means it is read,
-                // and reclassified, if it comes back.
-                let discovered = Set((claudeFiles + codexFiles).map(\.positionKey))
-                let missing = positions.keys.filter { !discovered.contains($0) }
                 try database.pool.write { db in
                     _ = try SourceFilePosition.deleteAll(db, keys: missing)
                     try db.execute(sql: "DELETE FROM completedClassifierVersion")
@@ -116,9 +110,10 @@ public actor LogIngestor {
                 summary.lastFailure = error.localizedDescription
             }
         }
-        if !newLinks.isEmpty {
+        if !newLinks.isEmpty, everyCodexLogRead {
             do {
                 try database.pool.write { db in
+                    _ = try SourceFilePosition.deleteAll(db, keys: missing)
                     for link in newLinks {
                         try db.execute(sql: "INSERT OR IGNORE INTO codexBackfillAccount VALUES (?, ?)",
                                        arguments: [link.accountID, link.providerAccountID])

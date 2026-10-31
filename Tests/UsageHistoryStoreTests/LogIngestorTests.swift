@@ -102,6 +102,67 @@ private func rowCounts(_ database: HistoryDatabase) throws -> [Int] {
     #expect(readings.first?.observedAt == Date(timeIntervalSince1970: 1_791_972_017))
 }
 
+private func usedPercents(_ database: HistoryDatabase) async throws -> [Double] {
+    try await database.pool.read(QuotaReading.fetchAll).sorted { $0.observedAt < $1.observedAt }.map(\.usedPercent)
+}
+
+@Test func aLinkReadWhileALogFolderIsUnreadableIsReadAgainOnTheNextRun() async throws {
+    let home = try temporaryHome()
+    let blockedFolder = home.appendingPathComponent(".codex/sessions/2026/10/15")
+    defer {
+        try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: blockedFolder.path)
+        try? FileManager.default.removeItem(at: home)
+    }
+    try write(codexSession(account: "acct", usedPercent: [10]), to: home.appendingPathComponent(
+        ".codex/sessions/2026/10/14/rollout-2026-10-14T10-00-00-0199e2a1-0000-7000-8000-000000000001.jsonl"))
+    try write(codexSession(account: "acct", usedPercent: [30], startSecond: 20), to: blockedFolder.appendingPathComponent(
+        "rollout-2026-10-15T10-00-00-0199e2a1-0000-7000-8000-000000000002.jsonl"))
+    let database = try HistoryDatabase(url: home.appendingPathComponent("history.sqlite"))
+    let ingestor = LogIngestor(database: database, homeDirectory: home)
+    let link = CodexAccountLink(accountID: UUID(), providerAccountID: "acct")
+    _ = await ingestor.ingest(codexAccounts: [])
+
+    try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: blockedFolder.path)
+    let blocked = await ingestor.ingest(codexAccounts: [link])
+    #expect(blocked.filesFailed > 0)
+    #expect(try await usedPercents(database) == [10])
+
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: blockedFolder.path)
+    let restored = await ingestor.ingest(codexAccounts: [link])
+    #expect(restored.filesFailed == 0)
+    #expect(try await usedPercents(database) == [10, 30])
+}
+
+@Test func aLogAwayAfterAFailedLinkRereadIsReadWhenItReturns() async throws {
+    let home = try temporaryHome()
+    let sessions = home.appendingPathComponent(".codex/sessions/2026/10/14")
+    let log = sessions.appendingPathComponent("rollout-2026-10-14T11-00-00-0199e2a1-0000-7000-8000-000000000002.jsonl")
+    let parked = home.appendingPathComponent("parked.jsonl")
+    defer {
+        try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: log.path)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: parked.path)
+        try? FileManager.default.removeItem(at: home)
+    }
+    try write(codexSession(account: "acct", usedPercent: [10]),
+              to: sessions.appendingPathComponent("rollout-2026-10-14T10-00-00-0199e2a1-0000-7000-8000-000000000001.jsonl"))
+    try write(codexSession(account: "acct", usedPercent: [30], startSecond: 20), to: log)
+    let database = try HistoryDatabase(url: home.appendingPathComponent("history.sqlite"))
+    let ingestor = LogIngestor(database: database, homeDirectory: home)
+    let link = CodexAccountLink(accountID: UUID(), providerAccountID: "acct")
+    _ = await ingestor.ingest(codexAccounts: [])
+
+    try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: log.path)
+    #expect(await ingestor.ingest(codexAccounts: [link]).filesFailed == 1)
+    try FileManager.default.moveItem(at: log, to: parked)
+    try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: parked.path)
+    #expect(await ingestor.ingest(codexAccounts: [link]).filesFailed == 0)
+    #expect(try await usedPercents(database) == [10])
+
+    try FileManager.default.moveItem(at: parked, to: log)
+    _ = await ingestor.ingest(codexAccounts: [link])
+    #expect(try await usedPercents(database) == [10, 30])
+}
+
 @Test func rereadingOrMovingALogAddsNothing() async throws {
     let home = try temporaryHome()
     defer { try? FileManager.default.removeItem(at: home) }

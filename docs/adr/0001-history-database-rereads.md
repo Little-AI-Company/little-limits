@@ -18,8 +18,8 @@ A migration may clear read positions to force a reread, instead of rewriting sto
 - The latest-reading-per-account query relies on SQLite's documented bare-column rule: with `MAX()` in an aggregate, the other selected columns come from the row that holds the maximum.
 - `v3-reread-logs-for-command-attribution` cleared every read position once, because Codex commands moved to the response active when they started. Position keys are a hash of the path, which does not tell Codex logs from Claude logs, so all of them were cleared.
 - `v4-completed-classifier-version` stores the classifier version applied by the last scan with no failures. Commands keep classification facts only, so newer classifier rules mean reading every log again. Rows stored before the version was recorded may come from any older version.
-- A failed reread starts over next time.
-- A log missing from a scan keeps its older facts. When a scan with no failures records a new classifier version, the read positions of logs it did not find are dropped, so such a log is read, and reclassified, if it returns.
+- A failed reread starts over next time. The classifier version is recorded only after a scan with no failures, and new Codex account links only after a run that read every Codex log, so the next run reads every log again.
+- A log missing from a scan keeps its older facts. When a scan with no failures records a new classifier version, or a run records new Codex account links, the read positions of logs it did not find are dropped in the same transaction, so such a log is read, and reclassified, if it returns.
 
 Conflict rules:
 
