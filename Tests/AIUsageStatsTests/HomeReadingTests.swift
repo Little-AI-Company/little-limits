@@ -156,3 +156,47 @@ private func homeGrant(_ name: String, status: String?, expires: Date?, doesNotE
     CreditBalance(id: "quota_reset_" + name, title: "Earned reset", amount: nil, unit: .resets,
                   expiresAt: expires, asOf: homeReadingNow, status: status, doesNotExpire: doesNotExpire)
 }
+
+@Test @MainActor
+func ordinaryCodexWindowsKeepTheirColumnsWithAdditionalMeters() {
+    let windows = [
+        UsageWindow(id: "codex_primary", title: "Codex: 5 hours", utilizationPercent: 20,
+                    resetsAt: homeReadingNow.addingTimeInterval(3_600),
+                    windowDurationMinutes: 300),
+        UsageWindow(id: "codex_secondary", title: "Codex: 7 days", utilizationPercent: 40,
+                    resetsAt: homeReadingNow.addingTimeInterval(86_400),
+                    windowDurationMinutes: 10_080),
+        UsageWindow(id: "spark_primary", title: "Spark: 5 hours", utilizationPercent: 60,
+                    resetsAt: homeReadingNow.addingTimeInterval(3_600),
+                    windowDurationMinutes: 300)
+    ]
+    let row = homeRow(windows: windows)
+    #expect(homeLines(row.session)[0].primary == "80% left")
+    #expect(homeLines(row.weekly)[0].primary == "60% left")
+    #expect(homeLines(row.other)[0].primary == "40% left")
+    #expect(homeHeadings(windows: windows) == HomeColumnHeadings(session: "5-hour", weekly: "Weekly", other: "5-hour · Spark"))
+}
+
+@Test @MainActor
+func inactiveQuotasDoNotRequestRecovery() {
+    let inactive = UsageWindow(id: "inactive", title: "Weekly", utilizationPercent: nil,
+                               resetsAt: nil, isActive: false)
+    for state in [SnapshotState.available, .authenticationRequired] {
+        let snapshot = AccountSnapshot(profileID: homeReadingProfile.id, fetchedAt: homeReadingNow,
+                                       windows: [inactive], credits: [], state: state)
+        let overview = UsageOverview(profiles: [homeReadingProfile],
+                                     snapshots: [homeReadingProfile.id: snapshot], now: homeReadingNow)
+        let items = HomeInterfaceFormatting.attentionItems(overview.accounts, now: homeReadingNow)
+        #expect(items.isEmpty == (state != .authenticationRequired))
+        #expect(items.allSatisfy { $0.text == "Codex work: Sign-in required. Choose Reconnect…" && $0.showsReconnect })
+    }
+}
+
+@MainActor
+private func homeHeadings(windows: [UsageWindow]) -> HomeColumnHeadings {
+    let snapshot = AccountSnapshot(profileID: homeReadingProfile.id, fetchedAt: homeReadingNow,
+                                   windows: windows, credits: [], state: .available)
+    let overview = UsageOverview(profiles: [homeReadingProfile],
+                                 snapshots: [homeReadingProfile.id: snapshot], now: homeReadingNow)
+    return HomeInterfaceFormatting.headings(for: overview.accounts)
+}

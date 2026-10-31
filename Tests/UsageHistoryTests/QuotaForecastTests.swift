@@ -210,3 +210,50 @@ private func seconds(_ account: UUID, at offset: TimeInterval, used: Double, res
         provider: .claude, history: moved,
         counted: [CountedQuota(accountID: accountA, remainingPercent: 70, resetsAt: whole)], now: now) == nil)
 }
+
+@Test func longOvernightPairCountsIncludingIdleTime() throws {
+    let history = [
+        reading(accountA, hoursAgo: 20, used: 10, resetsAt: laterReset),
+        reading(accountA, hoursAgo: 11, used: 10, resetsAt: laterReset),
+        reading(accountA, hoursAgo: 10, used: 22, resetsAt: laterReset)
+    ]
+    let drain = try #require(QuotaForecast.drainRate(
+        provider: .claude, history: history,
+        counted: [CountedQuota(accountID: accountA, remainingPercent: 78, resetsAt: laterReset)], now: now))
+    #expect(abs(drain.percentPerHour - 12.0 / 10) < 1e-9)
+}
+
+@Test func changeOnlyValueIsHeldThenBrokenAtItsReset() {
+    let reset = now.addingTimeInterval(-hours(5))
+    let segments = QuotaForecast.historySegments(readings: [
+        seconds(accountA, at: -hours(10), used: 20, resetsAt: reset, source: .claudeStatusLine),
+        seconds(accountA, at: -hours(8), used: 30, resetsAt: reset, source: .claudeStatusLine),
+        seconds(accountA, at: -hours(2), used: 1, resetsAt: laterReset, source: .claudeStatusLine)
+    ], now: now)
+    #expect(segments.count == 2)
+    #expect(segments[0].containsChangeOnlyReadings)
+    #expect(segments[0].points == [
+        QuotaHistoryPoint(date: now.addingTimeInterval(-hours(10)), remainingPercent: 80),
+        QuotaHistoryPoint(date: now.addingTimeInterval(-hours(8)), remainingPercent: 80),
+        QuotaHistoryPoint(date: now.addingTimeInterval(-hours(8)), remainingPercent: 70),
+        QuotaHistoryPoint(date: reset, remainingPercent: 70)
+    ])
+    #expect(segments[1].points == [
+        QuotaHistoryPoint(date: now.addingTimeInterval(-hours(2)), remainingPercent: 99),
+        QuotaHistoryPoint(date: now, remainingPercent: 99)
+    ])
+}
+
+@Test func changeOnlyLineBreaksWhenTheNextReadingLandsExactlyAtTheReset() {
+    let reset = now.addingTimeInterval(-hours(5))
+    let segments = QuotaForecast.historySegments(readings: [
+        seconds(accountA, at: -hours(8), used: 30, resetsAt: reset, source: .claudeStatusLine),
+        seconds(accountA, at: -hours(5), used: 0, resetsAt: laterReset, source: .claudeStatusLine)
+    ], now: now)
+    #expect(segments.count == 2)
+    #expect(segments[0].points == [
+        QuotaHistoryPoint(date: now.addingTimeInterval(-hours(8)), remainingPercent: 70),
+        QuotaHistoryPoint(date: reset, remainingPercent: 70)
+    ])
+    #expect(segments[1].points.first == QuotaHistoryPoint(date: reset, remainingPercent: 100))
+}

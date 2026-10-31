@@ -547,3 +547,17 @@ private actor OAuthTransport: ClaudeHTTPTransport {
     }
     func release() { continuation?.resume(); continuation = nil }
 }
+
+@Test func claudePlanIsBoundFromTheValidatedProfileBeforeUsage() async throws {
+    let profile = ClaudeHTTPResponse(status: 200, contentType: "application/json",
+        body: Data(#"{"account":{"uuid":"AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA","email":"example@example.com","has_claude_max":true,"has_claude_pro":false,"rate_limit_tier":"default_claude_max_20x"},"organization":{"uuid":"BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB","organization_type":"claude_pro","subscription_status":"active"}}"#.utf8))
+    let fixture = try OAuthFixture(steps: [.response(tokenResponse), .response(profile), .response(profile), .response(usageResponse)])
+    defer { fixture.removeDirectory() }
+    let connected = try await fixture.connect()
+    let snapshot = try #require(await fixture.service.snapshot(for: connected.id))
+    #expect(snapshot.planName == "Max")
+    #expect(snapshot.windows.map(\.utilizationPercent) == [42])
+    #expect(snapshot.windows.map(\.windowDurationMinutes) == [nil])
+    let paths = await fixture.transport.requests.map { $0.url?.path }
+    #expect(paths == ["/v1/oauth/token", "/api/oauth/profile", "/api/oauth/profile", "/api/oauth/usage"])
+}
