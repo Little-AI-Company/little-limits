@@ -132,7 +132,7 @@ expect_has "$ERR" "WARNING: swift test ran past 4s" "warning"
 body="$(origin_body)"
 expect_has "$body" "Tested: swift test timed out after 4s" "timeout trailer"
 expect_lacks "$body" "swift test pass" "no pass line"
-expect_eq "$(grep -c '^Tested: ' <<<"$body")" 2 "trailer count (diff check and timeout)"
+expect_eq "$(grep -c '^Tested: ' <<<"$body")" 3 "trailer count (diff check, comment count and timeout)"
 for _ in $(seq 30); do
   hang_alive || break
   sleep 1
