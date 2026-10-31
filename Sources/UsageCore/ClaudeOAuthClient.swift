@@ -135,10 +135,14 @@ struct ClaudeKeychainStore: ClaudeCredentialStore {
         let status = try ClaudeKeychainAccess.withPromptsSuppressed(unless: allowInteraction) {
             SecItemCopyMatching(query as CFDictionary, &result)
         }
+        return try Self.credentials(status: status, result: result)
+    }
+
+    static func credentials(status: OSStatus, result: CFTypeRef?) throws -> ClaudeCredentials? {
         if status == errSecItemNotFound { return nil }
         guard status == errSecSuccess, let data = result as? Data else {
             throw UsageError.authenticationRequired(status == errSecInteractionNotAllowed || status == errSecAuthFailed
-                ? "Claude Keychain access needs permission. Your saved sign-in is preserved; allow Keychain access for this account."
+                ? UsageError.keychainPermissionRequiredMessage
                 : "Claude credentials are unavailable in Keychain. Reconnect this account.")
         }
         do { return try JSONDecoder().decode(ClaudeCredentials.self, from: data) }
@@ -466,5 +470,16 @@ struct ClaudeOAuthClient: Sendable {
         }
         do { return try JSONDecoder().decode(type, from: response.body) }
         catch { throw UsageError.providerFailure("Claude returned incomplete or invalid account data.") }
+    }
+}
+
+extension UsageError {
+    public static let keychainPermissionRequiredMessage =
+        "Claude Keychain access needs permission. Your saved sign-in is preserved; allow Keychain access for this account."
+}
+
+extension AccountSnapshot {
+    public var needsKeychainPermission: Bool {
+        state == .authenticationRequired && detail?.contains(UsageError.keychainPermissionRequiredMessage) == true
     }
 }

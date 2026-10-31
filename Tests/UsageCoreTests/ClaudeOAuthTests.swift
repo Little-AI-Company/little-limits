@@ -1,5 +1,6 @@
 import Foundation
 import CryptoKit
+import Security
 import Testing
 @testable import UsageCore
 
@@ -213,6 +214,17 @@ import Testing
     #expect(recovered.windows.first?.utilizationPercent == 42)
     #expect(try fixture.credentials.read(accountID: profile.id, allowInteraction: false) == original)
     await #expect(throws: UsageError.self) { try await fixture.service.allowClaudeKeychainAccess(id: UUID()) }
+}
+
+@Test(arguments: [(errSecInteractionNotAllowed, true), (errSecAuthFailed, true), (errSecItemNotFound, false)])
+func refusedKeychainReadAsksForKeychainPermission(_ status: OSStatus, _ needsPermission: Bool) async throws {
+    let fixture = try OAuthFixture(steps: [.response(tokenResponse), .response(profileResponse), .response(profileResponse), .response(usageResponse)])
+    defer { fixture.removeDirectory() }
+    let profile = try await fixture.connect()
+    fixture.credentials.failReads(withKeychainStatus: status)
+    let snapshot = await fixture.service.refreshAccount(id: profile.id)
+    #expect(snapshot.state == .authenticationRequired)
+    #expect(snapshot.needsKeychainPermission == needsPermission)
 }
 
 @Test func optionalClaudeOrganizationPreservesKnownIdentityThroughSuccessfulRenewal() async throws {
@@ -498,10 +510,13 @@ private final class MemoryClaudeCredentials: ClaudeCredentialStore, @unchecked S
     private var values: [UUID: ClaudeCredentials] = [:]
     private var removalFailures = 0
     private var readPermissionRequired = false
+    private var keychainReadStatus: OSStatus?
     var count: Int { lock.withLock { values.count } }
     func requireReadPermission() { lock.withLock { readPermissionRequired = true } }
+    func failReads(withKeychainStatus status: OSStatus) { lock.withLock { keychainReadStatus = status } }
     func read(accountID: UUID, allowInteraction: Bool) throws -> ClaudeCredentials? {
         try lock.withLock {
+            if let keychainReadStatus { return try ClaudeKeychainStore.credentials(status: keychainReadStatus, result: nil) }
             if readPermissionRequired {
                 guard allowInteraction else { throw UsageError.authenticationRequired("Fixture Keychain access requires permission.") }
                 readPermissionRequired = false

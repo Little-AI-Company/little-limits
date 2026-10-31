@@ -9,8 +9,6 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
     private static let refreshAccountItem = NSToolbarItem.Identifier("AccountRefresh")
     private static let reconnectItem = NSToolbarItem.Identifier("AccountReconnect")
     private static let billingItem = NSToolbarItem.Identifier("AccountBilling")
-    /// Matches `ClaudeKeychainStore.read`: the saved sign-in exists but macOS has not granted this app access to it.
-    private static let keychainPermissionFailure = "Keychain access needs permission"
     private static let codexSignInWait = "Waiting for Codex sign-in in Terminal…"
 
     private let model: ApplicationModel
@@ -460,7 +458,7 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         } else if let snapshot {
             switch snapshot.state {
             case .authenticationRequired:
-                if profile.source == .claudeOAuth, snapshot.detail?.contains(Self.keychainPermissionFailure) == true {
+                if profile.source == .claudeOAuth, snapshot.needsKeychainPermission {
                     message = "Keychain access needs permission. Your saved sign-in is preserved."
                     recovery = keychainAccessButton
                 } else {
