@@ -8,7 +8,7 @@ import UsageHistory
 enum HomeForecastDemonstration {
     static func readings(profiles: [AccountProfile], snapshots: [UUID: AccountSnapshot], now: Date,
                          calendar: Calendar = .current) -> [QuotaReading] {
-        let step: TimeInterval = 300
+        let step = QuotaForecast.polledRefreshInterval
         let week: TimeInterval = 7 * 86_400
         let latest = now.addingTimeInterval(-60)
         let closed = now.addingTimeInterval(-30 * 3_600)...now.addingTimeInterval(-22 * 3_600)

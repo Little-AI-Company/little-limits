@@ -1,5 +1,6 @@
 import AppKit
 import UsageCore
+import UsageHistory
 
 @MainActor
 final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
@@ -240,7 +241,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private func startRefreshTimer() {
         refreshTimer?.invalidate()
         guard !sleeping else { return }
-        refreshTimer = Timer.scheduledTimer(timeInterval: 300, target: self,
+        refreshTimer = Timer.scheduledTimer(timeInterval: QuotaForecast.polledRefreshInterval, target: self,
                                            selector: #selector(refreshElapsed(_:)), userInfo: nil, repeats: true)
         refreshTimer?.tolerance = 15
     }

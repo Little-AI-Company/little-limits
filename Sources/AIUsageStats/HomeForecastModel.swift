@@ -46,8 +46,7 @@ struct HomeProviderForecast: Equatable {
 }
 
 enum HomeForecastModel {
-    /// Pooled history is sampled on this grid. Polled readings are 300 seconds apart.
-    static let historyStep: TimeInterval = 300
+    static let historyStep: TimeInterval = QuotaForecast.polledRefreshInterval
 
     /// Forecast blocks for each provider with an account, Claude first. Claude and Codex are never combined.
     /// `latestReadings` holds each account's latest reading of any age; it may be older than `readings` covers.

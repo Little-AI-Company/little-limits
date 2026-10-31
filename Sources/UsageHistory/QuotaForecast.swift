@@ -137,8 +137,8 @@ extension QuotaReadingSource {
 /// Pooled weekly quota forecast. Pure functions of recorded readings and current values.
 public enum QuotaForecast {
     public static let drainLookback: TimeInterval = 86_400
-    /// 1.5 times the 300 second refresh interval.
-    public static let polledGapLimit: TimeInterval = 450
+    public static let polledRefreshInterval: TimeInterval = 300
+    public static let polledGapLimit: TimeInterval = polledRefreshInterval * 1.5
     /// Sources report the same reset with different precision, such as whole or fractional seconds. Reset times less
     /// than this far apart are the same reset.
     public static let resetTolerance: TimeInterval = 60
