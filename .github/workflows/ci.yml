@@ -1,9 +1,5 @@
 name: CI
 
-# Runs after each push to main. Nothing waits for it and nothing requires it:
-# scripts/push_main.sh checks a commit before it lands, and this run proves the
-# Release build, packaging, and signature on a clean macOS image afterwards.
-# Whoever pushed a commit that turns it red fixes or reverts it within the hour.
 on:
   push:
     branches: [main]
@@ -12,7 +8,6 @@ on:
 permissions:
   contents: read
 
-# One group per commit, never cancelled, so every commit on main gets a result.
 concurrency:
   group: ci-${{ github.sha }}
   cancel-in-progress: false
@@ -20,11 +15,9 @@ concurrency:
 jobs:
   macos:
     name: macOS
-    # The app uses macOS 27 SDK symbols, so the standard macos-26 image (Xcode 26) cannot build it.
     runs-on: xcode-27
     timeout-minutes: 30
     env:
-      # Select Xcode by exact path so a runner image update cannot change the toolchain.
       DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
     steps:
       - uses: actions/checkout@v7
@@ -43,7 +36,6 @@ jobs:
 
   linux:
     name: Linux
-    # Only UsageHistory builds on Linux. This keeps it buildable for cloud sessions.
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     container: swift:6.4.0-noble

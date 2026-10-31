@@ -1,7 +1,4 @@
 #!/bin/bash
-# Places full-bleed square icon artwork on the macOS app icon grid.
-# Result: 1024 px transparent canvas, 824 px rounded-square body inset 100 px with a
-# 185.4 px corner radius, and a drop shadow 10 px down, 10 px blur, 30 percent black.
 set -euo pipefail
 usage() {
   cat >&2 <<'USAGE'

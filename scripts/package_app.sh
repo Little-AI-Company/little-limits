@@ -27,7 +27,6 @@ if [[ "$distribution" != 0 && "$distribution" != 1 ]]; then
     exit 1
 fi
 if [[ "$distribution" == 1 ]]; then
-    # Accept a certificate hash or name; distribution needs the Developer ID Application certificate.
     identity_name="$(security find-identity -v -p codesigning | awk -v identity="$signing_identity" \
         '$2 == identity { line = $0; sub(/^[^"]*"/, "", line); sub(/"$/, "", line); print line }')"
     identity_name="${identity_name:-$signing_identity}"
@@ -35,7 +34,6 @@ if [[ "$distribution" == 1 ]]; then
         printf 'DISTRIBUTION=1 requires a Developer ID Application signing identity.\n' >&2
         exit 1
     fi
-    # Releases ship under the RAPTURE ENTERTAINERS, INC. team only.
     release_team="${RELEASE_TEAM_ID:-9FL5S77YVH}"
     if [[ "$identity_name" != *"($release_team)" ]]; then
         printf 'DISTRIBUTION=1 requires the Developer ID certificate of team %s.\n' "$release_team" >&2
@@ -44,8 +42,6 @@ if [[ "$distribution" == 1 ]]; then
 fi
 
 build_arguments=(-c release)
-# SwiftPM's default build system records SDK 14.0 in the binary, which makes current
-# macOS keep the pre-Liquid Glass appearance. Record the SDK actually used to build.
 sdk_version="$(xcrun --sdk macosx --show-sdk-version)"
 build_arguments+=(-Xlinker -platform_version -Xlinker macos -Xlinker 14.0 -Xlinker "$sdk_version")
 if [[ "$universal" == 1 ]]; then
@@ -53,7 +49,6 @@ if [[ "$universal" == 1 ]]; then
 fi
 swift build "${build_arguments[@]}"
 binary_directory="$(swift build "${build_arguments[@]}" --show-bin-path)"
-# Paper is the bundle icon. Night is the alternate the running app can show; see docs/RELEASING.md.
 create_icon_if_outdated() {
     local master="$1" small_master="$2" output_icon="$3"
     if [[ ! -f "$output_icon" || "$master" -nt "$output_icon" || "$small_master" -nt "$output_icon" ]]; then
@@ -77,7 +72,6 @@ cp -R "$binary_directory/AIUsageStats_AIUsageStats.bundle" "$application/Content
 plutil -replace CFBundleShortVersionString -string "$version" "$application/Contents/Info.plist"
 plutil -replace CFBundleVersion -string "$build_number" "$application/Contents/Info.plist"
 plutil -lint "$application/Contents/Info.plist"
-# Distribution builds use hardened runtime and a secure timestamp, which notarization requires.
 signing_arguments=(--force --sign "$signing_identity")
 if [[ "$distribution" == 1 ]]; then
     signing_arguments+=(--options runtime --timestamp)

@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Tests for scripts/push_main.sh: the 10 minute cap, --skip-checks, the retry
-# count and the swift test paths, against a temporary bare origin.
-#
-#   scripts/push_main_test.sh
-#
-# Nothing here needs a Mac, Swift or the real M4. `uname`, `ssh`, `swift`,
-# `sw_vers` and `xcodebuild` are stubs on PATH. The ssh stub runs the remote
-# command in a local shell in a session of its own (setsid), so dropping the
-# ssh client leaves the remote job running, as it does on the M4, and the
-# M4's watchdog has to stop it. The cap is a few seconds.
 set -uo pipefail
 
 command -v setsid >/dev/null 2>&1 || {
@@ -37,8 +27,6 @@ cat >"$ROOT/bin/xcodebuild" <<'STUB'
 #!/usr/bin/env bash
 echo "Xcode 27.1"
 STUB
-# STUB_SWIFT: pass | fail | hang (sleeps until killed, pid in $STUB_PIDFILE) |
-# race (pushes a commit to origin from the second clone once, then passes).
 cat >"$ROOT/bin/swift" <<'STUB'
 #!/usr/bin/env bash
 echo "swift $*" >>"$STUB_SWIFT_LOG"
@@ -80,9 +68,6 @@ expect_eq() { [ "$1" = "$2" ] || fail "$3: expected '$2', got '$1'"; }
 expect_has() { grep -qF -- "$2" <<<"$1" || fail "$3: expected to find '$2' in: $1"; }
 expect_lacks() { ! grep -qF -- "$2" <<<"$1" || fail "$3: did not expect '$2' in: $1"; }
 
-# A bare origin, a work clone holding a copy of the script and one Swift file,
-# a second clone that plays another pusher, and a pre-made "M4" checkout under
-# a fake home.
 setup() {
   T="$ROOT/t$tests"
   mkdir -p "$T/home/Developer"
@@ -103,7 +88,6 @@ setup() {
   git -C "$T/work" commit -q -m "${1:-chore: add b}"
 }
 
-# push [VAR=value ...] -- [args]: runs the copied script with the stubs.
 push() {
   local envs=()
   while [ "$1" != -- ]; do
@@ -149,7 +133,6 @@ body="$(origin_body)"
 expect_has "$body" "Tested: swift test timed out after 4s" "timeout trailer"
 expect_lacks "$body" "swift test pass" "no pass line"
 expect_eq "$(grep -c '^Tested: ' <<<"$body")" 2 "trailer count (diff check and timeout)"
-# The M4's watchdog stops the orphaned job a little after the cap.
 for _ in $(seq 30); do
   hang_alive || break
   sleep 1

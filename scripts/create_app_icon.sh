@@ -1,8 +1,4 @@
 #!/bin/bash
-# Builds a macOS .icns from two 1024 px masters already placed on the app icon grid.
-# Usage: create_app_icon.sh <master.png> <small_master.png> <output.icns>
-# The small master fills the 16 and 32 px slots, where the detailed master does not read.
-# Every other slot, from 64 to 1024 px, is resized from the detailed master.
 set -euo pipefail
 
 if [[ $# -ne 3 ]]; then
@@ -21,7 +17,6 @@ temporary_directory="$(mktemp -d "${TMPDIR:-/tmp}/little-limits-icon.XXXXXX")"
 trap 'rm -rf "$temporary_directory"' EXIT
 iconset="$temporary_directory/AppIcon.iconset"
 mkdir -p "$iconset" "$(dirname "$output_icon")"
-# Slot name, pixel size, source.
 while read -r slot pixels source_image; do
     sips -z "$pixels" "$pixels" "$source_image" --out "$iconset/$slot.png" >/dev/null
 done <<SLOTS

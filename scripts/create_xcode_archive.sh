@@ -1,8 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# Wrap a previously packaged app. Xcode's archive schema is not a published API;
-# keep this wrapper small and validate local export with the installed Xcode.
 if [[ "$#" != 2 ]]; then
     printf 'Usage: %s application.app output.xcarchive\n' "$0" >&2
     exit 1

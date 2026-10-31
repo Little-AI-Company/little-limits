@@ -69,7 +69,7 @@ Runs no check, not even `git diff --check`, and writes only `Tested: skipped: <w
 
 ## After the push
 
-`.github/workflows/ci.yml` packages, verifies the signature, and runs the full tests on GitHub's `xcode-27` macOS image, and runs the `UsageHistory` tests on Linux. Nobody waits for it. The M4 runs macOS 26 with Xcode 27.1; this run is the check on a clean machine and the macOS 27 runtime.
+`.github/workflows/ci.yml` packages, verifies the signature, and runs the full tests on GitHub's `xcode-27` macOS image, and runs the `UsageHistory` tests on Linux. Nobody waits for it. The M4 runs macOS 26 with Xcode 27.1; this run is the check on a clean machine and the macOS 27 runtime. The app uses macOS 27 SDK symbols, so the standard macos-26 image cannot build it; the job selects Xcode 27 by exact path so a runner image update cannot change the toolchain. Runs share one group per commit and are never cancelled, so every commit on `main` gets a result.
 
 If it turns red, whoever pushed the commit fixes it forward or reverts it within the hour.
 

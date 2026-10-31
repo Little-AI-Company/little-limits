@@ -42,7 +42,7 @@ SwiftPM's default build system records SDK 14.0 in the binary, which makes curre
 
 The bundle icon is Paper. Night is an alternate that the running app shows when the person picks it in Settings; see [NATIVE-DESIGN.md](NATIVE-DESIGN.md). macOS has no alternate-icon API for Mac apps, and a custom Finder icon on the bundle breaks its code signature. So Night replaces Paper only in the running app (the Dock and app switcher while a window is open, and About Little Limits). Finder and Launchpad keep Paper. The About panel shows the bundle icon unless it is given one, so the app passes the icon chosen in Settings.
 
-Every master is a 1024 px PNG already placed on the macOS icon grid by `scripts/compose_icon_master.sh` from the full-bleed artwork in `assets/branding/app-icon/artwork/`. See [assets/branding/README.md](../assets/branding/README.md) for how the artwork was made.
+Every master is a 1024 px PNG already placed on the macOS icon grid by `scripts/compose_icon_master.sh` from the full-bleed artwork in `assets/branding/app-icon/artwork/`. The grid is a 1024 px transparent canvas with an 824 px rounded-square body inset 100 px, a 185.4 px corner radius, and a drop shadow 10 px down with a 10 px blur at 30 percent black. See [assets/branding/README.md](../assets/branding/README.md) for how the artwork was made.
 
 | Output | 64 to 1024 px slots | 16 and 32 px slots |
 | --- | --- | --- |

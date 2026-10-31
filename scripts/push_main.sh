@@ -1,69 +1,15 @@
 #!/usr/bin/env bash
-# Check one commit and fast-forward main with it (AGENTS.md: Shipping on main).
-# There are no pull requests or branches in this repository; this script is
-# how every change lands.
-#
-# It fetches origin/main, rebases the one commit ahead of it onto it, and checks
-# that exact commit:
-#
-#   - `git diff --check` on every commit.
-#   - `swift test` when the commit touches Sources/, Tests/, Resources/,
-#     scripts/ or Package.swift/Package.resolved. It runs here on a Mac with
-#     Swift, otherwise on the M4 over `ssh m4` (little-worker's
-#     scripts/m4-ssh-setup.sh gives a cloud session that), otherwise with a
-#     Linux Swift (which builds only UsageHistory). With none of them it stops,
-#     unless `--no-swift "<why>"` records that it did not run.
-#   - `--package` also runs scripts/package_app.sh and `codesign --verify` on
-#     the same Mac. Use it for UI, lifecycle, resource and packaging changes.
-#
-# It writes the results as `Tested:` trailers. They name the tree that was
-# checked, so they stay true after the amend that adds them:
-#
-#   Tested: git diff --check pass tree 3f2a9c1d7e0b
-#   Tested: swift test pass (m4, macOS 26.7.2, Xcode 27.1, 41s) tree 3f2a9c1d7e0b
-#
-# The swift test run has 10 minutes, here or on the M4 (queue for its checkout
-# included). Past that it is stopped (on the M4 too), the script warns and
-# pushes anyway, and the commit says so:
-#
-#   Tested: swift test timed out after 10m
-#
-# --skip-checks runs no check, not even `git diff --check`. It needs a
-# non-empty reason, which the commit keeps instead of every other Tested: line:
-#
-#   Tested: skipped: <why>
-#
-# A feat, fix or perf commit needs a `Customer-note:` trailer for the changelog
-# (scopes release, website, ci, test and repo need none). Then it runs
-# `git push origin <sha>:refs/heads/main`. When main moved meanwhile it
-# fetches, rebases, checks again and retries, 10 times. GitHub Actions then
-# builds, packages and tests the pushed commit on a clean macOS image; nobody
-# waits for that run, and whoever pushed fixes or reverts a red one.
-#
-# Progress goes to standard error. The last line on standard output is
-# "PUSH: <state> <sha>", and the exit code says what to do next:
-#   0  pushed (or checked, with --verify)
-#   1  usage, or a git error
-#   2  a check failed (main is unchanged); a timeout is not a failure
-#   3  the rebase conflicts (it is aborted and HEAD left as it was)
-#   4  main kept moving for 10 tries
-#   5  not pushable: dirty tree, nothing to push, more than one commit
-#      without --squash, no Customer-note, or no Swift to test with
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-# Subject scopes that need no Customer-note: nothing a person using the app sees.
 NOTE_FREE_SCOPES=" release website ci test repo "
-# Files whose change needs `swift test`.
 SWIFT_PATHS='^(Sources/|Tests/|Resources/|scripts/|Package\.(swift|resolved)$)'
 REPO_URL="https://github.com/Little-AI-Company/little-limits.git"
 M4_HOST="${PUSH_MAIN_M4:-m4}"
 M4_CHECKOUT='$HOME/Developer/little-limits-push'
 RETRIES=10
-# Seconds the swift test run may take. Tests set PUSH_MAIN_CHECK_TIMEOUT, and
-# PUSH_MAIN_REMOTE_GRACE (the M4's own backstop after the cap), to a few seconds.
 CAP="${PUSH_MAIN_CHECK_TIMEOUT:-600}"
 GRACE="${PUSH_MAIN_REMOTE_GRACE:-30}"
 
@@ -144,8 +90,6 @@ git fetch --quiet origin main || finish 1 "fetch-failed - : git fetch origin mai
 tree12() { git rev-parse "HEAD^{tree}" | cut -c1-12; }
 trailer() { git log -1 --format="%(trailers:key=$1,valueonly,unfold)" HEAD | sed '/^$/d'; }
 
-# Rewrite HEAD's message: drop the lines whose key matches $1 (a regex, or ""),
-# then add each further argument as a trailer.
 rewrite_trailers() {
   local drop="$1" args=() t
   shift
@@ -207,8 +151,6 @@ if [[ "$subject" =~ ^(feat|fix|perf)(\(([^\)]*)\))?!?: ]]; then
   fi
 fi
 
-# The M4 side of a remote check. It takes the commit as a git bundle on
-# standard input, so nothing is pushed before the check passes.
 remote_script() {
   cat <<EOF
 set -euo pipefail
@@ -218,7 +160,6 @@ bundle="\$(mktemp)"
 cat >"\$bundle"
 trap 'rm -f "\$bundle"' EXIT
 work() {
-  # One run at a time in this checkout. A lock left by a dead run is taken over.
   lock="\$dir.lock"
   for _ in \$(seq 360); do
     if mkdir "\$lock" 2>/dev/null; then echo \$\$ >"\$lock/pid"; break; fi
@@ -241,10 +182,6 @@ work() {
     codesign --verify --strict --verbose=2 "dist/Little Limits.app"
   fi
 }
-# The lock wait and the checks run in their own process group. The pushing
-# side stops waiting at the cap and drops this ssh session; this watchdog is
-# the backstop that stops the group a little after the cap, so nothing
-# is left running on the M4.
 set -m
 work &
 wp=\$!
@@ -270,9 +207,6 @@ exit "\$rc"
 EOF
 }
 
-# Runs a command in its own process group with its output in a log file. It
-# gets CAP seconds; after that the whole group is stopped and TIMED_OUT is 1.
-# Returns the command's status.
 TIMED_OUT=0
 capped() {
   local log="$1" rc=0 start
@@ -311,7 +245,6 @@ m4_run() {
     <"$tmp/head.bundle"
 }
 
-# Runs the checks on HEAD and sets TESTED (trailer lines) and STATE.
 run_checks() {
   local tree start code where log="$tmp/swift.log"
   tree="$(tree12)"
@@ -370,7 +303,6 @@ run_checks() {
   [ "$package" -eq 0 ] || label="swift test + package"
   [ "$TIMED_OUT" -eq 0 ] || code=124
   if [ "$code" -eq 124 ]; then
-    # Pushed anyway: the state stays pass and the trailer says what happened.
     TESTED+=("Tested: $label timed out after $(cap_label)")
     tail -10 "$log" >&2 || true
     say "WARNING: $label ran past $(cap_label) and was stopped; pushing anyway, and the Tested: trailer says so"
