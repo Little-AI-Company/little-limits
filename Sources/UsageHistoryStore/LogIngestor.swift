@@ -147,14 +147,11 @@ public actor LogIngestor {
                                                   summary: inout LogIngestionSummary) -> Bool {
         let start: Int64
         if let position {
-            let modifiedChange = file.modifiedAt.timeIntervalSince(position.modifiedAt)
-            // Saved times keep milliseconds only.
-            if file.size == position.fileSize, abs(modifiedChange) < 0.001 {
+            if file.isUnchanged(since: position) {
                 summary.filesUnchanged += 1
                 return true
             }
-            // A smaller or older file is a different file at the same path.
-            start = file.size < position.fileSize || modifiedChange < -0.001 ? 0 : position.byteOffset
+            start = file.isDifferentFile(from: position) ? 0 : position.byteOffset
         } else {
             start = 0
         }
@@ -272,6 +269,23 @@ private struct LogFile {
     let positionKey: String
     let size: Int64
     let modifiedAt: Date
+
+    func isUnchanged(since position: SourceFilePosition) -> Bool {
+        size == position.fileSize
+            && abs(modificationChange(since: position)) < SourceFilePosition.modificationTimePrecision
+    }
+
+    func isDifferentFile(from position: SourceFilePosition) -> Bool {
+        size < position.fileSize || modificationChange(since: position) < -SourceFilePosition.modificationTimePrecision
+    }
+
+    private func modificationChange(since position: SourceFilePosition) -> TimeInterval {
+        modifiedAt.timeIntervalSince(position.modifiedAt)
+    }
+}
+
+extension SourceFilePosition {
+    static let modificationTimePrecision: TimeInterval = 0.001
 }
 
 /// The shape both log parsers share.
