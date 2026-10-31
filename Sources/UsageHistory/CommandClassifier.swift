@@ -1,9 +1,6 @@
 import Foundation
 
-/// Derives usage facts from one shell command. Pure: no I/O, and the result holds no command text beyond program
-/// names and allow-listed subcommands.
 public enum CommandClassifier {
-    /// Raise when a rule changes. Stored records keep the version that produced them.
     public static let version = 2
 
     public static func classify(_ command: String) -> CommandClassification {
@@ -47,7 +44,6 @@ public enum CommandClassifier {
                 programSequence += invocation.display
                 pendingSeparator = nil
 
-                // A search that reads a pipe, here-string, or here-document filters text instead of searching files.
                 let readsStandardInput = readsPipe || invocation.command.standardInputBody != nil
                 if searchProgram == .none, invocation.searchesFiles(readsStandardInput: readsStandardInput) {
                     searchProgram = invocation.searchProgram
@@ -88,17 +84,12 @@ public enum CommandClassifier {
 
 // MARK: - Program resolution
 
-/// One command after wrappers are stripped, with its program identified.
 private struct Invocation {
-    /// The program name when it is a literal name on the allow list. Nil otherwise.
     let program: String?
-    /// The program sequence entry: an allow-listed program name or `<other>`, an allow-listed subcommand, and
-    /// input markers.
     let display: String
     let arguments: ArraySlice<ShellWord>
     let command: ParsedCommand
 
-    /// Returns nil when the command runs no program, such as an assignment or a `for` header.
     init?(_ command: ParsedCommand) {
         var words = command.words[...]
         stripping: while let first = words.first {
@@ -128,7 +119,6 @@ private struct Invocation {
                 words.removeFirst()
                 skipOptions(&words, takingArguments: ["-f", "--format", "-o", "--output"])
             case "command":
-                // `command -v name` and `command -V name` only look a name up, so `command` stays the program.
                 let options = words.dropFirst().prefix { $0.text.hasPrefix("-") }
                 if options.contains(where: { $0.text.contains("v") || $0.text.contains("V") }) { break stripping }
                 words.removeFirst()
@@ -165,10 +155,6 @@ private struct Invocation {
         }
     }
 
-    /// True when grep or rg searches files or directories instead of standard input. A path operand other than `-`
-    /// is searched even when standard input is a pipe. With no path operand, recursive grep searches `.`, and any
-    /// other search reads standard input when it has one. The pattern is the first operand unless `-e` or `-f`
-    /// supplies it.
     func searchesFiles(readsStandardInput: Bool) -> Bool {
         let optionsTakingArguments: Set<String>
         switch searchProgram {
@@ -197,8 +183,6 @@ private struct Invocation {
                 if optionsTakingArguments.contains(text) { _ = remaining.popFirst() }
                 continue
             }
-            // A short option group, such as `-rn`, `-A2`, or `-eneedle`. The first option that takes a value
-            // takes the rest of the word, or the next word when nothing follows it.
             var group = text.dropFirst()
             while let letter = group.popFirst() {
                 let option = "-" + String(letter)
@@ -222,8 +206,6 @@ private struct Invocation {
         return nil
     }
 
-    /// Only allow-listed names are kept. Any other word, such as a script path, an expansion, or a mistyped
-    /// secret, becomes `<other>`. A path keeps its last component when that is an allow-listed program.
     private static func identity(of word: ShellWord) -> (program: String?, display: String) {
         guard word.isLiteral, let name = word.text.split(separator: "/").last.map(String.init),
               isAllowListedProgram(name) else { return (nil, "<other>") }
@@ -244,7 +226,6 @@ private struct Invocation {
             subcommand = firstOperand(arguments, optionsTakingArguments: [])
             allowed = ["build", "test"]
         case "cargo":
-            // `+toolchain` selects a toolchain and is not the subcommand.
             subcommand = firstOperand(arguments.drop { $0.text.hasPrefix("+") },
                                       optionsTakingArguments: ["--config", "-Z", "--color", "-C"])
             allowed = ["build", "test"]
@@ -256,28 +237,22 @@ private struct Invocation {
     }
 }
 
-/// Reserved words that precede a program, such as `if grep -q x f; then`.
 private let shellKeywords: Set<String> = [
     "!", "{", "}", "if", "then", "else", "elif", "fi", "do", "done", "while", "until", "esac"
 ]
 
-/// Reserved words whose remaining words are names, values, or patterns rather than a program.
 private let compoundHeaderKeywords: Set<String> = ["for", "select", "function"]
 
-/// grep and rg options that supply the pattern, so every operand is a path.
 private let patternOptions: Set<String> = ["-e", "-f", "--regexp", "--file"]
 
-/// grep options that search `.` when no path is named, even when standard input is a pipe.
 private let recursiveGrepOptions: Set<String> = ["-r", "-R", "--recursive", "--dereference-recursive"]
 
-/// grep options whose value is the next word.
 private let grepOptionsTakingArguments: Set<String> = [
     "-e", "-f", "-A", "-B", "-C", "-m", "-d", "-D", "--regexp", "--file", "--after-context", "--before-context",
     "--context", "--max-count", "--directories", "--devices", "--label", "--include", "--exclude", "--exclude-dir",
     "--binary-files"
 ]
 
-/// rg options whose value is the next word.
 private let ripgrepOptionsTakingArguments: Set<String> = [
     "-e", "-f", "-g", "-t", "-T", "-A", "-B", "-C", "-m", "-M", "-j", "-r", "-E", "-d", "--regexp", "--file",
     "--glob", "--iglob", "--type", "--type-not", "--type-add", "--after-context", "--before-context", "--context",
@@ -295,14 +270,12 @@ private func skipOptions(_ words: inout ArraySlice<ShellWord>, takingArguments: 
     }
 }
 
-/// Skips git global options such as `-C dir` and `-c name=value`.
 private func gitSubcommand(_ arguments: ArraySlice<ShellWord>) -> String? {
     firstOperand(arguments, optionsTakingArguments: [
         "-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--config-env"
     ])
 }
 
-/// The first word that is neither an option nor the separate value of an option, such as `dir` in `-C dir`.
 private func firstOperand(_ arguments: ArraySlice<ShellWord>, optionsTakingArguments: Set<String>) -> String? {
     var remaining = arguments
     while let argument = remaining.popFirst() {
@@ -324,36 +297,25 @@ private func isPythonName(_ name: String) -> Bool {
     }
 }
 
-/// Programs whose names may be stored. Any other program is stored as `<other>`.
 private let allowListedPrograms: Set<String> = [
-    // Shells and shell builtins.
     "sh", "bash", "zsh", "fish", "dash", "cd", "pwd", "echo", "printf", "test", "[", "true", "false", "export",
     "source", ".", "exec", "exit", "read", "set", "unset", "type", "command", "wait", "trap", "pushd", "popd",
     "which",
-    // Wrappers and process control.
     "sudo", "env", "time", "timeout", "nohup", "xargs", "watch", "kill", "killall", "pkill", "pgrep", "ps",
     "top", "lsof", "sleep",
-    // Files and text.
     "ls", "cat", "head", "tail", "wc", "sort", "uniq", "cut", "tr", "tee", "diff", "cmp", "comm", "paste",
     "column", "basename", "dirname", "realpath", "readlink", "stat", "file", "du", "df", "find", "fd", "tree",
     "mkdir", "rmdir", "rm", "cp", "mv", "touch", "chmod", "chown", "ln", "date", "seq", "mktemp", "shasum",
     "base64", "xxd", "od", "hexdump", "strings", "less", "patch", "ditto",
-    // Search and transformation.
     "grep", "egrep", "fgrep", "rg", "ag", "sed", "awk", "gawk", "jq", "yq", "perl",
-    // Archives.
     "tar", "zip", "unzip", "gzip", "gunzip", "zstd", "xz",
-    // Network.
     "curl", "wget", "ssh", "scp", "rsync",
-    // Version control and build tools.
     "git", "gh", "make", "cmake", "ninja",
-    // Languages and package managers. Python names are matched separately.
     "pip", "pip3", "uv", "uvx", "pytest", "node", "npm", "npx", "pnpm", "yarn", "bun", "deno", "tsc", "ruby",
     "gem", "bundle", "swift", "swiftc", "xcodebuild", "xcrun", "cargo", "rustc", "rustup", "go", "java",
     "clang", "gcc", "docker", "brew",
-    // macOS.
     "open", "osascript", "defaults", "plutil", "sqlite3", "pbcopy", "pbpaste", "launchctl", "log", "mdfind",
     "sw_vers", "uname", "codesign", "lipo", "otool", "hdiutil",
-    // Coding agents.
     "claude", "codex",
 ]
 
@@ -399,7 +361,6 @@ private enum InterpreterOperand {
     case code(String)
     case module
     case script
-    /// No script operand, or `-`: the program reads standard input.
     case standardInput
 }
 
@@ -415,7 +376,6 @@ private func pythonOperand(_ arguments: ArraySlice<ShellWord>) -> InterpreterOpe
         }
         if text.hasPrefix("--") { continue }
         guard text.hasPrefix("-") else { return .script }
-        // Short options may be grouped, as in `-uc code`.
         var options = text.dropFirst()
         while let option = options.popFirst() {
             switch option {
@@ -458,7 +418,6 @@ private func nodeOperand(_ arguments: ArraySlice<ShellWord>) -> InterpreterOpera
     return .standardInput
 }
 
-/// Lines of an inline script, ignoring blank lines before and after the code.
 private func lineCount(of body: String) -> Int {
     let lines = body.split(separator: "\n", omittingEmptySubsequences: false)
     let isBlank: (Substring) -> Bool = { $0.allSatisfy(\.isWhitespace) }
@@ -469,7 +428,6 @@ private func lineCount(of body: String) -> Int {
 
 // MARK: - Inline Python purpose
 
-/// Python source with string literals and comments masked, so keywords inside them are not counted.
 private struct PythonSource {
     private struct Call {
         let receiver: String?
@@ -522,7 +480,6 @@ private struct PythonSource {
         self.isCode = isCode
     }
 
-    /// First match wins: editsFileInPlace, writesFile, readsJSON, other.
     var purpose: InlineScriptPurpose {
         var readTargets: Set<String> = []
         var writeTargets: Set<String> = []
@@ -531,7 +488,6 @@ private struct PythonSource {
             let target: String?
             let mode: String?
             if let receiver = call.receiver, !["io", "os", "codecs", "builtins"].contains(receiver) {
-                // `Path(...).open(mode)`
                 target = receiver
                 mode = Self.mode(of: call.arguments, positionalIndex: 0)
             } else {
@@ -611,7 +567,6 @@ private struct PythonSource {
         return arguments.filter { !$0.isEmpty }
     }
 
-    /// The expression before an attribute dot, such as `Path("a.txt")` or `config.path`.
     private func receiverExpression(before dot: Int) -> String? {
         var index = dot - 1
         while index >= 0, scalars[index] == " " { index -= 1 }
@@ -656,7 +611,6 @@ private struct PythonSource {
         return position < positional.count ? positional[position] : nil
     }
 
-    /// The literal mode string, `r` when omitted, or nil when it is not a literal.
     private static func mode(of arguments: [String], positionalIndex: Int) -> String? {
         guard let mode = argument(arguments, keyword: "mode", position: positionalIndex) else { return "r" }
         return literalValue(mode)
@@ -702,13 +656,9 @@ private struct PythonSource {
 // MARK: - Shell parsing
 
 private struct ShellWord {
-    /// The word after quote removal. Expansions keep their source text.
     var text = ""
-    /// False when the word contains a parameter expansion or command substitution.
     var isLiteral = true
-    /// False when any part of the word is quoted or escaped.
     var isUnquoted = true
-    /// Unquoted text before the first quote, escape, or expansion. Decides whether the word is an assignment.
     var unquotedPrefix = ""
 
     var isAssignment: Bool {
@@ -732,7 +682,6 @@ private enum RedirectionKind: Equatable {
 
 private final class Redirection {
     let kind: RedirectionKind
-    /// The here-document body or here-string contents.
     var body: String?
 
     init(kind: RedirectionKind) {
@@ -746,9 +695,7 @@ private final class ParsedCommand {
 
     var isEmpty: Bool { words.isEmpty && redirections.isEmpty }
 
-    /// Inline text supplied on standard input by a here-document or here-string.
     var standardInputBody: String? {
-        // Redirections apply left to right, so the last one that sets standard input wins. `< file` has no body.
         redirections.last { $0.kind != .other }?.body
     }
 }
@@ -760,7 +707,6 @@ private enum Separator: Equatable {
     case sequence
     case background
     case newline
-    /// A subshell parenthesis. Splits commands without appearing in the program sequence.
     case group
 
     var rendered: String {
@@ -779,8 +725,6 @@ private enum ShellElement {
     case separator(Separator)
 }
 
-/// Splits a command into simple commands and the operators between them. Quoted text, here-document bodies,
-/// and command substitutions stay inside words and never become commands.
 private final class ShellParser {
     private let scalars: [Unicode.Scalar]
     private var index = 0
@@ -792,7 +736,6 @@ private final class ShellParser {
 
     func parse() -> [ShellElement] {
         let elements = parseList(isNested: false)
-        // A here-document with no following line has an empty body.
         for pending in pendingHereDocuments { pending.redirection.body = "" }
         pendingHereDocuments = []
         return elements
@@ -804,13 +747,11 @@ private final class ShellParser {
         index + offset < scalars.count ? scalars[index + offset] : nil
     }
 
-    /// Parses until the end of input, or for a nested list, through its closing parenthesis.
     private func parseList(isNested: Bool) -> [ShellElement] {
         var elements: [ShellElement] = []
         var command = ParsedCommand()
         var redirectionAwaitingTarget: Redirection?
         var depth = 0
-        /// `case` statements whose `esac` has not been read. Their patterns are skipped, never parsed as commands.
         var openCaseCount = 0
 
         func separate(_ separator: Separator) {
@@ -832,7 +773,6 @@ private final class ShellParser {
                 while let next = current, next != "\n" { index += 1 }
             case ";":
                 index += 1
-                // `;;`, `;&`, and `;;&` end a `case` arm. The next pattern follows.
                 let endsCaseArm = current == ";" || current == "&"
                 if endsCaseArm { index += 1 }
                 if endsCaseArm, current == "&" { index += 1 }
@@ -872,13 +812,11 @@ private final class ShellParser {
                     if !command.isEmpty { elements.append(.command(command)) }
                     return elements
                 } else {
-                    // An unmatched parenthesis is a syntax error. Drop the partial command so its words are not used.
                     command = ParsedCommand()
                     redirectionAwaitingTarget = nil
                 }
             case "<", ">":
                 if self.scalar(at: 1) == "(" {
-                    // Process substitution: its commands run, but it stands in the outer command as one word.
                     index += 2
                     _ = parseList(isNested: true)
                     command.words.append(ShellWord(text: "", isLiteral: false, isUnquoted: false))
@@ -903,7 +841,6 @@ private final class ShellParser {
                     if skipCasePattern() { openCaseCount += 1 }
                 } else if !isRedirectionFileDescriptor(word) {
                     if word.isUnquoted, word.text == "esac", openCaseCount > 0, isInCommandPosition(command) {
-                        // The last arm may omit `;;`.
                         openCaseCount -= 1
                     }
                     command.words.append(word)
@@ -918,12 +855,10 @@ private final class ShellParser {
         word.isUnquoted && word.text.allSatisfy(\.isASCIIDigit) && (current == "<" || current == ">")
     }
 
-    /// True when the next word would be the program, after any reserved words such as `then` or `do`.
     private func isInCommandPosition(_ command: ParsedCommand) -> Bool {
         command.redirections.isEmpty && command.words.allSatisfy { $0.isUnquoted && shellKeywords.contains($0.text) }
     }
 
-    /// Skips the word after `case` through the `in` keyword.
     private func skipCaseSubject() {
         var hasSubject = false
         while let scalar = current {
@@ -940,8 +875,6 @@ private final class ShellParser {
         }
     }
 
-    /// Skips one `case` pattern list, such as `(a|b)`, through its closing parenthesis. Pattern text can hold any
-    /// value, so it never becomes a command. Returns false when `esac` ends the statement instead.
     private func skipCasePattern() -> Bool {
         var isAtPatternStart = true
         while let scalar = current {
@@ -1034,7 +967,6 @@ private final class ShellParser {
         while let scalar = current {
             switch scalar {
             case "(" where isPrefixOpen && word.isAssignment && word.unquotedPrefix.hasSuffix("="):
-                // Array assignment, as in `names=(a b)`.
                 let start = index
                 index += 1
                 _ = parseList(isNested: true)
@@ -1124,7 +1056,6 @@ private final class ShellParser {
             word.isLiteral = false
             appendSource(from: start, to: &word)
         case "'" where !isInDoubleQuotes:
-            // ANSI-C quoting, as in $'a\nb'.
             word.isUnquoted = false
             index += 1
             while let scalar = current, scalar != "'" {

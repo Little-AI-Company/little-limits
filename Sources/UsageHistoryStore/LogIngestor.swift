@@ -2,7 +2,6 @@ import Foundation
 import GRDB
 import UsageHistory
 
-/// A Codex app account and the ChatGPT account id that Codex writes into its logs as `creator_account_id`.
 public struct CodexAccountLink: Sendable, Hashable {
     public let accountID: UUID
     public let providerAccountID: String
@@ -13,7 +12,6 @@ public struct CodexAccountLink: Sendable, Hashable {
     }
 }
 
-/// Counts from one ingestion run. Contains no log content or paths.
 public struct LogIngestionSummary: Sendable, Equatable {
     public var filesRead = 0
     public var filesUnchanged = 0
@@ -23,16 +21,11 @@ public struct LogIngestionSummary: Sendable, Equatable {
     public var quotaReadingsMatched = 0
     public var quotaReadingsUnmatched = 0
     public var quotaReadingsAdded = 0
-    /// The last per-file failure. It may name a file path, so log it as private.
     public var lastFailure: String?
 
     public init() {}
 }
 
-/// Reads Claude Code and Codex logs into the history database. Each file resumes at its saved position, and each
-/// file's records and new position are saved in one transaction, so a run that stops early loses nothing.
-///
-/// `ingest` never suspends, so two runs never overlap. It does blocking file work: call it from a background task.
 public actor LogIngestor {
     private let database: HistoryDatabase
     private let claudeProjects: URL
@@ -48,7 +41,6 @@ public actor LogIngestor {
 
     public func ingest(codexAccounts: [CodexAccountLink]) -> LogIngestionSummary {
         var summary = LogIngestionSummary()
-        // A Codex account id that two app accounts share cannot say which one a reading belongs to, so it gets none.
         let accountsByProviderID = Dictionary(grouping: codexAccounts, by: \.providerAccountID)
             .compactMapValues { $0.count == 1 ? $0[0].accountID : nil }
         let positions: [String: SourceFilePosition]
@@ -70,15 +62,10 @@ public actor LogIngestor {
 
         let salt = database.projectKeySalt
         let (claudeFiles, unreadableClaude) = Self.logFiles(in: [claudeProjects], suffixes: [".jsonl"], salt: salt)
-        // Rollout names start with their time, so name order is close to the order quota readings were observed.
         let (unsortedCodexFiles, unreadableCodex) = Self.logFiles(in: codexDirectories,
                                                                    suffixes: [".jsonl", ".jsonl.zst"], salt: salt)
         let codexFiles = unsortedCodexFiles.sorted { $0.url.lastPathComponent < $1.url.lastPathComponent }
-        // A log that could not be listed was not read, so the scan is incomplete.
         summary.filesFailed += unreadableClaude + unreadableCodex
-        // Only classification facts are stored, so newer classifier rules apply by reading every log again. Rereading
-        // replaces each command row; rows from logs that no longer exist keep the version that produced them. Commands
-        // stored before the completed version was recorded may come from any older version.
         let appliedVersion = completedClassifierVersion ?? (hasCommands ? 0 : CommandClassifier.version)
         let reclassifies = appliedVersion < CommandClassifier.version
         for file in claudeFiles {
@@ -87,17 +74,13 @@ public actor LogIngestor {
         }
         var everyCodexLogRead = unreadableCodex == 0
         for file in codexFiles {
-            // A newly linked account needs every Codex log read again; unique keys make that add only its readings.
             let rereads = reclassifies || !newLinks.isEmpty
             let succeeded = ingest(file, as: CodexLogParser.self, position: rereads ? nil : positions[file.positionKey],
                                    accounts: accountsByProviderID, summary: &summary)
             if !succeeded { everyCodexLogRead = false }
         }
-        // A log missing from this scan keeps its older facts. Dropping its saved position means it is read,
-        // and reclassified, if it comes back.
         let discovered = Set((claudeFiles + codexFiles).map(\.positionKey))
         let missing = positions.keys.filter { !discovered.contains($0) }
-        // Recorded only after a scan with no failures, so an interrupted or failed reclassification runs again.
         if summary.filesFailed == 0, completedClassifierVersion != CommandClassifier.version {
             do {
                 try database.pool.write { db in
@@ -135,7 +118,6 @@ public actor LogIngestor {
         return links.filter { !applied.contains($0) }
     }
 
-    /// Returns false when the file could not be read or saved.
     @discardableResult
     private func ingest<Parser: HistoryLogParser>(_ file: LogFile, as parser: Parser.Type,
                                                   position: SourceFilePosition?, accounts: [String: UUID],
@@ -152,12 +134,10 @@ public actor LogIngestor {
         }
         do {
             var parser = Parser(filePath: file.url.path, projectKeySalt: database.projectKeySalt)
-            // Codex writes the account and working directory only in the first line.
             if Parser.needsFirstLine, start > 0, let first = try LogLineReader(path: file.url.path).nextLine() {
                 parser.consume(line: first.data, at: first.byteOffset)
             }
             let reader = try LogLineReader(path: file.url.path, startOffset: start)
-            // JSON parsing leaves autoreleased objects that a background thread would otherwise keep until the run ends.
             while let line = try autoreleasepool(invoking: { try reader.nextLine() }) {
                 autoreleasepool { parser.consume(line: line.data, at: line.byteOffset) }
             }
@@ -178,7 +158,6 @@ public actor LogIngestor {
                                              windowDurationMinutes: reading.windowDurationMinutes,
                                              observedAt: reading.observedAt, source: .codexLogBackfill))
             }
-            // The first line of the file can come before `start`; the saved position never moves backward.
             let newPosition = SourceFilePosition(path: file.positionKey, byteOffset: max(output.resumeByteOffset, start),
                                                  fileSize: file.size, modifiedAt: file.modifiedAt)
             let added = try database.pool.write { db in
@@ -200,9 +179,6 @@ public actor LogIngestor {
         }
     }
 
-    /// The log backfill records only changes: a reading equal to the account window's previous saved backfill
-    /// reading is skipped. Codex writes the same quota after every response. Overlapping sessions are read one file
-    /// at a time, so a reading can land before saved later ones; a later saved reading it makes redundant is removed.
     private static func insertChangedReadings(_ readings: [QuotaReading], _ db: Database) throws -> Int {
         var added = 0
         for reading in readings {
@@ -224,7 +200,6 @@ public actor LogIngestor {
         return added
     }
 
-    /// Codex can report a reset time a few seconds apart for the same window; a real reset moves it by hours.
     private static func hasSameQuota(_ first: QuotaReading, _ second: QuotaReading) -> Bool {
         guard first.usedPercent == second.usedPercent else { return false }
         switch (first.resetsAt, second.resetsAt) {
@@ -234,8 +209,6 @@ public actor LogIngestor {
         }
     }
 
-    /// `unreadable` counts folders and files that exist but could not be listed or inspected. A missing log folder
-    /// is not a failure: the provider may not be installed.
     private static func logFiles(in directories: [URL], suffixes: [String],
                                  salt: [UInt8]) -> (files: [LogFile], unreadable: Int) {
         let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
@@ -259,8 +232,6 @@ public actor LogIngestor {
 
 private struct LogFile {
     let url: URL
-    /// Saved in place of the path, which holds the user name and project folder names. It uses the database's
-    /// project key salt, which stays the same across launches, so the next run finds the saved position.
     let positionKey: String
     let size: Int64
     let modifiedAt: Date
@@ -283,9 +254,7 @@ extension SourceFilePosition {
     static let modificationTimePrecision: TimeInterval = 0.001
 }
 
-/// The shape both log parsers share.
 protocol HistoryLogParser {
-    /// The parser needs the file's first line before a read that starts later in the file.
     static var needsFirstLine: Bool { get }
     init(filePath: String, projectKeySalt: [UInt8])
     mutating func consume(line: Data, at byteOffset: Int64)

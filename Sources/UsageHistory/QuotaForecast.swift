@@ -1,6 +1,5 @@
 import Foundation
 
-/// How far a forecast projects.
 public enum ForecastHorizon: Int, Sendable, CaseIterable {
     case oneDay = 1
     case sevenDays = 7
@@ -8,8 +7,6 @@ public enum ForecastHorizon: Int, Sendable, CaseIterable {
     public var duration: TimeInterval { TimeInterval(rawValue) * 86_400 }
 }
 
-/// The current, available general 7-day reading of one account counted in the pooled total. Missing, unsupported,
-/// failed, and stale readings are left out by the caller and never appear here.
 public struct CountedQuota: Sendable, Equatable {
     public let accountID: UUID
     public let remainingPercent: Double
@@ -21,14 +18,11 @@ public struct CountedQuota: Sendable, Equatable {
         self.resetsAt = resetsAt
     }
 
-    /// The gain at this account's reset: its used percentage as of now.
     public var usedPercent: Double { 100 - min(100, max(0, remainingPercent)) }
 }
 
-/// One provider's forecast input. Claude and Codex are never combined.
 public struct QuotaForecastInput: Sendable {
     public let provider: HistoryProvider
-    /// Recorded readings of each account's general 7-day window. Readings of another provider are ignored.
     public let history: [QuotaReading]
     public let counted: [CountedQuota]
     public let now: Date
@@ -44,12 +38,9 @@ public struct QuotaForecastInput: Sendable {
     }
 }
 
-/// Pooled drain of the counted accounts, summed from each account's own rate.
 public struct QuotaDrainRate: Sendable, Equatable {
     public let percentPerHour: Double
-    /// From the earliest reading used to now, at most 24 hours.
     public let lookback: TimeInterval
-    /// True when less than 24 hours of history was available. The interface says so.
     public var isShortLookback: Bool { lookback < QuotaForecast.drainLookback }
 
     public init(percentPerHour: Double, lookback: TimeInterval) {
@@ -71,7 +62,6 @@ public struct QuotaProjectionPoint: Sendable, Equatable {
 public struct QuotaResetEvent: Sendable, Equatable {
     public let accountID: UUID
     public let date: Date
-    /// The account's used percentage as of now. The applied gain can be smaller when the total reaches its cap.
     public let gainPercent: Double
 
     public init(accountID: UUID, date: Date, gainPercent: Double) {
@@ -82,20 +72,15 @@ public struct QuotaResetEvent: Sendable, Equatable {
 }
 
 public struct QuotaProjection: Sendable, Equatable {
-    /// Hourly from now to the end of the horizon, both included.
     public let points: [QuotaProjectionPoint]
     public let resets: [QuotaResetEvent]
-    /// The first time the total reaches 0%, or nil when it stays above 0% through the horizon.
     public let reachesZeroAt: Date?
-    /// Counted accounts times 100.
     public let capacityPercent: Double
 }
 
 public struct QuotaForecastResult: Sendable, Equatable {
     public let provider: HistoryProvider
-    /// Nil when no counted account has a usable pair of readings. Unknown, never 0.
     public let drain: QuotaDrainRate?
-    /// Nil when the drain is unknown or no account is counted.
     public let projection: QuotaProjection?
 }
 
@@ -109,12 +94,9 @@ public struct QuotaHistoryPoint: Sendable, Equatable {
     }
 }
 
-/// One unbroken run of an account's recorded history. A chart draws each segment as its own line; the space between
-/// segments is a gap, never zero and never a joined line.
 public struct QuotaHistorySegment: Sendable, Equatable {
     public let accountID: UUID
     public let points: [QuotaHistoryPoint]
-    /// True when any reading in the segment comes from a source that records only changes.
     public let containsChangeOnlyReadings: Bool
 
     public init(accountID: UUID, points: [QuotaHistoryPoint], containsChangeOnlyReadings: Bool) {
@@ -125,7 +107,6 @@ public struct QuotaHistorySegment: Sendable, Equatable {
 }
 
 extension QuotaReadingSource {
-    /// Polled sources record every refresh. Change-only sources record a row only when quota changes.
     public var recordsOnlyChanges: Bool {
         switch self {
         case .claudeOAuth, .codexAppServer: false
@@ -134,16 +115,12 @@ extension QuotaReadingSource {
     }
 }
 
-/// Pooled weekly quota forecast. Pure functions of recorded readings and current values.
 public enum QuotaForecast {
     public static let drainLookback: TimeInterval = 86_400
     public static let polledRefreshInterval: TimeInterval = 300
     public static let polledGapLimit: TimeInterval = polledRefreshInterval * 1.5
-    /// Sources report the same reset with different precision, such as whole or fractional seconds. Reset times less
-    /// than this far apart are the same reset.
     public static let resetTolerance: TimeInterval = 60
 
-    /// True when both reset times are unknown, or both are known and less than `resetTolerance` apart.
     public static func isSameReset(_ first: Date?, _ second: Date?) -> Bool {
         switch (first, second) {
         case (nil, nil): true
@@ -161,12 +138,6 @@ public enum QuotaForecast {
         return QuotaForecastResult(provider: input.provider, drain: drain, projection: projection)
     }
 
-    /// Each counted account's increase in used percentage between consecutive readings in the last 24 hours, divided
-    /// by the hours its pairs cover, idle time included; then summed. A pair counts however far apart its readings
-    /// are. A pair is skipped only when its reset time changed (see `isSameReset`) or the earlier reset is at or before
-    /// the later reading.
-    /// A pair that starts before the lookback is cut at its start, its increase in proportion. Accounts outside the
-    /// counted set contribute nothing, so joining or leaving the pool never registers as drain.
     public static func drainRate(provider: HistoryProvider, history: [QuotaReading], counted: [CountedQuota],
                                  now: Date) -> QuotaDrainRate? {
         let countedIDs = Set(counted.map(\.accountID))
@@ -198,9 +169,6 @@ public enum QuotaForecast {
         return QuotaDrainRate(percentPerHour: total, lookback: now.timeIntervalSince(earliestUsed))
     }
 
-    /// Starts at the pooled remaining and steps forward: drain is subtracted continuously, and at each counted
-    /// account's reset the total gains that account's used percentage as of now. The total stays between 0 and the
-    /// counted accounts times 100. Points are hourly; the zero time is exact within its hour.
     public static func project(counted: [CountedQuota], percentPerHour: Double, now: Date,
                                horizon: ForecastHorizon) -> QuotaProjection {
         let capacity = Double(counted.count) * 100
@@ -241,10 +209,6 @@ public enum QuotaForecast {
                                capacityPercent: capacity)
     }
 
-    /// Turns recorded readings into line segments per account, in account order of first reading. After a polled
-    /// reading the line continues to the next reading only when it is at most 450 seconds later. A change-only reading
-    /// holds its value until the next reading or its own reset, whichever is first; reaching the reset breaks the line.
-    /// The latest change-only reading holds until its reset or `now`.
     public static func historySegments(readings: [QuotaReading], now: Date) -> [QuotaHistorySegment] {
         var order: [UUID] = []
         var byAccount: [UUID: [QuotaReading]] = [:]

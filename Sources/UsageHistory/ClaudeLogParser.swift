@@ -1,14 +1,5 @@
 import Foundation
 
-/// Reads one Claude Code session log, `~/.claude/projects/<cwd-slug>/<sessionId>.jsonl` or a subagent log, into
-/// response records and shell command events. Prompt, reply, and tool output text is never decoded or kept.
-///
-/// Claude Code writes one line per content block, and the lines of one API response share `message.id`. Only the
-/// line with a non-null `stop_reason` carries the final `output_tokens`.
-///
-/// Each read resumes at the human prompt that opened the file's last turn, which is never after the first line of the
-/// file's last response. Starting there lets the last response be emitted again complete: its tokens, its tool
-/// results, its `requestedAt`, and its `turnID`, which a read starting at the response itself could not recover.
 public struct ClaudeLogParser: Sendable {
     private let projectKeySalt: [UInt8]
     private var projectKeys: [String: String] = [:]
@@ -17,21 +8,16 @@ public struct ClaudeLogParser: Sendable {
     private var responseOrder: [String] = []
     private var commands: [CommandState] = []
     private var commandIDs: Set<String> = []
-    /// `is_error` of each tool result, by `tool_use` id.
     private var toolResultErrors: [String: Bool] = [:]
 
-    /// The latest user prompt or tool result line.
     private var lastRequest: (offset: Int64, timestamp: Date)?
     private var turn: Turn?
     private var endOfInput: Int64 = 0
 
-    /// `filePath` is part of the shape shared with the Codex parser. Claude records take nothing from it.
     public init(filePath: String, projectKeySalt: [UInt8]) {
         self.projectKeySalt = projectKeySalt
     }
 
-    /// Reads one line. `byteOffset` is the absolute offset of the line's first byte. A line without a trailing newline
-    /// is taken to have had one removed by the reader. Malformed lines and other line types are skipped.
     public mutating func consume(line: Data, at byteOffset: Int64) {
         endOfInput = max(endOfInput, byteOffset + Int64(line.count) + (line.last == 0x0A ? 0 : 1))
         guard let entry = try? JSONDecoder().decode(LogLine.self, from: line),
@@ -66,12 +52,10 @@ public struct ClaudeLogParser: Sendable {
     }
 
     private mutating func consumeUser(_ entry: LogLine, at byteOffset: Int64, timestamp: Date) {
-        // Claude Code writes meta lines and compaction summaries as user lines. Neither is a prompt or a tool result.
         guard entry.isMeta != true, entry.isCompactSummary != true,
               let content = entry.message?.content else { return }
         let toolResults = content.blocks.filter { $0.type == "tool_result" }
         if toolResults.isEmpty {
-            // The file path holds folder names, so a prompt without a uuid is named by session and offset.
             turn = Turn(id: entry.uuid ?? "\(entry.sessionId ?? ""):\(byteOffset)", startOffset: byteOffset)
         } else {
             for result in toolResults {
@@ -92,8 +76,6 @@ public struct ClaudeLogParser: Sendable {
             state = existing
         } else {
             let turnID = openTurn(responseID: responseID, at: byteOffset)
-            // A request line before the turn's first line belongs to an earlier turn, and a read resuming at the
-            // turn's first line would not see it.
             let turnStart = turn?.startOffset ?? byteOffset
             let requestedAt = lastRequest.flatMap { $0.offset >= turnStart ? $0.timestamp : nil }
             state = ResponseState(sessionID: sessionID, turnID: turnID, model: model, projectKey: projectKey,
@@ -114,15 +96,12 @@ public struct ClaudeLogParser: Sendable {
             }
         }
         if let stopReason = message.stopReason {
-            // Only the response's last line carries the final count. Without a valid one, the count stays unknown.
             if message.usage?.outputTokens != nil { state.hasFinalUsage = true }
             if stopReason == "end_turn", turn?.id == state.turnID { turn?.closedAtOffset = byteOffset }
         }
         responses[responseID] = state
     }
 
-    /// Returns the turn a new response belongs to. A response with no open turn, such as one that follows a closed
-    /// turn without a new prompt, opens a turn of its own, starting at the line that requested it when there is one.
     private mutating func openTurn(responseID: String, at byteOffset: Int64) -> String {
         if let turn, turn.closedAtOffset == nil { return turn.id }
         var startOffset = byteOffset
@@ -138,7 +117,6 @@ public struct ClaudeLogParser: Sendable {
         return key
     }
 
-    /// Claude Code logs local errors as assistant messages with this model. They are not API responses.
     private static let syntheticModel = "<synthetic>"
 
     private static func parseTimestamp(_ text: String) -> Date? {
@@ -152,7 +130,6 @@ public struct ClaudeLogParser: Sendable {
 private struct Turn: Sendable {
     let id: String
     let startOffset: Int64
-    /// The line whose `end_turn` closed the turn.
     var closedAtOffset: Int64?
 }
 
@@ -181,8 +158,6 @@ private struct CommandState: Sendable {
 
 // MARK: - Log line shape
 
-/// The fields this parser reads. Other fields, including all text content, are not decoded. A field of an unexpected
-/// type reads as absent instead of failing the line.
 private struct LogLine: Decodable {
     let type: String?
     let uuid: String?
@@ -253,7 +228,6 @@ private struct LogUsage: Decodable {
     }
 }
 
-/// Message content is either text, which is not decoded, or an array of blocks.
 private struct LogContent: Decodable {
     let blocks: [LogContentBlock]
 
@@ -264,10 +238,8 @@ private struct LogContent: Decodable {
 
 private struct LogContentBlock: Decodable {
     let type: String?
-    /// `tool_use` id.
     let id: String?
     let name: String?
-    /// `input.command` of a `tool_use` block.
     let command: String?
     let toolUseID: String?
     let isError: Bool?

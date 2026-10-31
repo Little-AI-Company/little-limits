@@ -12,11 +12,9 @@ public enum QuotaReadingSource: String, Codable, Sendable {
     case codexLogBackfill
 }
 
-/// One quota window of one app account at one moment. Missing readings are gaps, never zero.
 public struct QuotaReading: Codable, Sendable, Equatable {
     public let provider: HistoryProvider
     public let accountID: UUID
-    /// The app's `UsageWindow.id`, such as `seven_day` or `codex_secondary`.
     public let windowID: String
     public let usedPercent: Double
     public let resetsAt: Date?
@@ -37,26 +35,18 @@ public struct QuotaReading: Codable, Sendable, Equatable {
     }
 }
 
-/// One model API response. Behavior metrics are grouped by model, never by account.
 public struct ModelResponse: Codable, Sendable, Equatable {
     public let provider: HistoryProvider
-    /// Unique per provider: Claude `message.id`, or the Codex response identifier.
     public let responseID: String
     public let sessionID: String
-    /// Groups the responses between a user prompt and the final reply, for steps per turn.
     public let turnID: String
     public let model: String
-    /// `ProjectKey` of the working directory. Folder names are never stored.
     public let projectKey: String?
-    /// The previous user prompt or tool result, which starts the approximate output speed interval.
     public let requestedAt: Date?
-    /// The response's last log line.
     public let completedAt: Date
-    /// Unknown when the log has no final usage line for the response.
     public let outputTokens: Int?
     public let thinkingTokens: Int?
     public let toolCallCount: Int
-    /// Claude: two or more tool calls. Codex: also one `exec` call that runs two or more commands.
     public let hasParallelToolCalls: Bool
 
     public init(provider: HistoryProvider, responseID: String, sessionID: String, turnID: String, model: String,
@@ -89,7 +79,6 @@ public enum InlineInterpreter: String, Codable, Sendable {
     case javascript
 }
 
-/// Ordered keyword groups for inline Python. The first matching group wins.
 public enum InlineScriptPurpose: String, Codable, Sendable {
     case editsFileInPlace
     case writesFile
@@ -97,7 +86,6 @@ public enum InlineScriptPurpose: String, Codable, Sendable {
     case other
 }
 
-/// Facts derived from one shell command. Contains no command text or arguments.
 public struct CommandClassification: Codable, Sendable, Equatable {
     public let searchProgram: SearchProgram
     public let pipesIntoHeadOrTail: Bool
@@ -107,8 +95,6 @@ public struct CommandClassification: Codable, Sendable, Equatable {
     public let runsSavedScript: Bool
     public let inlineScriptPurpose: InlineScriptPurpose?
     public let inlineScriptLineCount: Int?
-    /// Program names with all arguments removed, such as `grep | head` or `python3 <<heredoc`. Only allow-listed
-    /// subcommands such as `git status` follow a program name.
     public let programSequence: String
 
     public init(searchProgram: SearchProgram, pipesIntoHeadOrTail: Bool, runsGitStatus: Bool, runsGitCommit: Bool,
@@ -126,7 +112,6 @@ public struct CommandClassification: Codable, Sendable, Equatable {
     }
 }
 
-/// The stored form of one shell command: event metadata and classification facts, never the command text.
 public struct ShellCommandRecord: Codable, Sendable, Equatable {
     public let provider: HistoryProvider
     public let commandID: String
@@ -147,7 +132,6 @@ public struct ShellCommandRecord: Codable, Sendable, Equatable {
     public let inlineScriptPurpose: InlineScriptPurpose?
     public let inlineScriptLineCount: Int?
     public let programSequence: String
-    /// Rules change over time. Records whose source logs are gone keep the version that produced them.
     public let classifierVersion: Int
 
     public init(event: ShellCommandEvent, classification: CommandClassification, classifierVersion: Int) {
@@ -174,8 +158,6 @@ public struct ShellCommandRecord: Codable, Sendable, Equatable {
     }
 }
 
-/// How far ingestion has read one log file. A moved or compressed file is read again from the start;
-/// unique record keys make the second read add nothing.
 public struct SourceFilePosition: Codable, Sendable, Equatable {
     public let path: String
     public let byteOffset: Int64

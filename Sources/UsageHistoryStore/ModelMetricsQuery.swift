@@ -2,7 +2,6 @@ import Foundation
 import GRDB
 import UsageHistory
 
-/// A count out of a total. The value is unknown, not zero, when the total is zero.
 public struct MetricRatio: Sendable, Equatable {
     public let count: Int
     public let total: Int
@@ -15,14 +14,12 @@ public struct MetricRatio: Sendable, Equatable {
     public var value: Double? { total > 0 ? Double(count) / Double(total) : nil }
 }
 
-/// The median and 90th percentile of a sample. Nil when the sample is empty.
 public struct MetricDistribution: Sendable, Equatable {
     public let sampleCount: Int
     public let mean: Double
     public let median: Double
     public let percentile90: Double
 
-    /// Linear interpolation between the closest ranks, so the median of an even sample is the mean of its middle pair.
     public init?(_ values: [Double]) {
         guard !values.isEmpty else { return nil }
         let sorted = values.sorted()
@@ -39,9 +36,7 @@ public struct MetricDistribution: Sendable, Equatable {
     }
 }
 
-/// Behavior metrics for one model, M1 to M9 and P1 to P5 in `docs/USAGE-ANALYTICS-PLAN.md`. Never per account.
 public struct ModelMetrics: Sendable, Equatable, Identifiable {
-    /// M9: below this many responses a model's numbers are noisy.
     public static let reliableResponseCount = 5_000
 
     public struct ID: Hashable, Sendable {
@@ -53,40 +48,23 @@ public struct ModelMetrics: Sendable, Equatable, Identifiable {
     public let model: String
     public var id: ID { ID(provider: provider, model: model) }
 
-    /// M9: stored responses for the model.
     public let responseCount: Int
-    /// M1: output tokens, thinking included, per second from the previous prompt or tool result to the response's
-    /// last log line. Approximate: the interval includes the wait before the first token.
     public let outputSpeed: MetricDistribution?
-    /// M2: responses per turn, in sessions with at least one tool call.
     public let stepsPerTurn: MetricDistribution?
-    /// M7: thinking tokens out of output tokens, over responses whose final usage is known.
     public let thinkingTokens: MetricRatio
-    /// M8: responses with parallel tool calls out of all responses.
     public let parallelToolCallResponses: MetricRatio
 
-    /// Shell commands for the model, the base of M4, M6, P1, and P2.
     public let shellCommandCount: Int
-    /// M3: grep out of shell searches that use grep or rg.
     public let grepSearches: MetricRatio
-    /// M4: commands piped into head or tail out of all shell commands.
     public let headOrTailPipes: MetricRatio
-    /// M5: `git status` runs per successful `git commit`.
     public let gitStatusPerCommit: MetricRatio
-    /// M6: characters per shell command.
     public let commandLength: MetricDistribution?
 
-    /// P1: commands running inline Python out of all shell commands.
     public let inlinePython: MetricRatio
-    /// P1: commands running inline JavaScript out of all shell commands.
     public let inlineJavaScript: MetricRatio
-    /// P2: runs of a saved script file, counted apart from inline code.
     public let savedScriptRuns: MetricRatio
-    /// P3: commands running inline code out of commands with a known project other than this model's busiest project.
     public let inlineOutsideBusiestProject: MetricRatio
-    /// P4: inline Python commands per purpose. Commands without a classified purpose are left out.
     public let inlinePythonPurposes: [InlineScriptPurpose: Int]
-    /// P5: lines per inline script, Python and JavaScript.
     public let inlineScriptLines: MetricDistribution?
 
     public var isSmallSample: Bool { responseCount < Self.reliableResponseCount }
@@ -96,7 +74,6 @@ public struct ModelMetrics: Sendable, Equatable, Identifiable {
 }
 
 public struct ModelMetricsReport: Sendable, Equatable {
-    /// Claude models first, then Codex; most responses first within a provider.
     public let models: [ModelMetrics]
     public let firstResponseAt: Date?
     public let lastResponseAt: Date?
@@ -104,8 +81,6 @@ public struct ModelMetricsReport: Sendable, Equatable {
     public var isEmpty: Bool { models.isEmpty }
 }
 
-/// Reads per-model behavior metrics from the `modelResponse` and `shellCommand` tables. SQL groups counts and sums;
-/// medians and percentiles are computed in Swift. Unknown token counts are left out, never read as zero.
 public enum ModelMetricsQuery {
     public static func fetch(_ db: Database) throws -> ModelMetricsReport {
         var responses: [ModelMetrics.ID: ResponseTotals] = [:]
@@ -144,7 +119,6 @@ public enum ModelMetricsQuery {
             steps[try id(row), default: []].append(Double(count))
         }
 
-        // P3 compares each model with its own busiest project, so one model's main project does not set another's.
         var commands: [ModelMetrics.ID: CommandTotals] = [:]
         for row in try Row.fetchAll(db, sql: """
             WITH projectCommands AS (
@@ -250,13 +224,10 @@ public enum ModelMetricsQuery {
 }
 
 extension HistoryDatabase {
-    /// Reads the per-model report on a reader connection, off the caller's thread.
     public func modelMetrics() async throws -> ModelMetricsReport {
         try await pool.read(ModelMetricsQuery.fetch)
     }
 
-    /// The current report, then a fresh one after each committed change to responses or shell commands, such as a
-    /// log ingestion batch. Unchanged reports are skipped, and a slow reader receives only the newest report.
     public func modelMetricsUpdates() -> AsyncValueObservation<ModelMetricsReport> {
         ValueObservation.tracking(ModelMetricsQuery.fetch).removeDuplicates()
             .values(in: pool, bufferingPolicy: .bufferingNewest(1))

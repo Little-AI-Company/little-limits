@@ -2,10 +2,8 @@ import Foundation
 import GRDB
 import UsageHistory
 
-/// The local usage history database: one writer, concurrent readers, write-ahead logging.
 public final class HistoryDatabase: Sendable {
     public let pool: DatabasePool
-    /// Created once with the database. Pass it to `ProjectKey.make` so keys stay stable across launches.
     public let projectKeySalt: [UInt8]
 
     public init(url: URL) throws {
@@ -82,8 +80,6 @@ public final class HistoryDatabase: Sendable {
                 table.column("modifiedAt", .datetime).notNull()
             }
         }
-        // Codex quota backfill matches log readings to app accounts at read time. An account linked after its logs
-        // were read needs those logs read again, so ingestion records which links it has already applied.
         migrator.registerMigration("v2") { db in
             try db.create(table: "codexBackfillAccount") { table in
                 table.column("accountID", .blob).notNull()
@@ -91,20 +87,12 @@ public final class HistoryDatabase: Sendable {
                 table.primaryKey(["accountID", "providerAccountID"])
             }
         }
-        // The Home forecast reads the readings observed since a time. Without this index, every committed change
-        // scans the whole quota history. Its latest reading per account already walks the primary key, which starts
-        // with the account.
         migrator.registerMigration("v3-quota-reading-index") { db in
             try db.create(index: "quotaReadingObservedAt", on: QuotaReading.databaseTableName, columns: ["observedAt"])
         }
-        // Codex commands now belong to the response active when they started. Saved positions would skip unchanged
-        // logs, so every log is read once more and its commands replace the stored ones. Positions are keyed by a
-        // hash of the path, which does not tell Codex logs from Claude logs, so all of them are cleared.
         migrator.registerMigration("v3-reread-logs-for-command-attribution") { db in
             try SourceFilePosition.deleteAll(db)
         }
-        // Commands keep classification facts only, so newer classifier rules mean reading every log again. This
-        // holds the classifier version that the last complete, failure-free scan applied.
         migrator.registerMigration("v4-completed-classifier-version") { db in
             try db.create(table: "completedClassifierVersion") { table in
                 table.column("version", .integer).notNull()
@@ -114,14 +102,11 @@ public final class HistoryDatabase: Sendable {
     }
 }
 
-// A quota reading never changes after it is observed, so a repeated insert is ignored.
 extension QuotaReading: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "quotaReading"
     public static let persistenceConflictPolicy = PersistenceConflictPolicy(insert: .ignore, update: .abort)
 }
 
-// A later read of the same log can complete a response or command, such as its final usage line or its exit
-// status, so a repeated insert replaces the earlier row. See `LogParseOutput.resumeByteOffset`.
 extension ModelResponse: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "modelResponse"
     public static let persistenceConflictPolicy = PersistenceConflictPolicy(insert: .replace, update: .replace)
@@ -132,7 +117,6 @@ extension ShellCommandRecord: FetchableRecord, PersistableRecord {
     public static let persistenceConflictPolicy = PersistenceConflictPolicy(insert: .replace, update: .replace)
 }
 
-// A newer read position for the same path replaces the old one.
 extension SourceFilePosition: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "sourceFilePosition"
     public static let persistenceConflictPolicy = PersistenceConflictPolicy(insert: .replace, update: .replace)

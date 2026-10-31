@@ -3,9 +3,6 @@ import GRDB
 import UsageHistory
 
 extension HistoryDatabase {
-    /// Saves the windows of each reading whose time is newer than the latest saved row for the same account and
-    /// source. A failed refresh keeps the previous reading time and status-line capture rereads the same file, so an
-    /// older or equal time adds nothing. Returns the number of rows added.
     @discardableResult
     public func recordQuotaReadings(_ readings: [QuotaReading]) throws -> Int {
         guard !readings.isEmpty else { return 0 }
