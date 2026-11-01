@@ -27,7 +27,7 @@ Version and build default to `CFBundleShortVersionString` and `CFBundleVersion` 
 To override local package values:
 
 ```sh
-VERSION=0.2.1 BUILD_NUMBER=4 scripts/package_app.sh
+VERSION=0.3.0 BUILD_NUMBER=5 scripts/package_app.sh
 OUTPUT_DIRECTORY=/tmp/little-limits-package scripts/package_app.sh
 UNIVERSAL=1 scripts/package_app.sh
 ```
@@ -126,7 +126,7 @@ These names stay the same on purpose:
 
 ### Rename to Little Limits
 
-Steps for the first release as Little Limits, in addition to [Public release](#public-release). The 0.2.1 rename to Limits Left used the same steps; its evidence is in [VALIDATION.md](VALIDATION.md).
+Steps for the first release as Little Limits, in addition to [Public release](#public-release). Steps 1 to 3 were done for 0.3.0, published on 2026-10-31 with the cask `little-limits` at 0.3.0 in the tap. The step 4 upgrade check is not recorded in [VALIDATION.md](VALIDATION.md) yet. The steps stay here as the pattern for the next rename. The 0.2.1 rename to Limits Left used the same steps; its evidence is in [VALIDATION.md](VALIDATION.md).
 
 1. Build, notarize, and verify as usual. Publish `Little-Limits-<version>.zip` on the `v<version>` GitHub release.
 2. In `ParkerRex/homebrew-tap`, add `Casks/little-limits.rb`. Copy `Casks/limits-left.rb` and change only the token to `little-limits`, `version`, `sha256`, the `url` file name to `Little-Limits-#{version}.zip`, the `url` and `homepage` repository to `Little-AI-Company/little-limits`, `name` to `Little Limits`, and the artifact to `app "Little Limits.app"`. Keep `uninstall quit: "com.parkerrex.ai-usage-stats"` and the same `zap trash` paths.
