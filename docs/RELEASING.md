@@ -117,7 +117,7 @@ Record exact commands, results, artifact version, tested source revision, OS, an
 
 ## Names
 
-The app was published as AI Usage Stats through 0.2.0 and as Limits Left in 0.2.1. It is now Little Limits, part of the little family with Little Worker and Little CI. The bundle `Little Limits.app`, the archive `Little-Limits-<version>.zip`, the cask `little-limits`, and the repository `Little-AI-Company/little-limits` carry the current name. GitHub redirects the old `ParkerRex/little-limits`, `ParkerRex/limits-left`, and `ParkerRex/ai-usage-stats` URLs, including release downloads, as long as no new repository takes those names. Link to `Little-AI-Company/little-limits` in new docs, pages, and the cask. The site stays on limitsleft.com until a family domain replaces it.
+The app was published as AI Usage Stats through 0.2.0 and as Limits Left in 0.2.1. It is now Little Limits, part of the little family with Little Worker, Little Mac Stats and Little Logbook. The bundle `Little Limits.app`, the archive `Little-Limits-<version>.zip`, the cask `little-limits`, and the repository `Little-AI-Company/little-limits` carry the current name. GitHub redirects the old `ParkerRex/little-limits`, `ParkerRex/limits-left`, and `ParkerRex/ai-usage-stats` URLs, including release downloads, as long as no new repository takes those names. Link to `Little-AI-Company/little-limits` in new docs, pages, and the cask. The site stays on limitsleft.com until a family domain replaces it.
 
 These names stay the same on purpose:
 
