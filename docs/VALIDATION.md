@@ -2,6 +2,15 @@
 
 This file records observed results, not intended behavior. Update the tested revision and relevant checks when the implementation changes.
 
+## 0.3.0 published zip and comment-removal checks, November 1, 2026
+
+Checked on the M4 (Apple silicon, Xcode 27.1) from main `36b0e46133b8131a32dca6cbb79e2cea8c60a65d`.
+
+- Published `Little-Limits-0.3.0.zip` from the v0.3.0 GitHub release, SHA-256 `83cfda74a001392ac2ee65e53153413894eedf3193c0dce9cdede378e723b74e`. `codesign --verify --deep --strict` passed and satisfies its designated requirement; Developer ID Application: RAPTURE ENTERTAINERS, INC. (9FL5S77YVH), hardened runtime, timestamp Oct 31, 2026 11:12:12 AM. `xcrun stapler validate` passed. `spctl -a -t exec` accepted it as Notarized Developer ID. Version 0.3.0, build 5, `com.parkerrex.ai-usage-stats`, macOS 14.0 minimum, arm64 and x86_64.
+- `brew install --cask parkerrex/tap/limits-left` at tap commit `8eb40a1` installed Limits Left 0.2.1 into /Applications. The upgrade to `little-limits` and the clean install were not run yet: they need the M4's screen, which was locked.
+- H9: `scripts/package_app.sh` (ad hoc signed) from the same commit. The packaged `UsageCapture` with `--profile <uuid> --storage-directory` pointing into a read-only folder and `--original-command 'cat; exit 7'` printed its input unchanged and exited 7; nothing was written.
+- Not run yet: the packaged-app checks for H1, H3, H6, H7, H13, H14 and H16, and `swift test` for H2, H4, H5, H8, H10, H11, H12 and H15.
+
 ## README screenshot refresh, October 13, 2026
 
 Captured the packaged app matching `d22cc5a1fdc50229f428802426d708dbfa34afbc` on macOS 27.0.1 through Computer: real connected-account overview and App Settings, each 1400 × 1136 pixels. Replaced the generated README header with the account capture and added the settings capture. The user requested actual product content; captures retain the displayed account email, subscription reading, inactive windows, and unavailable credit states. No values were fabricated, cropped, or retouched. Computer returned JPEG bytes; macOS `sips -s format png` exported them to PNG. Text/EXIF chunks were removed without changing the compressed image payload. No credentials were visible. No sign-in, stored balance, or login setting was changed.
