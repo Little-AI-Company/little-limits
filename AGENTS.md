@@ -59,6 +59,7 @@ These rules apply to every agent and every person here. Parker set them on 2026-
 - `.github/workflows/ci.yml`: after each push to `main`, GitHub's runners package, verify the signature, and run the full tests on macOS, and run the `UsageHistory` tests on Linux. Nobody waits for it.
 - `Resources/`: app metadata and generated icon.
 - `scripts/package_app.sh`: canonical local Release app packaging.
+- `scripts/release.sh <version>`: on the release Mac, bumps the version, builds, notarizes and verifies the app, lands the version commit, and prints Parker's two steps: the `gh release create` command and the exact cask edit with the tap push. It publishes nothing.
 - `docs/STRATEGY.md`, `docs/NATIVE-DESIGN.md`: product scope and native interface criteria.
 - `docs/VALIDATION.md`, `docs/RELEASING.md`: observed evidence, limits, and packaging procedure.
 - `CHANGELOG.md`, `website/changelog/`: what changed in each public release. Write them with the [changelog skill](.agents/skills/changelog/SKILL.md).
