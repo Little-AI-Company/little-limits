@@ -175,11 +175,13 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
 
     private func statusItemPlaced() async -> Bool {
         guard statusItemPlacement == nil, let window = statusItem?.button?.window else { return false }
-        if window.occlusionState.contains(.visible) { return true }
+        if Self.isPlacedInMenuBar(window) { return true }
         return await withCheckedContinuation { continuation in
             statusItemPlacement = continuation
             NotificationCenter.default.addObserver(self, selector: #selector(statusItemWindowOcclusionChanged(_:)),
                                                    name: NSWindow.didChangeOcclusionStateNotification, object: window)
+            NotificationCenter.default.addObserver(self, selector: #selector(statusItemWindowOcclusionChanged(_:)),
+                                                   name: NSWindow.didMoveNotification, object: window)
             statusItemPlacementTimer = Timer.scheduledTimer(timeInterval: Self.statusItemPlacementDeadline, target: self,
                                                             selector: #selector(statusItemPlacementTimedOut(_:)),
                                                             userInfo: nil, repeats: false)
@@ -187,8 +189,13 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
 
     @objc private func statusItemWindowOcclusionChanged(_ notification: Notification) {
-        guard let window = notification.object as? NSWindow, window.occlusionState.contains(.visible) else { return }
+        guard let window = notification.object as? NSWindow, Self.isPlacedInMenuBar(window) else { return }
         finishStatusItemPlacement(placed: true)
+    }
+
+    private static func isPlacedInMenuBar(_ window: NSWindow) -> Bool {
+        guard window.occlusionState.contains(.visible), let screen = window.screen else { return false }
+        return abs(window.frame.maxY - screen.frame.maxY) < 1
     }
 
     @objc private func statusItemPlacementTimedOut(_ timer: Timer) {
@@ -197,6 +204,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
 
     private func finishStatusItemPlacement(placed: Bool) {
         NotificationCenter.default.removeObserver(self, name: NSWindow.didChangeOcclusionStateNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didMoveNotification, object: nil)
         statusItemPlacementTimer?.invalidate()
         statusItemPlacementTimer = nil
         let placement = statusItemPlacement
