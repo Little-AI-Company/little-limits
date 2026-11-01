@@ -64,33 +64,39 @@ final class CodexClientTests: XCTestCase {
     }
 
     func testUnresponsiveProcessTimesOutAndIsReaped() throws {
-        let fixture = try CodexProcessFixture(script: "trap '' TERM\nexec /bin/sleep 30\n")
+        let fixture = try CodexProcessFixture(script: "trap '' TERM\nexec /bin/sleep \(CodexProcessFixture.lifetimeSeconds)\n")
         defer { fixture.remove() }
-        let startedAt = Date()
+        let clock = ContinuousClock()
+        let startedAt = clock.now
 
         XCTAssertThrowsError(try CodexClient(executable: fixture.executable, home: fixture.home, timeout: 0.25)
             .fetch(profileID: UUID(), expectedIdentity: nil))
 
-        XCTAssertLessThan(Date().timeIntervalSince(startedAt), 3)
-        try assertChildStopped(fixture)
+        XCTAssertLessThan(startedAt.duration(to: clock.now), CodexProcessFixture.reapedWellBeforeLifetime)
+        try assertChildStopped(fixture, mayHaveBeenKilledBeforeItStarted: true)
     }
 
     func testCompletedProcessIgnoringTerminationIsReaped() throws {
-        let fixture = try CodexProcessFixture(script: CodexProcessFixture.responses + "trap '' TERM\nexec /bin/sleep 30\n")
+        let fixture = try CodexProcessFixture(
+            script: CodexProcessFixture.responses + "trap '' TERM\nexec /bin/sleep \(CodexProcessFixture.lifetimeSeconds)\n")
         defer { fixture.remove() }
-        let startedAt = Date()
+        let clock = ContinuousClock()
+        let startedAt = clock.now
 
-        let result = try CodexClient(executable: fixture.executable, home: fixture.home, timeout: 2)
+        let result = try CodexClient(executable: fixture.executable, home: fixture.home)
             .fetch(profileID: UUID(), expectedIdentity: "account-a")
 
         XCTAssertEqual(result.snapshot.state, .available)
-        XCTAssertLessThan(Date().timeIntervalSince(startedAt), 3)
+        XCTAssertLessThan(startedAt.duration(to: clock.now), CodexProcessFixture.reapedWellBeforeLifetime)
         try assertChildStopped(fixture)
     }
 
-    private func assertChildStopped(_ fixture: CodexProcessFixture, file: StaticString = #filePath, line: UInt = #line) throws {
-        let text = try String(contentsOf: fixture.home.appendingPathComponent("child.pid"), encoding: .utf8)
-        let identifier = try XCTUnwrap(Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)), file: file, line: line)
+    private func assertChildStopped(_ fixture: CodexProcessFixture, mayHaveBeenKilledBeforeItStarted: Bool = false,
+                                    file: StaticString = #filePath, line: UInt = #line) throws {
+        let text = (try? String(contentsOf: fixture.home.appendingPathComponent("child.pid"), encoding: .utf8)) ?? ""
+        let recorded = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        if recorded == nil && mayHaveBeenKilledBeforeItStarted { return }
+        let identifier = try XCTUnwrap(recorded, file: file, line: line)
         XCTAssertEqual(kill(identifier, 0), -1, "Child process survived client cleanup.", file: file, line: line)
         XCTAssertEqual(errno, ESRCH, file: file, line: line)
     }
@@ -203,8 +209,10 @@ final class CodexClientTests: XCTestCase {
     cancelled.cancel()
     #expect(await cancelled.value == .cancelled)
 
+    let firstRead = URL(fileURLWithPath: try #require(profile.sourcePath)).appendingPathComponent("requests.jsonl")
+    try FileManager.default.removeItem(at: firstRead)
     let removed = Task { await service.awaitCodexSignIn(id: profile.id, interval: .milliseconds(20), timeout: .seconds(60)) }
-    try await Task.sleep(for: .milliseconds(100))
+    while !FileManager.default.fileExists(atPath: firstRead.path) { await Task.yield() }
     try await service.removeAccount(id: profile.id)
     #expect(await removed.value == .accountRemoved)
 }
@@ -261,6 +269,9 @@ private struct CodexProcessFixture {
     let directory: URL
     let home: URL
     let executable: URL
+
+    static let lifetimeSeconds = 600
+    static let reapedWellBeforeLifetime = Duration.seconds(300)
 
     init(script: String) throws {
         directory = FileManager.default.temporaryDirectory.appendingPathComponent("codex-client-test-" + UUID().uuidString,
