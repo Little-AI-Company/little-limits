@@ -38,7 +38,7 @@ Maintainers and their agents commit straight to `main`; there are no branches or
 2. Write the body for a reader who has not seen the work: the concrete problem and resulting behavior, then the cause and fix. For a bug fix, name the baseline commit and the reproduction. List manual checks you ran and their results, such as the packaged app views and interactions. End with an accurate AI model and harness disclosure, or state that no AI tools were used. Do not guess model details or publish private maintainer research.
 3. A `feat`, `fix`, or `perf` commit ends with a `Customer-note:` trailer for the changelog, or `Customer-note: none (<reason>)`.
 4. Read every line of `git show HEAD`. Passing checks do not replace review.
-5. Run `scripts/push_main.sh` (`--package` for UI, lifecycle, resource, or packaging changes). It rebases, runs the checks on the exact commit, records them as `Tested:` trailers, and pushes `main`. See [docs/push-main.md](docs/push-main.md).
+5. Run `scripts/push_main.sh` (`--package` for UI, lifecycle, resource, or packaging changes). It rebases, runs the checks on the exact commit, records them as `Tested:` trailers, and pushes `main`. `scripts/push_main.sh --help` lists its options and exit codes.
 
 Never include tokens, Keychain items, OAuth grants, `accounts.json`, the usage history database, raw Claude Code or Codex logs, or screenshots that show account emails, organization names, or balances.
 
