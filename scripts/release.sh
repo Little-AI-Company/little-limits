@@ -45,7 +45,15 @@ if [[ -z "${NOTARY_PROFILE:-}" ]]; then
     archive_path="$release_directory/Little Limits.xcarchive"
     scripts/create_xcode_archive.sh "$application" "$archive_path"
     xcodebuild -exportArchive -archivePath "$archive_path" -exportPath "$release_directory/upload" -exportOptionsPlist build/XcodeUploadOptions.plist
-    xcodebuild -exportNotarizedApp -archivePath "$archive_path" -exportPath "$release_directory/notarized"
+    for attempt in $(seq 1 60); do
+        if export_output="$(xcodebuild -exportNotarizedApp -archivePath "$archive_path" -exportPath "$release_directory/notarized" 2>&1)"; then
+            break
+        fi
+        grep -q 'is processing and not ready' <<<"$export_output" || fail "$export_output"
+        [[ "$attempt" != 60 ]] || fail 'Apple has not finished notarizing after 30 minutes. Run this again later.'
+        printf 'Apple is still notarizing the upload; checking again in 30 seconds (%s of 60).\n' "$attempt"
+        sleep 30
+    done
     application="$release_directory/notarized/Little Limits.app"
 fi
 
