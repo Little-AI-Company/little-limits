@@ -30,6 +30,7 @@ final class ApplicationModel {
     let historyDatabaseError: String?
     private let logIngestor: LogIngestor?
     private var logIngestion: Task<Void, Never>?
+    private var digestWrite: Task<Void, Never>?
     var onChange: (() -> Void)?
     var onError: ((String) -> Void)?
     var onLoginCommand: ((String, UUID) -> Bool)?
@@ -100,6 +101,18 @@ final class ApplicationModel {
     }
 
     private func finishLogIngestion() { logIngestion = nil }
+
+    private func writeLimitsDigest(now: Date = Date()) {
+        guard !isDemo else { return }
+        let digest = LimitsDigest(overview: UsageOverview(profiles: profiles, snapshots: snapshots, now: now), now: now, calendar: .current)
+        let previous = digestWrite
+        digestWrite = Task.detached(priority: .utility) {
+            await previous?.value
+            do { try digest.write() } catch {
+                Self.logger.error("Could not write the limits file: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
 
     private static func quotaReadings(profile: AccountProfile, snapshot: AccountSnapshot) -> [QuotaReading] {
         let source: QuotaReadingSource
@@ -195,6 +208,7 @@ final class ApplicationModel {
             }
             message = nil
             convertLegacyMenuBarChoice()
+            writeLimitsDigest()
         } catch {
             message = "Could not load accounts: \(error.localizedDescription)"
         }
@@ -228,7 +242,10 @@ final class ApplicationModel {
             }
             self.isRefreshing = false
             self.refreshTask = nil
-            if !Task.isCancelled { self.recordHistory() }
+            if !Task.isCancelled {
+                self.recordHistory()
+                self.writeLimitsDigest()
+            }
             self.onChange?()
             if self.refreshRequested {
                 self.refreshRequested = false
@@ -251,6 +268,7 @@ final class ApplicationModel {
                     message = nil
                 } catch { message = "Could not reload accounts: \(error.localizedDescription)" }
                 recordHistory()
+                writeLimitsDigest()
             }
             isRefreshing = false
             refreshTask = nil
