@@ -2,6 +2,26 @@
 
 This file records observed results, not intended behavior. Update the tested revision and relevant checks when the implementation changes.
 
+## Limits digest, little-limits command and MCP server, November 2, 2026
+
+Packaged with `scripts/package_app.sh` (ad hoc signed) on Parker's M1 Max, macOS 27.0.1, from the Phase 1 commits (`feat(core)` through `fix(app)` on the monthly grant wording), and run against Parker's real accounts: five Claude accounts and one Codex account.
+
+| Check | Result |
+| --- | --- |
+| Launch the packaged app (not demo) | `limits-digest.json` appeared in `~/Library/Application Support/AI Usage Stats` with mode `-rw-------` within a second of loading accounts, and was rewritten after the refresh that followed (as_of moved from the load to the refresh) and after later timed refreshes. |
+| `Contents/Helpers/little-limits status` | Printed all six accounts with weekly left and reset time, "no 5-hour window" where the 5-hour window was inactive, "Earned resets: me (Codex) 2 left, first expires Nov 30. Claude: not supported.", "Claude API credits: not connected", and a Use now line per provider (Claude: the 94% account resetting in 18 hours ahead of 97% to 99% accounts resetting later). |
+| The same command on the digest written at launch, before the refresh | Old readings showed as "Last known 86%" with "Sign-in required, read 17d ago" or "Stale, read 12d ago"; Use now said no account qualified and how many had no current reading. The JSON kept `percent_left` null and moved the old value to `last_known_percent_left`. |
+| `little-limits status --json` | The digest with explicit `null` for unknown values, no tokens, account or organization IDs, paths or provider detail text, and no used percentage. |
+| `little-limits mcp`, JSON-RPC lines by hand | `initialize` (2025-06-18 echoed), `tools/list` (five tools, each `readOnlyHint: true`), `pick_account` with `need: session`, `upcoming_resets` with `within_days: 2`, `server/discover` with the 2026-07-28 `_meta` (result carried `supportedVersions` and `resultType: complete`), an unknown version (error -32022 listing the supported versions), a malformed line (-32700, the server kept running), `prompts/get` and `resources/read limits://overview`. |
+| Claude Code 2.1.316: `claude -p "where are my accounts at" --mcp-config <file> --strict-mcp-config` | Called `limits_overview` and answered with the six accounts, the Use now pick and its runner-up, and the Codex earned resets. Run with a one-off config file; Claude Code's own settings were not changed. |
+| Codex CLI 0.164.0: `codex exec -c mcp_servers.little-limits.command=<helper> -c mcp_servers.little-limits.args=["mcp"]` | Its log shows `mcp: little-limits/limits_overview (completed)`; it answered with the same table and Use now pick. Codex's config file was not changed. |
+| Settings, `--demo --show-settings` | The AI assistants row shows the Claude Code, Codex CLI, Claude Desktop and Terminal lines with the helper path inside the running bundle, and a Copy button for each. |
+| `swift test` | All existing tests passed. |
+
+Recording: `~/Desktop/little-limits-proof/phase-1/phase1-command-and-mcp.mp4` (not committed), rendered from the timestamped output of the real run.
+
+Not verified: Claude Desktop (verifying it means editing its config file, which the app never does), Claude Code Remote Control on the iPhone (needs Parker's phone), the Copy buttons by click, a connected Claude Platform account (none is connected, so the API credit rows were checked only as "not connected"), and Intel runtime.
+
 ## Models page load time and loading animation, November 2, 2026
 
 Packaged with `scripts/package_app.sh` (ad hoc signed) on Parker's M1 Max, macOS 27.0.1, against his own history database (132,012 model responses, 82,732 shell commands, 717 sessions).
