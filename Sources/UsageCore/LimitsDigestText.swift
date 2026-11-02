@@ -186,3 +186,71 @@ public enum LimitsDigestText {
         return formatter.string(from: date)
     }
 }
+
+public struct MorningDigestNotice: Equatable, Sendable {
+    public let title: String
+    public let body: String
+}
+
+extension LimitsDigestText {
+    public static func morningDigest(_ digest: LimitsDigest, now: Date, calendar: Calendar, missed: Date?) -> MorningDigestNotice {
+        var title = "Usage · \(weekdayMoment(now, calendar: calendar))"
+        if let missed { title += ", late for \(moment(missed, now: now, calendar: calendar))" }
+        var lines: [String] = []
+        let picks = digest.useNow.filter { $0.need == .weekly && $0.outcome == .picked }
+        if !picks.isEmpty {
+            lines.append("Use first: " + picks.map { pick in
+                let account = digest.accounts.first { $0.provider == pick.provider && $0.label == pick.account }
+                let weekly = account?.windows.first { $0.role == .weekly }
+                let detail = weekly.flatMap { window in
+                    window.percentLeft.map { "(\(UseNowRule.percent($0)), resets \(resetValue(window, now: now, calendar: calendar)))" }
+                }
+                return ["\(pick.provider.title) \(pick.shortLabel ?? "")", detail].compactMap { $0 }.joined(separator: " ")
+            }.joined(separator: " · "))
+        }
+        for account in digest.accounts {
+            let window = account.windows.first { $0.role == .weekly } ?? account.windows.first { $0.role == .session }
+            var parts = ["\(account.provider.title) \(account.shortLabel)"]
+            switch account.state {
+            case .current:
+                if let window {
+                    parts.append(windowValue(window) + " left")
+                    parts.append("resets \(resetValue(window, now: now, calendar: calendar))")
+                } else {
+                    parts.append("no usage window")
+                }
+            default:
+                if let left = window?.lastKnownPercentLeft { parts.append("Last known \(UseNowRule.percent(left)) left") }
+                parts.append(stateNote(account, now: now) ?? "Unavailable")
+            }
+            lines.append(parts.joined(separator: " · "))
+        }
+        for account in digest.accounts where account.provider == .codex && account.earnedResets.status == .supported {
+            guard let count = account.earnedResets.count, count > 0 else { continue }
+            var text = "\(account.provider.title) \(account.shortLabel): \(count) earned reset\(count == 1 ? "" : "s")"
+            if let next = account.earnedResets.nextExpiresAt { text += ", next expires \(moment(next, now: now, calendar: calendar))" }
+            lines.append(text)
+        }
+        for account in digest.accounts where !account.apiUsable.isEmpty {
+            let amounts = account.apiUsable.map { money($0.amount, currency: $0.currency) }.joined(separator: " + ")
+            var text = "\(account.provider.title) \(account.shortLabel) API credits: \(amounts)"
+            if let grant = account.apiCredits.first(where: { $0.kind == .monthlyGrant }), let expires = grant.expiresAt, expires > now {
+                text += ", current grant expires \(moment(expires, now: now, calendar: calendar))"
+            }
+            lines.append(text)
+        }
+        if lines.isEmpty { lines.append("No accounts are set up in Little Limits.") }
+        return MorningDigestNotice(title: title, body: lines.joined(separator: "\n"))
+    }
+
+    static func weekdayMoment(_ date: Date, calendar: Calendar) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.amSymbol = "am"
+        formatter.pmSymbol = "pm"
+        formatter.dateFormat = calendar.component(.minute, from: date) == 0 ? "EEE ha" : "EEE h:mma"
+        return formatter.string(from: date)
+    }
+}

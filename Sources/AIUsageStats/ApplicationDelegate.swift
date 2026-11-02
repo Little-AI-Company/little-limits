@@ -8,6 +8,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         || CommandLine.arguments.contains("--demo-home")
         || CommandLine.arguments.contains("--demo-reading-states")
         || CommandLine.arguments.contains("--demo-states"))
+    private let notifications = LocalNotifications()
+    private lazy var morningDigest = MorningDigest(model: model, notifications: notifications)
     private let statusMenu = NSMenu(title: "Little Limits")
     private let accountFilterMenu = NSMenu(title: "Show Account")
     private var isMenuTracking = false
@@ -47,9 +49,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             self?.accounts?.showAccount(id: id)
         }
         model.onConsoleRefresh = { [weak self] in self?.refreshConsoleCredits() }
-        let notifications = NSWorkspace.shared.notificationCenter
-        notifications.addObserver(self, selector: #selector(willSleep(_:)), name: NSWorkspace.willSleepNotification, object: nil)
-        notifications.addObserver(self, selector: #selector(didWake(_:)), name: NSWorkspace.didWakeNotification, object: nil)
+        let workspace = NSWorkspace.shared.notificationCenter
+        workspace.addObserver(self, selector: #selector(willSleep(_:)), name: NSWorkspace.willSleepNotification, object: nil)
+        workspace.addObserver(self, selector: #selector(didWake(_:)), name: NSWorkspace.didWakeNotification, object: nil)
+        notifications.start()
         Task { [weak self] in
             guard let self else { return }
             await model.load()
@@ -57,6 +60,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             render()
             model.refreshIfNeeded()
             startRefreshTimer()
+            morningDigest.check()
             if CommandLine.arguments.contains("--show-home") || CommandLine.arguments.contains("--show-accounts") {
                 showAccounts(nil)
             }
@@ -74,6 +78,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
 
     func applicationWillTerminate(_ notification: Notification) {
         refreshTimer?.invalidate()
+        morningDigest.stop()
         model.cancelRefresh()
         model.cancelCodexSignInWaits()
         claudeSignIn?.stop()
@@ -246,7 +251,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
                                            selector: #selector(refreshElapsed(_:)), userInfo: nil, repeats: true)
         refreshTimer?.tolerance = 15
     }
-    @objc private func refreshElapsed(_ sender: Timer) { if !sleeping { model.refresh() } }
+    @objc private func refreshElapsed(_ sender: Timer) {
+        guard !sleeping else { return }
+        model.refresh()
+        morningDigest.check()
+    }
     @objc private func willSleep(_ notification: Notification) {
         sleeping = true
         refreshTimer?.invalidate()
@@ -259,6 +268,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         startRefreshTimer()
         model.refreshIfNeeded()
         refreshConsoleCredits()
+        morningDigest.check()
     }
 
     @objc private func showAccounts(_ sender: Any?) {
@@ -270,7 +280,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private func presentAccountsWindow(_ sender: Any?, presentation: AccountsWindowPresentation) {
         statusMenu.cancelTracking()
         if accounts == nil {
-            accounts = AccountsWindowController(model: model)
+            accounts = AccountsWindowController(model: model, morningDigest: morningDigest)
             accounts?.onConsoleConnection = { [weak self] id in self?.showClaudePlatform(id) }
             accounts?.onConsoleDisconnection = { [weak self] id in self?.platformController(id)?.disconnectConnection() }
             accounts?.onClaudeConnection = { [weak self] id, label in self?.showClaudeSignIn(id: id, label: label) }

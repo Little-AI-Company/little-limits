@@ -40,6 +40,7 @@ final class ApplicationModel {
     private var refreshTask: Task<Void, Never>?
     private var codexSignInWaits: [UUID: Task<Void, Never>] = [:]
     private var refreshRequested = false
+    private var refreshWaiters: [CheckedContinuation<Void, Never>] = []
     private var claudeAuthorizationID: UUID?
     private var hasPresentedDemoLoadError = false
     var isSigningInClaude: Bool { claudeAuthorizationID != nil }
@@ -250,6 +251,7 @@ final class ApplicationModel {
                 self.writeLimitsDigest()
             }
             self.onChange?()
+            self.resumeRefreshWaiters()
             if self.refreshRequested {
                 self.refreshRequested = false
                 self.refresh()
@@ -276,6 +278,7 @@ final class ApplicationModel {
             isRefreshing = false
             refreshTask = nil
             onChange?()
+            resumeRefreshWaiters()
             if refreshRequested {
                 refreshRequested = false
                 refresh()
@@ -284,6 +287,23 @@ final class ApplicationModel {
     }
 
     func cancelRefresh() { refreshRequested = false; refreshTask?.cancel() }
+
+    func refreshAndWait(timeout: Duration) async {
+        refresh()
+        guard isRefreshing else { return }
+        let deadline = Task { [weak self] in
+            try? await Task.sleep(for: timeout)
+            self?.resumeRefreshWaiters()
+        }
+        await withCheckedContinuation { refreshWaiters.append($0) }
+        deadline.cancel()
+    }
+
+    private func resumeRefreshWaiters() {
+        let waiters = refreshWaiters
+        refreshWaiters = []
+        waiters.forEach { $0.resume() }
+    }
 
     func importAccount(provider: Provider, label: String, configurationURL: URL? = nil) {
         if provider == .codex {

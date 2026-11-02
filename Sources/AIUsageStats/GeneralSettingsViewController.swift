@@ -7,10 +7,16 @@ final class GeneralSettingsViewController: NSViewController {
     private let loginStatus = InterfaceControls.label("")
     private let iconButton = NSPopUpButton(frame: .zero, pullsDown: false)
     private let storesIconChoice: Bool
+    private let morningDigest: MorningDigest
+    private let digestButton = NSButton(checkboxWithTitle: "Send a morning digest at", target: nil, action: nil)
+    private let digestTime = NSDatePicker()
+    private let weekdaysButton = NSButton(checkboxWithTitle: "On weekdays only", target: nil, action: nil)
+    private let digestStatus = InterfaceControls.label("")
     private var copySources: [NSButton: NSTextField] = [:]
 
-    init(storesIconChoice: Bool) {
+    init(storesIconChoice: Bool, morningDigest: MorningDigest) {
         self.storesIconChoice = storesIconChoice
+        self.morningDigest = morningDigest
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { nil }
@@ -28,15 +34,78 @@ final class GeneralSettingsViewController: NSViewController {
         let icon = InterfaceControls.stack([iconButton, iconNote], spacing: 6)
         iconNote.widthAnchor.constraint(equalTo: icon.widthAnchor).isActive = true
         configureIconButton()
-        let form = settingsForm([("Startup:", startup), ("App icon:", icon), ("AI assistants:", assistantSetup())])
+        let form = settingsForm([("Startup:", startup), ("App icon:", icon), ("Morning digest:", digestSetup()),
+                                 ("AI assistants:", assistantSetup())])
         form.translatesAutoresizingMaskIntoConstraints = false
-        root.addSubview(form)
+        let scroll = NSScrollView()
+        let document = SettingsDocumentView()
+        scroll.documentView = document
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.drawsBackground = false
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        document.translatesAutoresizingMaskIntoConstraints = false
+        document.addSubview(form)
+        root.addSubview(scroll)
         NSLayoutConstraint.activate([
-            form.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 24),
-            form.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -24),
-            form.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor, constant: 24)
+            scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            scroll.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            document.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
+            document.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor),
+            document.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
+            form.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 24),
+            form.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -24),
+            form.topAnchor.constraint(equalTo: document.topAnchor, constant: 24),
+            form.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -24)
         ])
         refreshLoginState()
+        refreshDigestState()
+    }
+
+    private func digestSetup() -> NSView {
+        morningDigest.onPermissionChange = { [weak self] in self?.refreshDigestState() }
+        digestButton.target = self
+        digestButton.action = #selector(changeDigest(_:))
+        weekdaysButton.target = self
+        weekdaysButton.action = #selector(changeDigest(_:))
+        digestTime.datePickerStyle = .textFieldAndStepper
+        digestTime.datePickerElements = .hourMinute
+        digestTime.target = self
+        digestTime.action = #selector(changeDigest(_:))
+        digestTime.setAccessibilityLabel("Morning digest time")
+        let first = NSStackView(views: [digestButton, digestTime])
+        first.orientation = .horizontal
+        first.alignment = .firstBaseline
+        first.spacing = 6
+        let note = InterfaceControls.label(
+            "A notification with what is left on each account and which to use first. If the Mac is asleep at that time, it comes when the Mac wakes, up to 4 hours later.")
+        let setup = InterfaceControls.stack([first, weekdaysButton, note, digestStatus], spacing: 6)
+        for view in [note, digestStatus] { view.widthAnchor.constraint(equalTo: setup.widthAnchor).isActive = true }
+        return setup
+    }
+
+    private func refreshDigestState() {
+        let preferences = morningDigest.preferences
+        digestButton.state = preferences.isEnabled ? .on : .off
+        weekdaysButton.state = preferences.weekdaysOnly ? .on : .off
+        weekdaysButton.isEnabled = preferences.isEnabled
+        digestTime.isEnabled = preferences.isEnabled
+        let calendar = Calendar.current
+        digestTime.dateValue = calendar.date(byAdding: .minute, value: preferences.minutesAfterMidnight,
+                                             to: calendar.startOfDay(for: Date())) ?? Date()
+        digestStatus.stringValue = preferences.isEnabled && morningDigest.permission == .denied
+            ? "Notifications are off for Little Limits. Turn them on in System Settings > Notifications." : ""
+        digestStatus.isHidden = digestStatus.stringValue.isEmpty
+    }
+
+    @objc private func changeDigest(_ sender: Any) {
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: digestTime.dateValue)
+        morningDigest.update(MorningDigest.Preferences(isEnabled: digestButton.state == .on,
+                                                       minutesAfterMidnight: (parts.hour ?? 8) * 60 + (parts.minute ?? 0),
+                                                       weekdaysOnly: weekdaysButton.state == .on))
+        refreshDigestState()
     }
 
     private func settingsForm(_ rows: [(title: String, content: NSView)]) -> NSGridView {
@@ -130,6 +199,7 @@ final class GeneralSettingsViewController: NSViewController {
     func refresh() {
         _ = view
         refreshLoginState()
+        refreshDigestState()
     }
 
     func focusInitialControl() {
@@ -166,4 +236,8 @@ final class GeneralSettingsViewController: NSViewController {
         }
         refreshLoginState()
     }
+}
+
+private final class SettingsDocumentView: NSView {
+    override var isFlipped: Bool { true }
 }
