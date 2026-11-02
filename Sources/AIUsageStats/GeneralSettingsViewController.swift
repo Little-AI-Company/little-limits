@@ -287,6 +287,7 @@ final class GeneralSettingsViewController: NSViewController {
         let row = NSStackView(views: [field, copy])
         row.orientation = .horizontal
         row.alignment = .firstBaseline
+        row.distribution = .fill
         row.spacing = 8
         let entry = InterfaceControls.stack([InterfaceControls.label(title), row], spacing: 4)
         row.widthAnchor.constraint(equalTo: entry.widthAnchor).isActive = true
