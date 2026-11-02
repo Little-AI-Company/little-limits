@@ -115,8 +115,11 @@ final class GeneralSettingsViewController: NSViewController {
         first.orientation = .horizontal
         first.alignment = .firstBaseline
         first.spacing = 6
+        let hour = { (value: Int) in
+            Calendar.current.date(bySettingHour: value, minute: 0, second: 0, of: Date())?.formatted(date: .omitted, time: .shortened) ?? "\(value):00"
+        }
         let note = InterfaceControls.label(
-            "Nudges come at most twice per weekly window and four times a week, never between 10 PM and 8 AM. The run-out warning comes once until that quota resets.")
+            "Nudges come at most twice per weekly window and four times a week, never between \(hour(QuotaAlerts.quietStartHour)) and \(hour(QuotaAlerts.quietEndHour)). The run-out warning comes once until that quota resets.")
         let setup = InterfaceControls.stack([first, runDryButton, note], spacing: 6)
         note.widthAnchor.constraint(equalTo: setup.widthAnchor).isActive = true
         return setup
@@ -339,7 +342,7 @@ final class GeneralSettingsViewController: NSViewController {
         loginButton.state = state == .enabled || state == .requiresApproval ? .on : .off
         switch state {
         case .enabled: loginStatus.stringValue = "Little Limits starts when you log in."
-        case .requiresApproval: loginStatus.stringValue = "Allow Little Limits in System Settings → General → Login Items."
+        case .requiresApproval: loginStatus.stringValue = "Allow Little Limits in System Settings > General > Login Items."
         case .notFound, .notRegistered: loginStatus.stringValue = "Little Limits starts when you open it."
         @unknown default: loginStatus.stringValue = "Login item status is unavailable."
         }
