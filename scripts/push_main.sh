@@ -251,12 +251,13 @@ work &
 wp=\$!
 set +m
 ( while kill -0 "\$wp" 2>/dev/null; do
-    if [ ! -d "\$job" ] || [ \$SECONDS -ge $((CAP + 30)) ]; then kill -TERM -- "-\$wp"; sleep 3; kill -KILL -- "-\$wp"; break; fi
+    if [ ! -d "\$job" ] || [ \$SECONDS -ge $((CAP + 30)) ]; then : >"\$job.stopped"; kill -TERM -- "-\$wp"; sleep 3; kill -KILL -- "-\$wp"; break; fi
     sleep 2
   done ) >/dev/null 2>&1 &
 rc=0
 wait "\$wp" || rc=\$?
-[ "\$rc" -lt 128 ] || rc=124
+[ "\$rc" -lt 128 ] || [ ! -e "\$job.stopped" ] || rc=124
+rm -f "\$job.stopped"
 echo \$rc >"\$job/exit"
 REMOTE
   ssh_m4() { ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 "$M4_HOST" "$@"; }
