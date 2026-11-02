@@ -1084,5 +1084,6 @@ Local development build of the working tree on macOS 27.0.1, Apple M1 Max. Packa
 | Command-Tab switcher | Shows the new Paper icon while a Little Limits window is open. |
 | `--show-settings --show-about` with `AppIconChoice` `enamel`, then `night` | Settings shows Paper, then Night, each with its new 16 px icon; About shows the full Paper icon, then the Night icon. The stored choice was removed afterwards. |
 | Banner, social preview, lockups | Every word is the October 29 lettering, copied by pixel; checked letter by letter. |
+| Models page loading picture | `--show-home --show-models`, screen recorded: the new bust shows for about 1.2 s, the needle sweeps from the leftmost tick to the rightmost and back, the eyes follow it with no white highlight, and the needle, hub and eyes sit on the drawing. The rest pose drawn with the same numbers lands on the Codex icon within about 1 px. |
 
-Not verified: the Night icon in the Dock (the Dock is hidden on this Mac; About uses the same image), and Intel, macOS 14 and 15 runtime.
+Not verified: the Night icon in the Dock (the Dock is hidden on this Mac; About uses the same image), Reduce Motion on (a system setting, left unchanged; the rest pose is the animation's first frame), and Intel, macOS 14 and 15 runtime.
