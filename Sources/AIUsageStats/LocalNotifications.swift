@@ -53,6 +53,10 @@ final class LocalNotifications: NSObject, UNUserNotificationCenterDelegate {
 
     func post(identifier: String, title: String, body: String, category: String? = nil, userInfo: [String: String] = [:]) async {
         if permission != .allowed { _ = await requestPermission() }
+        if CommandLine.arguments.contains("--notification-diagnostics") {
+            let outcome = permission == .allowed ? "posted" : "not shown, notifications are not allowed for Little Limits"
+            FileHandle.standardError.write(Data("Little Limits notification (\(outcome)) at \(Date().formatted(date: .omitted, time: .standard)):\n\(title)\n\(body)\n\n".utf8))
+        }
         guard permission == .allowed else { return }
         let content = UNMutableNotificationContent()
         content.title = title
