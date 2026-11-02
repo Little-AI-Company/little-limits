@@ -200,7 +200,7 @@ extension LimitsDigestText {
         let picks = digest.useNow.filter { $0.need == .weekly && $0.outcome == .picked }
         if !picks.isEmpty {
             lines.append("Use first: " + picks.map { pick in
-                let account = digest.accounts.first { $0.provider == pick.provider && $0.label == pick.account }
+                let account = digest.accounts.first { $0.provider == pick.provider && $0.shortLabel == pick.shortLabel }
                 let weekly = account?.windows.first { $0.role == .weekly }
                 let detail = weekly.flatMap { window in
                     window.percentLeft.map { "(\(UseNowRule.percent($0)), resets \(resetValue(window, now: now, calendar: calendar)))" }
