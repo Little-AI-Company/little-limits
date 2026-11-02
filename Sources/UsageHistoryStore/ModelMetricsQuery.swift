@@ -109,11 +109,11 @@ public enum ModelMetricsQuery {
 
         var steps: [ModelMetrics.ID: [Double]] = [:]
         for row in try Row.fetchAll(db, sql: """
-            WITH toolSession AS (SELECT DISTINCT provider, sessionID FROM modelResponse WHERE toolCallCount > 0)
-            SELECT response.provider, response.model, COUNT(*) AS steps
-            FROM modelResponse AS response
-            JOIN toolSession USING (provider, sessionID)
-            GROUP BY response.provider, response.sessionID, response.turnID, response.model
+            SELECT provider, model, steps FROM (
+                SELECT provider, model, COUNT(*) AS steps,
+                       MAX(MAX(toolCallCount > 0)) OVER (PARTITION BY provider, sessionID) AS sessionUsesTools
+                FROM modelResponse GROUP BY provider, sessionID, turnID, model
+            ) WHERE sessionUsesTools
             """) {
             let count: Int = row["steps"]
             steps[try id(row), default: []].append(Double(count))
