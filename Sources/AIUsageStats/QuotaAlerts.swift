@@ -282,7 +282,8 @@ final class QuotaAlerts {
 
     static func runDryAlerts(overview: UsageOverview, drains: [UUID: Drain], ledger: Ledger, now: Date) -> [RunDry] {
         overview.accounts.compactMap { account -> RunDry? in
-            guard let snapshot = account.snapshot, snapshot.isCurrent(at: now) else { return nil }
+            guard let snapshot = account.snapshot, snapshot.isCurrent(at: now),
+                  AccountUsability(snapshot: snapshot, now: now) == .usable else { return nil }
             let windows = snapshot.currentWindows
             var candidate: (window: UsageWindow, left: Double, runsOutAt: Date?)?
             if let weekly = windows.first(where: { $0.role == .weekly }), let used = weekly.utilizationPercent,
