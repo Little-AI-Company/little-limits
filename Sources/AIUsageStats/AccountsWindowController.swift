@@ -39,12 +39,13 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     var isAccountLoadComplete: () -> Bool = { false }
     var onRetryAccountLoad: (() -> Void)?
 
-    init(model: ApplicationModel, morningDigest: MorningDigest) {
+    init(model: ApplicationModel, morningDigest: MorningDigest, quotaAlerts: QuotaAlerts) {
         self.model = model
         home = HomeViewController(model: model)
         models = ModelsViewController(model: model)
         detail = AccountDetailViewController(model: model)
-        settings = GeneralSettingsViewController(storesIconChoice: !model.isDemo, morningDigest: morningDigest)
+        settings = GeneralSettingsViewController(storesIconChoice: !model.isDemo, morningDigest: morningDigest,
+                                                 quotaAlerts: quotaAlerts)
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: Self.windowDefaultSize),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)

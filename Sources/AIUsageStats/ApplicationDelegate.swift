@@ -10,6 +10,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         || CommandLine.arguments.contains("--demo-states"))
     private let notifications = LocalNotifications()
     private lazy var morningDigest = MorningDigest(model: model, notifications: notifications)
+    private lazy var quotaAlerts = QuotaAlerts(model: model, notifications: notifications)
     private let statusMenu = NSMenu(title: "Little Limits")
     private let accountFilterMenu = NSMenu(title: "Show Account")
     private var isMenuTracking = false
@@ -54,6 +55,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         workspace.addObserver(self, selector: #selector(willSleep(_:)), name: NSWorkspace.willSleepNotification, object: nil)
         workspace.addObserver(self, selector: #selector(didWake(_:)), name: NSWorkspace.didWakeNotification, object: nil)
         notifications.start()
+        notifications.onAction = { [weak self] action, userInfo in self?.quotaAlerts.handle(action: action, userInfo: userInfo) }
+        model.onRefreshFinished = { [weak self] in self?.quotaAlerts.evaluate() }
         Task { [weak self] in
             guard let self else { return }
             await model.load()
@@ -62,6 +65,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             model.refreshIfNeeded()
             startRefreshTimer()
             morningDigest.check()
+            quotaAlerts.evaluate()
             if CommandLine.arguments.contains("--show-home") || CommandLine.arguments.contains("--show-accounts") {
                 showAccounts(nil)
             }
@@ -283,6 +287,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         guard !sleeping else { return }
         model.refresh()
         morningDigest.check()
+        if model.isDemo { quotaAlerts.evaluate() }
     }
     @objc private func willSleep(_ notification: Notification) {
         sleeping = true
@@ -308,7 +313,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private func presentAccountsWindow(_ sender: Any?, presentation: AccountsWindowPresentation) {
         statusMenu.cancelTracking()
         if accounts == nil {
-            accounts = AccountsWindowController(model: model, morningDigest: morningDigest)
+            accounts = AccountsWindowController(model: model, morningDigest: morningDigest, quotaAlerts: quotaAlerts)
             accounts?.onConsoleConnection = { [weak self] id in self?.showClaudePlatform(id) }
             accounts?.onConsoleDisconnection = { [weak self] id in self?.platformController(id)?.disconnectConnection() }
             accounts?.onClaudeConnection = { [weak self] id, label in self?.showClaudeSignIn(id: id, label: label) }

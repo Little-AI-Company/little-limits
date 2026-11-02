@@ -37,6 +37,7 @@ final class ApplicationModel {
     var onCodexLoginChoice: (@MainActor (CodexCurrentLogin) async -> CodexLoginChoice)?
     var onShowAccount: ((UUID) -> Void)?
     var onConsoleRefresh: (() -> Void)?
+    var onRefreshFinished: (() -> Void)?
     private var refreshTask: Task<Void, Never>?
     private var codexSignInWaits: [UUID: Task<Void, Never>] = [:]
     private var refreshRequested = false
@@ -279,6 +280,7 @@ final class ApplicationModel {
             }
             self.onChange?()
             self.resumeRefreshWaiters()
+            if !Task.isCancelled { self.onRefreshFinished?() }
             if self.refreshRequested {
                 self.refreshRequested = false
                 self.refresh()
@@ -306,6 +308,7 @@ final class ApplicationModel {
             refreshTask = nil
             onChange?()
             resumeRefreshWaiters()
+            onRefreshFinished?()
             if refreshRequested {
                 refreshRequested = false
                 refresh()

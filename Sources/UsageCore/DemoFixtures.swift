@@ -105,7 +105,9 @@ public enum DemoFixtures {
         AccountProfile(id: UUID(uuidString: "00000000-0000-0000-0000-000000000024")!, provider: .codex, label: "Grace",
                        source: .demo, providerAccountID: "state-codex-grace", providerEmail: "grace@example.invalid"),
         AccountProfile(id: UUID(uuidString: "00000000-0000-0000-0000-000000000025")!, provider: .codex, label: "Limit reached",
-                       source: .demo, providerAccountID: "state-codex-limit", providerEmail: "limit@example.invalid")
+                       source: .demo, providerAccountID: "state-codex-limit", providerEmail: "limit@example.invalid"),
+        AccountProfile(id: UUID(uuidString: "00000000-0000-0000-0000-000000000026")!, provider: .codex, label: "Room",
+                       source: .demo, providerAccountID: "state-codex-room", providerEmail: "room@example.invalid")
     ]
 
     public static var stateSnapshots: [AccountSnapshot] {
@@ -124,7 +126,8 @@ public enum DemoFixtures {
             snapshot(1, session: 20, weekly: 85, weeklyResetsAfter: 4 * 24 * hour),
             snapshot(2, session: 40, weekly: 97, weeklyResetsAfter: 3 * 24 * hour),
             snapshot(3, session: 30, weekly: 92, weeklyResetsAfter: 6 * hour),
-            snapshot(4, session: 100, weekly: 100, weeklyResetsAfter: 2 * 24 * hour)
+            snapshot(4, session: 100, weekly: 100, weeklyResetsAfter: 2 * 24 * hour),
+            snapshot(5, session: 5, weekly: 20, weeklyResetsAfter: 5 * 24 * hour)
         ]
     }
 

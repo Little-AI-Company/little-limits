@@ -12,11 +12,18 @@ final class GeneralSettingsViewController: NSViewController {
     private let digestTime = NSDatePicker()
     private let weekdaysButton = NSButton(checkboxWithTitle: "On weekdays only", target: nil, action: nil)
     private let digestStatus = InterfaceControls.label("")
+    private let quotaAlerts: QuotaAlerts
+    private let nudgeThreshold = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let runDryButton = NSButton(checkboxWithTitle: "Warn when an account will run out and another has room", target: nil, action: nil)
+    private let burnRows = InterfaceControls.stack([], spacing: 6)
+    private var burnFields: [NSTextField] = []
+    private var burnProviders: [NSPopUpButton] = []
     private var copySources: [NSButton: NSTextField] = [:]
 
-    init(storesIconChoice: Bool, morningDigest: MorningDigest) {
+    init(storesIconChoice: Bool, morningDigest: MorningDigest, quotaAlerts: QuotaAlerts) {
         self.storesIconChoice = storesIconChoice
         self.morningDigest = morningDigest
+        self.quotaAlerts = quotaAlerts
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { nil }
@@ -35,7 +42,7 @@ final class GeneralSettingsViewController: NSViewController {
         iconNote.widthAnchor.constraint(equalTo: icon.widthAnchor).isActive = true
         configureIconButton()
         let form = settingsForm([("Startup:", startup), ("App icon:", icon), ("Morning digest:", digestSetup()),
-                                 ("AI assistants:", assistantSetup())])
+                                 ("Alerts:", alertSetup()), ("Burn list:", burnListSetup()), ("AI assistants:", assistantSetup())])
         form.translatesAutoresizingMaskIntoConstraints = false
         let scroll = NSScrollView()
         let document = SettingsDocumentView()
@@ -84,6 +91,109 @@ final class GeneralSettingsViewController: NSViewController {
         let setup = InterfaceControls.stack([first, weekdaysButton, note, digestStatus], spacing: 6)
         for view in [note, digestStatus] { view.widthAnchor.constraint(equalTo: setup.widthAnchor).isActive = true }
         return setup
+    }
+
+    private func alertSetup() -> NSView {
+        nudgeThreshold.addItem(withTitle: "Off")
+        for threshold in QuotaAlerts.thresholds { nudgeThreshold.addItem(withTitle: "\(threshold)%") }
+        nudgeThreshold.selectItem(at: quotaAlerts.preferences.nudgeThreshold.flatMap { QuotaAlerts.thresholds.firstIndex(of: $0) }.map { $0 + 1 } ?? 0)
+        nudgeThreshold.target = self
+        nudgeThreshold.action = #selector(changeAlerts(_:))
+        nudgeThreshold.setAccessibilityLabel("Nudge when at least this much of a week would reset unused")
+        runDryButton.state = quotaAlerts.preferences.warnsRunDry ? .on : .off
+        runDryButton.target = self
+        runDryButton.action = #selector(changeAlerts(_:))
+        let first = NSStackView(views: [InterfaceControls.label("Nudge when at least"), nudgeThreshold,
+                                        InterfaceControls.label("of a week would reset unused")])
+        first.orientation = .horizontal
+        first.alignment = .firstBaseline
+        first.spacing = 6
+        let note = InterfaceControls.label(
+            "Nudges come at most twice per weekly window and four times a week, never between 10 PM and 8 AM. The run-out warning comes once until that quota resets.")
+        let setup = InterfaceControls.stack([first, runDryButton, note], spacing: 6)
+        note.widthAnchor.constraint(equalTo: setup.widthAnchor).isActive = true
+        return setup
+    }
+
+    @objc private func changeAlerts(_ sender: Any) {
+        var preferences = quotaAlerts.preferences
+        let index = nudgeThreshold.indexOfSelectedItem
+        preferences.nudgeThreshold = index > 0 ? QuotaAlerts.thresholds[index - 1] : nil
+        preferences.warnsRunDry = runDryButton.state == .on
+        quotaAlerts.update(preferences)
+    }
+
+    private func burnListSetup() -> NSView {
+        let add = NSButton(title: "Add Task", target: self, action: #selector(addBurnItem(_:)))
+        let note = InterfaceControls.label(
+            "Tasks worth spending leftover quota on. A nudge shows the top one for that provider and can copy it. Little Limits never runs it.")
+        let setup = InterfaceControls.stack([burnRows, add, note], spacing: 8)
+        for view in [burnRows, note] { view.widthAnchor.constraint(equalTo: setup.widthAnchor).isActive = true }
+        rebuildBurnRows()
+        return setup
+    }
+
+    private func rebuildBurnRows() {
+        burnRows.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        burnFields = []
+        burnProviders = []
+        for (index, item) in quotaAlerts.preferences.burnList.enumerated() {
+            let field = NSTextField(string: item.text)
+            field.placeholderString = "Write tests for the history store"
+            field.target = self
+            field.action = #selector(changeBurnList(_:))
+            (field.cell as? NSTextFieldCell)?.sendsActionOnEndEditing = true
+            field.setAccessibilityLabel("Burn list task \(index + 1)")
+            let provider = NSPopUpButton(frame: .zero, pullsDown: false)
+            provider.addItems(withTitles: ["Either", "Claude", "Codex"])
+            provider.selectItem(at: item.provider.map { $0 == .claude ? 1 : 2 } ?? 0)
+            provider.target = self
+            provider.action = #selector(changeBurnList(_:))
+            provider.setAccessibilityLabel("Provider for burn list task \(index + 1)")
+            let remove = NSButton(title: "Remove", target: self, action: #selector(removeBurnItem(_:)))
+            remove.tag = index
+            remove.setAccessibilityLabel("Remove burn list task \(index + 1)")
+            let row = NSStackView(views: [field, provider, remove])
+            row.orientation = .horizontal
+            row.alignment = .firstBaseline
+            row.spacing = 6
+            field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            burnRows.addArrangedSubview(row)
+            row.widthAnchor.constraint(equalTo: burnRows.widthAnchor).isActive = true
+            burnFields.append(field)
+            burnProviders.append(provider)
+        }
+    }
+
+    private func currentBurnList() -> [BurnItem] {
+        zip(burnFields, burnProviders).map { field, provider in
+            BurnItem(text: field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines),
+                     provider: provider.indexOfSelectedItem == 1 ? .claude : provider.indexOfSelectedItem == 2 ? .codex : nil)
+        }
+    }
+
+    @objc private func changeBurnList(_ sender: Any) {
+        var preferences = quotaAlerts.preferences
+        preferences.burnList = currentBurnList().filter { !$0.text.isEmpty }
+        quotaAlerts.update(preferences)
+    }
+
+    @objc private func addBurnItem(_ sender: NSButton) {
+        var preferences = quotaAlerts.preferences
+        preferences.burnList = currentBurnList().filter { !$0.text.isEmpty } + [BurnItem(text: "", provider: nil)]
+        quotaAlerts.update(preferences)
+        rebuildBurnRows()
+        view.window?.makeFirstResponder(burnFields.last)
+    }
+
+    @objc private func removeBurnItem(_ sender: NSButton) {
+        var list = currentBurnList()
+        guard list.indices.contains(sender.tag) else { return }
+        list.remove(at: sender.tag)
+        var preferences = quotaAlerts.preferences
+        preferences.burnList = list.filter { !$0.text.isEmpty }
+        quotaAlerts.update(preferences)
+        rebuildBurnRows()
     }
 
     private func refreshDigestState() {

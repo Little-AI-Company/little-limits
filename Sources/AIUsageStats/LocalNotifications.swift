@@ -12,11 +12,26 @@ final class LocalNotifications: NSObject, UNUserNotificationCenterDelegate {
 
     nonisolated private static let logger = Logger(subsystem: "com.parkerrex.ai-usage-stats", category: "Notifications")
     private var center: UNUserNotificationCenter { .current() }
+    static let nudgeCategory = "nudge"
+    static let nudgeWithBurnItemCategory = "nudge-with-burn-item"
+    static let copyBurnItemAction = "copy-burn-item"
+    static let snoozeAction = "snooze"
+    static let notThisWeekAction = "not-this-week"
+
     var onPermissionChange: (() -> Void)?
+    var onAction: ((_ action: String, _ userInfo: [String: String]) -> Void)?
     private(set) var permission: Permission = .notAsked
 
     func start() {
         center.delegate = self
+        let copy = UNNotificationAction(identifier: Self.copyBurnItemAction, title: "Copy Burn Item")
+        let snooze = UNNotificationAction(identifier: Self.snoozeAction, title: "Snooze 3 Hours")
+        let notThisWeek = UNNotificationAction(identifier: Self.notThisWeekAction, title: "Not This Week")
+        center.setNotificationCategories([
+            UNNotificationCategory(identifier: Self.nudgeCategory, actions: [snooze, notThisWeek], intentIdentifiers: []),
+            UNNotificationCategory(identifier: Self.nudgeWithBurnItemCategory, actions: [copy, snooze, notThisWeek],
+                                   intentIdentifiers: [])
+        ])
         refreshPermission()
     }
 
@@ -74,5 +89,13 @@ final class LocalNotifications: NSObject, UNUserNotificationCenterDelegate {
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification)
         async -> UNNotificationPresentationOptions {
         [.banner, .list, .sound]
+    }
+
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        let action = response.actionIdentifier
+        let userInfo = response.notification.request.content.userInfo.reduce(into: [String: String]()) { result, entry in
+            if let key = entry.key as? String, let value = entry.value as? String { result[key] = value }
+        }
+        await MainActor.run { onAction?(action, userInfo) }
     }
 }
