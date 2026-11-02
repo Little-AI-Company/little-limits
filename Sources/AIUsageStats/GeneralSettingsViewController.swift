@@ -16,6 +16,7 @@ final class GeneralSettingsViewController: NSViewController {
     private let nudgeThreshold = NSPopUpButton(frame: .zero, pullsDown: false)
     private let runDryButton = NSButton(checkboxWithTitle: "Warn when an account will run out and another has room", target: nil, action: nil)
     private let burnRows = InterfaceControls.stack([], spacing: 6)
+    private let burnSetup = InterfaceControls.stack([], spacing: 8)
     private var burnFields: [NSTextField] = []
     private var burnProviders: [NSPopUpButton] = []
     private var copySources: [NSButton: NSTextField] = [:]
@@ -127,10 +128,11 @@ final class GeneralSettingsViewController: NSViewController {
         let add = NSButton(title: "Add Task", target: self, action: #selector(addBurnItem(_:)))
         let note = InterfaceControls.label(
             "Tasks worth spending leftover quota on. A nudge shows the top one for that provider and can copy it. Little Limits never runs it.")
-        let setup = InterfaceControls.stack([burnRows, add, note], spacing: 8)
-        for view in [burnRows, note] { view.widthAnchor.constraint(equalTo: setup.widthAnchor).isActive = true }
+        burnSetup.addArrangedSubview(add)
+        burnSetup.addArrangedSubview(note)
+        note.widthAnchor.constraint(equalTo: burnSetup.widthAnchor).isActive = true
         rebuildBurnRows()
-        return setup
+        return burnSetup
     }
 
     private func rebuildBurnRows() {
@@ -162,6 +164,12 @@ final class GeneralSettingsViewController: NSViewController {
             row.widthAnchor.constraint(equalTo: burnRows.widthAnchor).isActive = true
             burnFields.append(field)
             burnProviders.append(provider)
+        }
+        if burnFields.isEmpty, burnRows.superview != nil {
+            burnSetup.removeView(burnRows)
+        } else if !burnFields.isEmpty, burnRows.superview == nil {
+            burnSetup.insertArrangedSubview(burnRows, at: 0)
+            burnRows.widthAnchor.constraint(equalTo: burnSetup.widthAnchor).isActive = true
         }
     }
 
