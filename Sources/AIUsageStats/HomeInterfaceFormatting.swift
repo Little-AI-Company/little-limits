@@ -556,8 +556,8 @@ enum HomeInterfaceFormatting {
                                            secondary: schedule, tertiary: nil, tone: .neutral,
                                            accessibilityLabel: spoken, toolTip: spoken)
                 }
-                let pace = role == .weekly ? QuotaPace(window: window, now: now) : nil
                 let lineTone = tone(for: window, now: now)
+                let pace = role == .weekly && lineTone != .critical ? QuotaPace(window: window, now: now) : nil
                 let spoken = "\(scope), \(remainingText(remaining, tone: lineTone)), \(exact)" + (pace.map { ". \(paceSentence($0))" } ?? "")
                 return HomeReadingLine(preface: preface(window), primary: "\(RemainingPercentText.format(remaining)) left", secondary: schedule,
                                        tertiary: pace.map { paceText($0.verdict) },
