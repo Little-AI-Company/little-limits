@@ -4,6 +4,33 @@ What changed in each public release of Little Limits, newest first. The same ent
 
 To add a release, follow the [changelog skill](.agents/skills/changelog/SKILL.md).
 
+## 0.4.0 (2026-11-02)
+
+Little Limits can now tell you when to use your quota, not only how much is left: state words for each limit, a morning digest, nudges before weekly quota resets unused, and a warning before an account runs out. Claude Code, Codex and Claude Desktop can also ask Little Limits where each account stands.
+
+### New
+
+- **Limits:** Each limit says **Use soon** when a lot of weekly quota would reset unused, **Low** at 20% or less, **Almost out** at 5% or less, and **Limit reached** at 0%. Red now starts at **Almost out** instead of at 20%. Close to a reset, **Low** and **Almost out** stay plain, because the quota comes back soon.
+- **Morning digest:** Turn on **Send a morning digest at** in **Settings** to get one notification each morning with what is left on every account and which to use first. You choose the time and whether it comes **On weekdays only**. If your Mac is asleep, it comes when the Mac wakes, up to 4 hours late.
+- **Nudges:** Turn on **Nudge when at least** in **Settings** and choose 15%, 25% or 40%. Little Limits then tells you when about that much of an account's week would reset unused at your pace. Nudges come at most twice for each weekly limit and four times a week, and never at night.
+- **Burn list:** In **Settings**, add tasks worth spending leftover quota on, for Claude, Codex or either. A nudge shows the top task for that account and has a **Copy Task** button. Little Limits never runs a task.
+- **Run-out warning:** Turn on **Warn when an account will run out and another has room** in **Settings** to hear before an account runs out, with the account of the same kind to switch to.
+- **Menu bar number:** In **Show in Menu Bar**, choose **Use First per Provider** to see the weekly percent left on the account to use first, with the reason in its tooltip. Turn on **Color Low Numbers** to show low numbers in orange, nearly empty ones in red, and quota to use soon in your accent color.
+- **AI assistants:** **Settings** shows the command to add Little Limits to Claude Code, Codex or Claude Desktop, each with a **Copy** button. They can then ask what is left on each account, when it resets, and which account to use now. A `status` command prints the same table in Terminal. Answers come from the last refresh and say how old they are.
+
+### Improved
+
+- **Models:** The page opens in about a second instead of ten or more. While it loads, the Little Limits character watches its gauge needle.
+- **Home:** The menu, Home and the account list show the same percentage left, with one decimal when it matters. A small amount left no longer shows as 0% in the menu. A weekly limit that is already reached no longer shows a pace line.
+- **Tooltips:** Tooltips describe quota as what is left, never as what is used.
+- **App icon:** The Paper and Night icons are redrawn to match the rest of the little family: the same gauge character, with soft inked lines, a black hoodie and dot eyes.
+
+### Fixed
+
+- **Readings:** A reading that is exactly five minutes old shows as out of date in the menu bar, the menu and the account page alike.
+- **Codex history:** Codex usage history from before you added an account is kept even when one of its logs could not be read the first time.
+- **API credits:** The monthly Claude API grant says when the current grant expires.
+
 ## 0.3.0 (2026-10-31)
 
 The app is now called Little Limits, with new Paper and Night icons. Reset times on Home also fit on a 12-hour clock.

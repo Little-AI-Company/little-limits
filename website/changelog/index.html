@@ -86,6 +86,36 @@
       </header>
 
       <div class="prose">
+        <h2 id="v0.4.0">0.4.0</h2>
+        <p class="article-date">Released <time datetime="2026-11-02">November 2, 2026</time></p>
+        <p>Little Limits can now tell you when to use your quota, not only how much is left: state words for each limit, a morning digest, nudges before weekly quota resets unused, and a warning before an account runs out. Claude Code, Codex and Claude Desktop can also ask Little Limits where each account stands.</p>
+
+        <h3>New</h3>
+        <ul>
+          <li><strong>Limits:</strong> Each limit says <strong>Use soon</strong> when a lot of weekly quota would reset unused, <strong>Low</strong> at 20% or less, <strong>Almost out</strong> at 5% or less, and <strong>Limit reached</strong> at 0%. Red now starts at <strong>Almost out</strong> instead of at 20%. Close to a reset, <strong>Low</strong> and <strong>Almost out</strong> stay plain, because the quota comes back soon.</li>
+          <li><strong>Morning digest:</strong> Turn on <strong>Send a morning digest at</strong> in <strong>Settings</strong> to get one notification each morning with what is left on every account and which to use first. You choose the time and whether it comes <strong>On weekdays only</strong>. If your Mac is asleep, it comes when the Mac wakes, up to 4 hours late.</li>
+          <li><strong>Nudges:</strong> Turn on <strong>Nudge when at least</strong> in <strong>Settings</strong> and choose 15%, 25% or 40%. Little Limits then tells you when about that much of an account's week would reset unused at your pace. Nudges come at most twice for each weekly limit and four times a week, and never at night.</li>
+          <li><strong>Burn list:</strong> In <strong>Settings</strong>, add tasks worth spending leftover quota on, for Claude, Codex or either. A nudge shows the top task for that account and has a <strong>Copy Task</strong> button. Little Limits never runs a task.</li>
+          <li><strong>Run-out warning:</strong> Turn on <strong>Warn when an account will run out and another has room</strong> in <strong>Settings</strong> to hear before an account runs out, with the account of the same kind to switch to.</li>
+          <li><strong>Menu bar number:</strong> In <strong>Show in Menu Bar</strong>, choose <strong>Use First per Provider</strong> to see the weekly percent left on the account to use first, with the reason in its tooltip. Turn on <strong>Color Low Numbers</strong> to show low numbers in orange, nearly empty ones in red, and quota to use soon in your accent color.</li>
+          <li><strong>AI assistants:</strong> <strong>Settings</strong> shows the command to add Little Limits to Claude Code, Codex or Claude Desktop, each with a <strong>Copy</strong> button. They can then ask what is left on each account, when it resets, and which account to use now. A <code>status</code> command prints the same table in Terminal. Answers come from the last refresh and say how old they are.</li>
+        </ul>
+
+        <h3>Improved</h3>
+        <ul>
+          <li><strong>Models:</strong> The page opens in about a second instead of ten or more. While it loads, the Little Limits character watches its gauge needle.</li>
+          <li><strong>Home:</strong> The menu, Home and the account list show the same percentage left, with one decimal when it matters. A small amount left no longer shows as 0% in the menu. A weekly limit that is already reached no longer shows a pace line.</li>
+          <li><strong>Tooltips:</strong> Tooltips describe quota as what is left, never as what is used.</li>
+          <li><strong>App icon:</strong> The Paper and Night icons are redrawn to match the rest of the little family: the same gauge character, with soft inked lines, a black hoodie and dot eyes.</li>
+        </ul>
+
+        <h3>Fixed</h3>
+        <ul>
+          <li><strong>Readings:</strong> A reading that is exactly five minutes old shows as out of date in the menu bar, the menu and the account page alike.</li>
+          <li><strong>Codex history:</strong> Codex usage history from before you added an account is kept even when one of its logs could not be read the first time.</li>
+          <li><strong>API credits:</strong> The monthly Claude API grant says when the current grant expires.</li>
+        </ul>
+
         <h2 id="v0.3.0">0.3.0</h2>
         <p class="article-date">Released <time datetime="2026-10-31">October 31, 2026</time></p>
         <p>The app is now called Little Limits, with new Paper and Night icons. Reset times on Home also fit on a 12-hour clock.</p>
