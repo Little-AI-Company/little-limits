@@ -24,7 +24,7 @@ final class LocalNotifications: NSObject, UNUserNotificationCenterDelegate {
 
     func start() {
         center.delegate = self
-        let copy = UNNotificationAction(identifier: Self.copyBurnItemAction, title: "Copy Burn Item")
+        let copy = UNNotificationAction(identifier: Self.copyBurnItemAction, title: "Copy Task")
         let snooze = UNNotificationAction(identifier: Self.snoozeAction, title: "Snooze 3 Hours")
         let notThisWeek = UNNotificationAction(identifier: Self.notThisWeekAction, title: "Not This Week")
         center.setNotificationCategories([
