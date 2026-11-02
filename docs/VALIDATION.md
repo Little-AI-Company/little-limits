@@ -1071,3 +1071,18 @@ Local development build of branch `feat/little-limits-rebrand`, uncommitted, on 
 | `website/` served locally | Home in light and dark at desktop width and at 375 px: new header lockup, paper and night grounds, butter button, plain dial with an ink needle, no horizontal scroll. |
 
 Not verified: the Homebrew cask rename (the tap has no `little-limits` cask yet), the deployed site, a Developer ID signed and notarized build, Intel runtime, and macOS 14 and 15 runtime.
+
+## 2026-11-02 Little Worker cast-style redraw
+
+Local development build of the working tree on macOS 27.0.1, Apple M1 Max. Packaged on the M4 (macOS 26.7.2) with `scripts/package_app.sh` and ad hoc signing, then signed on the M1 with the `.local-signing-identity` certificate. `codesign --verify --deep --strict` passed.
+
+| Check | Result |
+| --- | --- |
+| New art next to Lou | `character/gauge-character-sheet.png` and the seven finals checked at full size beside `lou-rest-1024.png`: inked line, painted shading, plain dot eyes, black hoodie with drawstrings, no text. |
+| Icons at small sizes | Paper and Night masters viewed at 64 px (detailed) and at 32 and 16 px (small masters): bezel, ticks and the low needle read at each size. Night edges zoomed to 8x: no light fringe. |
+| `iconutil -c iconset` on both `.icns` files | Ten slots each. |
+| Command-Tab switcher | Shows the new Paper icon while a Little Limits window is open. |
+| `--show-settings --show-about` with `AppIconChoice` `enamel`, then `night` | Settings shows Paper, then Night, each with its new 16 px icon; About shows the full Paper icon, then the Night icon. The stored choice was removed afterwards. |
+| Banner, social preview, lockups | Every word is the October 29 lettering, copied by pixel; checked letter by letter. |
+
+Not verified: the Night icon in the Dock (the Dock is hidden on this Mac; About uses the same image), and Intel, macOS 14 and 15 runtime.
