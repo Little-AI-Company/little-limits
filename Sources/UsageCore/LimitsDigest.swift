@@ -183,7 +183,7 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
             return Window(kind: kind(window), role: role(window), percentLeft: current ? left : nil,
                           lastKnownPercentLeft: current ? nil : left, resetsAt: window.resetsAt,
                           resetsDisplay: resetsDisplay(window, now: now, calendar: calendar),
-                          level: current ? left.flatMap { QuotaLevel(percentLeft: $0) } : nil)
+                          level: current ? QuotaLevel(window: window, now: now) : nil)
         }
         let credits = apiCredits(snapshot?.credits ?? [])
         return Account(label: sanitizedLabel(account.identity),
@@ -267,19 +267,59 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
 }
 
 public enum QuotaLevel: String, Codable, Sendable {
+    case useSoon = "use_soon"
     case low
+    case almostOut = "almost_out"
     case limitReached = "limit_reached"
+
+    public static let almostOutThreshold: Double = 5
+    public static let useSoonLeftover: Double = 25
+    public static let useSoonHorizon: TimeInterval = 36 * 3_600
+    public static let weeklyGrace: TimeInterval = 12 * 3_600
+    public static let sessionGrace: TimeInterval = 30 * 60
 
     public init?(percentLeft: Double) {
         guard percentLeft.isFinite else { return nil }
         if percentLeft <= 0 { self = .limitReached }
+        else if percentLeft <= Self.almostOutThreshold { self = .almostOut }
         else if percentLeft <= RemainingPercentText.lowRemainingThreshold { self = .low }
         else { return nil }
     }
 
+    public init?(window: UsageWindow, now: Date, drainPercentPerHour: Double? = nil) {
+        guard window.isActive != false, let used = window.utilizationPercent, used.isFinite else { return nil }
+        let left = 100 - used
+        if left <= 0 { self = .limitReached; return }
+        let untilReset = window.resetsAt.map { $0.timeIntervalSince(now) }
+        if window.role == .weekly, let untilReset, untilReset > 0, untilReset <= Self.useSoonHorizon,
+           Self.projectedLeftover(window: window, left: left, untilReset: untilReset, now: now,
+                                  drainPercentPerHour: drainPercentPerHour) >= Self.useSoonLeftover {
+            self = .useSoon
+            return
+        }
+        let grace = window.role == .session ? Self.sessionGrace : Self.weeklyGrace
+        if let untilReset, untilReset > 0, untilReset <= grace { return nil }
+        guard let level = QuotaLevel(percentLeft: left) else { return nil }
+        self = level
+    }
+
+    public static func projectedLeftover(window: UsageWindow, left: Double, untilReset: TimeInterval, now: Date,
+                                         drainPercentPerHour: Double?) -> Double {
+        let hours = untilReset / 3_600
+        if let drainPercentPerHour, drainPercentPerHour.isFinite, drainPercentPerHour >= 0 {
+            return max(0, left - drainPercentPerHour * hours)
+        }
+        guard let pace = QuotaPace(window: window, now: now), let minutes = window.durationMinutes else { return left }
+        let elapsedHours = pace.elapsedPercent / 100 * Double(minutes) / 60
+        guard elapsedHours >= 1 else { return left }
+        return max(0, left - pace.usedPercent / elapsedHours * hours)
+    }
+
     public var word: String {
         switch self {
+        case .useSoon: "Use soon"
         case .low: "Low"
+        case .almostOut: "Almost out"
         case .limitReached: "Limit reached"
         }
     }
