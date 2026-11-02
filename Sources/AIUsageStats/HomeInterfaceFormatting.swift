@@ -386,9 +386,9 @@ enum HomeInterfaceFormatting {
             return (value, "\(relative) · \(scheduleText(reset.resetsAt, now: now, calendar: calendar)) · \(accounts)",
                     "\(accounts) resets \(relative), \(InterfaceFormatting.exactDate(reset.resetsAt)), adding \(value) to the weekly total.")
         case .nonePending:
-            return (noPendingResetText, "", "Every counted account has used none of its weekly quota.")
+            return (noPendingResetText, "", "Every counted account has 100% of its weekly quota left.")
         case .unknown:
-            return ("Unknown", "", "No current weekly reading reports when used quota resets.")
+            return ("Unknown", "", "No current weekly reading under 100% left reports when its quota comes back.")
         }
     }
 
@@ -401,7 +401,7 @@ enum HomeInterfaceFormatting {
     }
 
     static func paceSentence(_ pace: QuotaPace) -> String {
-        "\(paceText(pace.verdict)): \(percentText(pace.usedPercent)) used with \(percentText(pace.elapsedPercent)) of the window passed"
+        "\(paceText(pace.verdict)): \(percentText(100 - pace.usedPercent)) left with \(percentText(100 - pace.elapsedPercent)) of the window to go"
     }
 
     static func usableText(_ date: Date?, now: Date) -> String {

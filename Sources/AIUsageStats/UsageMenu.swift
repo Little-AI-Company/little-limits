@@ -131,8 +131,8 @@ enum UsageMenu {
         }
         if case .exhausted(let usableAt) = AccountUsability(snapshot: snapshot, now: now) {
             let value = usableAt.map { UsageFormatting.countdown(to: $0, now: now) } ?? ""
-            let detail = usableAt.map { "Usable again \(InterfaceFormatting.exactDate($0)), when its last fully used 5-hour or weekly window resets." }
-                ?? "A fully used 5-hour or weekly window has no reported reset time, so when this account is usable again is unknown."
+            let detail = usableAt.map { "Usable again \(InterfaceFormatting.exactDate($0)), when the last of its 5-hour or weekly windows at 0% left resets." }
+                ?? "A 5-hour or weekly window at 0% left has no reported reset time, so when this account is usable again is unknown."
             metrics.append(Metric(label: usableAt == nil ? "Usable time unknown" : "Usable in", value: value,
                                   timing: usableAt.map { HomeInterfaceFormatting.scheduleText($0, now: now, calendar: .current) } ?? "",
                                   detail: detail))

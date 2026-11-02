@@ -196,7 +196,7 @@ enum HomeForecastModel {
             : "Last 24 hours"
         return HomeTotalLine(label: "Usage rate", value: value, detail: detail,
                              accessibilityLabel: "\(title) usage rate, \(value.lowercased()), \(detail.lowercased())",
-                             toolTip: "Weekly quota used per hour by the counted accounts, summed, \(detail.lowercased()). "
+                             toolTip: "How much weekly quota left falls per hour across the counted accounts, summed, \(detail.lowercased()). "
                                  + "Idle time counts. Resets and accounts joining or leaving the total do not.")
     }
 
