@@ -2,6 +2,22 @@
 
 This file records observed results, not intended behavior. Update the tested revision and relevant checks when the implementation changes.
 
+## Quota states, morning digest and menu bar options, November 2, 2026
+
+Packaged with `scripts/package_app.sh` on Parker's M1 Max, macOS 27.0.1, from the Phase 2 commits (`feat(core)` Use soon and Almost out through `fix(notifications)` on the digest wording).
+
+| Check | Result |
+| --- | --- |
+| Morning digest on real accounts: `MorningDigestEnabled` on and the time set to the next minute, app binary run with `--show-settings --notification-diagnostics` | Settings showed "Send a morning digest at" checked with that time. At 10:42:08 the app refreshed and posted "Usage · Mon 10:42am" with the Use first line (Claude bazelshaw 94%, Codex me 35%), one line per account in saved order, "Claude bazelshaw · 94% left, Use soon" (resetting in 17 hours), and the Codex earned resets. macOS showed the banner. The first try showed "94%, Use soon left"; fixed in `fix(notifications)`. |
+| First digest on this Mac | macOS showed its notification permission prompt; once allowed, banners appear. Before that, `--notification-diagnostics` reported the digest as not shown. |
+| `--demo-states --show-home` and `--show-menu` | Home, the sidebar and the menu read 70% left, Use soon with the accent hourglass; 15% left, Low; 3% left, Almost out with the red octagon; 8% left with no word for the account resetting in 6 hours; 0% left, Limit reached. |
+| Menu bar, `--demo-states` with `-MenuBarColorsLowNumbers YES` and `-MenuBarUseFirst YES` | Default: template numbers as before. Color on: Claude 15% orange, Codex 0% red. Color and Use First: Claude 70% in the accent color (the Use soon pick); Codex falls back to its lowest, 0%, because no Codex account in that fixture has 10% of its week left. |
+| `swift test` | All tests passed; the tone threshold test now checks the 5% boundary. |
+
+Recording: `~/Desktop/little-limits-proof/phase-2/phase2-digest-states-menubar.mp4` (not committed). It is composited from captures of Little Limits' own windows and the macOS notification banner, so no other app shows; the menu bar strip is a still crop.
+
+Not verified: the Show in Menu Bar submenu checkmarks by click (no click access this session), a light menu bar, the redraw when the menu bar appearance changes, the catch-up title after a real sleep, and "On weekdays only" on a weekend.
+
 ## Limits digest, little-limits command and MCP server, November 2, 2026
 
 Packaged with `scripts/package_app.sh` (ad hoc signed) on Parker's M1 Max, macOS 27.0.1, from the Phase 1 commits (`feat(core)` through `fix(app)` on the monthly grant wording), and run against Parker's real accounts: five Claude accounts and one Codex account.
