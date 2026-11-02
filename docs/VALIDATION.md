@@ -2,6 +2,18 @@
 
 This file records observed results, not intended behavior. Update the tested revision and relevant checks when the implementation changes.
 
+## Models page load time and loading animation, November 2, 2026
+
+Packaged with `scripts/package_app.sh` (ad hoc signed) on Parker's M1 Max, macOS 27.0.1, against his own history database (132,012 model responses, 82,732 shell commands, 717 sessions).
+
+| Check | Result |
+| --- | --- |
+| `sqlite3` timing of each Models query on a copy of the database | "Steps per turn" took 11.3 s before and 0.15 s after; the other six queries take 0.8 s together. The old and new step queries return the same 5,376 turns with no differing rows. |
+| `swift test --filter UsageHistoryStoreTests` | 15 tests passed, including the steps per turn checks in `ModelMetricsQueryTests`. |
+| `open -n "dist/Little Limits.app" --args --show-home --show-models`, screen recorded | The loading animation (needle sweeping across the dial, eyes following it, a blink) showed for about 1.2 s, then the report. Before the change the page sat on "Reading model history..." for about 12 s. |
+
+Not verified: Reduce Motion (the code pauses the animation on the needle's resting pose), dark appearance, and Intel runtime.
+
 ## 0.3.0 published zip and comment-removal checks, November 1, 2026
 
 Checked on the M4 (Apple silicon, Xcode 27.1) from main `36b0e46133b8131a32dca6cbb79e2cea8c60a65d`.

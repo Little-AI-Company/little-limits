@@ -8,7 +8,11 @@ struct ModelsView: View {
     var body: some View {
         switch state.content {
         case .loading:
-            message("Reading model history…")
+            VStack(spacing: 16) {
+                GaugeCharacterLoadingView().frame(width: 128, height: 128)
+                Text("Reading model history…")
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         case let .unavailable(text):
             message(text)
         case let .loaded(report) where report.isEmpty:

@@ -27,7 +27,7 @@ targets += [
     .executableTarget(name: "LimitsCommand", dependencies: ["UsageCore"]),
     .executableTarget(name: "AIUsageStats", dependencies: ["UsageCore", "UsageHistory", "UsageHistoryStore",
                                                              .product(name: "GRDB", package: "GRDB.swift")],
-                      resources: [.copy("Resources/ProviderIcons")]),
+                      resources: [.copy("Resources/ProviderIcons"), .copy("Resources/Character")]),
     .testTarget(name: "UsageCoreTests", dependencies: ["UsageCore"]),
     .testTarget(name: "UsageHistoryStoreTests", dependencies: ["UsageHistoryStore"]),
     .testTarget(name: "AIUsageStatsTests", dependencies: ["AIUsageStats", "UsageCore"])

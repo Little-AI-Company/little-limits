@@ -34,6 +34,7 @@ Butter is close to Little Worker's sand (#F2E6D0). If the two apps need to look 
 | --- | --- |
 | `app-icon/artwork/paper.png` | Full-bleed 1024 px icon artwork from Codex |
 | `character/walk.png`, `wave.png`, `mark.png`, `icon-dark.png` | The other native pictures from the same Codex job: full-body poses, the head alone, and an icon on a dark field (not used by the bundle; Night is made from `paper.png`) |
+| `character/gauge-head-blank.png` | The bust with no needle and no eyes, from `prompts/loading-2026-11-02.md` with the app icon and the banner attached. The app crops it to the butter circle as `Sources/AIUsageStats/Resources/Character/gauge-head-blank.png` (384 px) and draws the needle and eyes on it for the Models page loading animation |
 | `app-icon/artwork/paper-small.png` | Simplified head-only artwork for 16 and 32 px, cropped so the head fills the square on flat butter |
 | `app-icon/artwork/night.png`, `night-small.png` | The two above with the Paper ground flood-filled to #33312E, so the drawing is identical |
 | `app-icon/paper.png`, `paper-small.png`, `night.png`, `night-small.png` | The artwork on the macOS icon grid, made by `scripts/compose_icon_master.sh`. `../app-icon.png` is a copy of `paper.png` |
