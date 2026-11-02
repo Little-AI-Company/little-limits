@@ -118,8 +118,23 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             groups = [Provider.claude, .codex].map { provider in (provider, model.profiles.filter { $0.provider == provider }) }
                 .filter { !$0.profiles.isEmpty }
         }
+        let overview = model.menuBarShowsUseFirst ? UsageOverview(profiles: model.profiles, snapshots: model.snapshots, now: now) : nil
         for (provider, profiles) in groups {
             let name = InterfaceFormatting.provider(provider)
+            var fallbackReason: String?
+            if let overview {
+                let pick = UseNowRule.pick(provider: provider, accounts: overview.accounts, now: now, calendar: .current)
+                if let account = pick.pickedAccount(in: overview.accounts),
+                   let weekly = account.snapshot?.currentWindows.first(where: { $0.role == .weekly }),
+                   let used = weekly.utilizationPercent {
+                    let remaining = Int(min(100, max(0, 100 - used)).rounded())
+                    readings.append(StatusItemSummary.Reading(provider: provider, remainingPercent: remaining))
+                    descriptions.append("\(name): use \(InterfaceFormatting.accountIdentity(account.profile)) first, \(remaining)% left, "
+                        + InterfaceFormatting.usageTitle(weekly) + ". " + (pick.reason.hasSuffix(".") ? String(pick.reason.dropLast()) : pick.reason))
+                    continue
+                }
+                fallbackReason = pick.reason
+            }
             let ids = profiles.map(\.id)
             let current = AccountQuotaSummary.lowestCurrent(accountIDs: ids, snapshots: model.snapshots, now: now)
             let lastKnown = current == nil ? AccountQuotaSummary.lowestLastKnown(accountIDs: ids, snapshots: model.snapshots, now: now) : nil
@@ -132,15 +147,16 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
                 guard let reason = Self.notCurrentReason(summary) else { return nil }
                 return "\(InterfaceFormatting.accountIdentity(profile)): \(reason)"
             }
+            let fallback = fallbackReason.map { "no account to use first. \($0) Lowest: " } ?? ""
             if let current, let remaining, let profile = profiles.first(where: { $0.id == current.accountID }) {
                 let others = notCurrent.isEmpty ? "" : " (\(notCurrent.count) other account\(notCurrent.count == 1 ? "" : "s") not current)"
-                descriptions.append("\(name): \(remaining)% left on \(InterfaceFormatting.accountIdentity(profile)), "
+                descriptions.append("\(name): \(fallback)\(remaining)% left on \(InterfaceFormatting.accountIdentity(profile)), "
                     + InterfaceFormatting.usageTitle(current.windowTitle) + others)
             } else if let lastKnown, let remaining, let profile = profiles.first(where: { $0.id == lastKnown.accountID }) {
-                descriptions.append("\(name): no current reading. Last known \(remaining)% left on \(InterfaceFormatting.accountIdentity(profile)), "
+                descriptions.append("\(name): \(fallback)no current reading. Last known \(remaining)% left on \(InterfaceFormatting.accountIdentity(profile)), "
                     + InterfaceFormatting.usageTitle(lastKnown.windowTitle) + ". " + notCurrent.joined(separator: "; "))
             } else {
-                descriptions.append("\(name): no current reading. " + notCurrent.joined(separator: "; "))
+                descriptions.append("\(name): \(fallback)no current reading. " + notCurrent.joined(separator: "; "))
             }
         }
         let stale = model.profiles.contains {
@@ -336,8 +352,12 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         submenu.autoenablesItems = false
         let lowest = NSMenuItem(title: "Lowest per Provider", action: #selector(showLowestPerProvider(_:)), keyEquivalent: "")
         lowest.target = self
-        lowest.state = model.menuBarAccountIDs == nil ? .on : .off
+        lowest.state = model.menuBarAccountIDs == nil && !model.menuBarShowsUseFirst ? .on : .off
         submenu.addItem(lowest)
+        let useFirst = NSMenuItem(title: "Use First per Provider", action: #selector(showUseFirstPerProvider(_:)), keyEquivalent: "")
+        useFirst.target = self
+        useFirst.state = model.menuBarShowsUseFirst ? .on : .off
+        submenu.addItem(useFirst)
         submenu.addItem(.separator())
         for profile in model.profiles {
             let account = NSMenuItem(title: "\(InterfaceFormatting.provider(profile.provider)) · \(InterfaceFormatting.accountIdentity(profile))",
@@ -352,6 +372,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
 
     @objc private func showLowestPerProvider(_ sender: NSMenuItem) { model.showLowestPerProviderInMenuBar() }
+
+    @objc private func showUseFirstPerProvider(_ sender: NSMenuItem) { model.showUseFirstPerProviderInMenuBar() }
 
     @objc private func toggleMenuBarAccount(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? UUID else { return }

@@ -74,3 +74,10 @@ extension AccountSnapshot {
                         windows: windows.filter { $0.role == .session || $0.role == .weekly }, state: state)
     }
 }
+
+extension UseNowPick {
+    public func pickedAccount(in accounts: [UsageOverviewAccount]) -> UsageOverviewAccount? {
+        guard outcome == .picked else { return nil }
+        return accounts.first { $0.profile.provider == provider && LimitsDigest.sanitizedLabel($0.shortIdentity) == shortLabel }
+    }
+}
