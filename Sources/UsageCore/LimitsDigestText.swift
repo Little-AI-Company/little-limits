@@ -214,7 +214,8 @@ extension LimitsDigestText {
             switch account.state {
             case .current:
                 if let window {
-                    parts.append(windowValue(window) + " left")
+                    let left = window.percentLeft.map { "\(UseNowRule.percent($0)) left" } ?? "unknown"
+                    parts.append(left + (window.level.map { ", \($0.word)" } ?? ""))
                     parts.append("resets \(resetValue(window, now: now, calendar: calendar))")
                 } else {
                     parts.append("no usage window")
