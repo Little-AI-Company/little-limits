@@ -32,8 +32,8 @@ func partialQuotaKeepsKnownValuesAndIndependentEarnedResets() {
 @Test @MainActor
 func tinyPositiveQuotaIsDifferentFromMeasuredExhaustion() {
     let small = homeRow(windows: [homeWindow(used: 99.99)])
-    #expect(homeLines(small.session)[0].tone == .warning)
-    #expect(homeLines(small.session)[0].accessibilityLabel.contains("left, Low"))
+    #expect(homeLines(small.session)[0].tone == .almostOut)
+    #expect(homeLines(small.session)[0].accessibilityLabel.contains("left, Almost out"))
     #expect(!homeLines(small.session)[0].primary.hasPrefix("0%"))
     let zero = homeRow(windows: [homeWindow(used: 100)])
     #expect(homeLines(zero.session)[0].primary == "0% left")
@@ -105,12 +105,12 @@ func passedEarnedResetExpiryMakesTheCountHistorical() {
     #expect(homeLines(row.session)[0].primary == "80% left")
 }
 
-@Test(arguments: [(0.0, "0%", HomeReadingTone.critical), (0.04, "<0.1%", .warning), (0.4, "0.4%", .warning),
-                  (19.96, "20%", .warning), (20.0, "20%", .warning), (20.04, ">20%", .neutral), (100.0, "100%", .neutral),
-                  (Double.nan, "Unknown", .neutral)])
+@Test(arguments: [(0.0, "0%", HomeReadingTone.critical), (0.04, "<0.1%", .almostOut), (5.0, "5%", .almostOut),
+                  (5.04, "5%", .warning), (19.96, "20%", .warning), (20.0, "20%", .warning), (20.04, ">20%", .neutral),
+                  (100.0, "100%", .neutral), (Double.nan, "Unknown", .neutral)])
 func remainingPercentTextNeverRoundsAcrossZeroOrTheLowThreshold(_ remaining: Double, _ text: String, _ tone: HomeReadingTone) {
     #expect(RemainingPercentText.format(remaining) == text)
-    #expect(HomeInterfaceFormatting.tone(for: remaining) == tone)
+    #expect(HomeReadingTone(QuotaLevel(percentLeft: remaining)) == tone)
 }
 
 @Test(arguments: [(299.0, false), (300.0, true)])

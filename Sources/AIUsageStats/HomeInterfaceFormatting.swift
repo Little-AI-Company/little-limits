@@ -3,30 +3,46 @@ import UsageCore
 
 enum HomeReadingTone: Equatable {
     case neutral
+    case useSoon
     case warning
+    case almostOut
     case critical
+
+    init(_ level: QuotaLevel?) {
+        switch level {
+        case nil: self = .neutral
+        case .useSoon: self = .useSoon
+        case .low: self = .warning
+        case .almostOut: self = .almostOut
+        case .limitReached: self = .critical
+        }
+    }
 
     var word: String? {
         switch self {
         case .neutral: nil
-        case .warning: "Low"
-        case .critical: "Limit reached"
+        case .useSoon: QuotaLevel.useSoon.word
+        case .warning: QuotaLevel.low.word
+        case .almostOut: QuotaLevel.almostOut.word
+        case .critical: QuotaLevel.limitReached.word
         }
     }
 
     var symbolName: String? {
         switch self {
         case .neutral: nil
+        case .useSoon: "hourglass"
         case .warning: "exclamationmark.triangle.fill"
-        case .critical: "exclamationmark.octagon.fill"
+        case .almostOut, .critical: "exclamationmark.octagon.fill"
         }
     }
 
     var symbolColor: NSColor {
         switch self {
         case .neutral: .labelColor
+        case .useSoon: .controlAccentColor
         case .warning: StateSymbolColor.warning
-        case .critical: StateSymbolColor.critical
+        case .almostOut, .critical: StateSymbolColor.critical
         }
     }
 }
@@ -267,11 +283,12 @@ enum HomeInterfaceFormatting {
                   let dayIndex = days.firstIndex(where: { calendar.isDate($0, inSameDayAs: event.resetsAt) }) else { return nil }
             let scope = scopeLabel(event.window)
             let exact = InterfaceFormatting.exactDate(event.resetsAt)
-            let value = remainingText(event.remainingPercent)
+            let eventTone = tone(for: event.window, now: now)
+            let value = remainingText(event.remainingPercent, tone: eventTone)
             let label = "\(scope) resets \(exact). \(event.provider.title) \(event.identity), \(value) now"
             return HomeCalendarEventModel(id: event.id, provider: event.provider, timeText: timeText(event.resetsAt),
                                           scopeText: calendarScope(event.window), remainingText: "\(RemainingPercentText.format(event.remainingPercent)) left",
-                                          tone: tone(for: event.remainingPercent), shortIdentity: event.shortIdentity,
+                                          tone: eventTone, shortIdentity: event.shortIdentity,
                                           accessibilityLabel: label,
                                           toolTip: "\(label). Latest reading, not a forecast.", dayIndex: dayIndex)
         }
@@ -392,9 +409,9 @@ enum HomeInterfaceFormatting {
         return "Usable in \(UsageFormatting.countdown(to: date, now: now))"
     }
 
-    static func remainingText(_ remaining: Double) -> String {
+    static func remainingText(_ remaining: Double, tone: HomeReadingTone) -> String {
         let value = "\(RemainingPercentText.format(remaining)) left"
-        return tone(for: remaining).word.map { "\(value), \($0)" } ?? value
+        return tone.word.map { "\(value), \($0)" } ?? value
     }
 
     static func percentText(_ value: Double) -> String {
@@ -414,11 +431,8 @@ enum HomeInterfaceFormatting {
         return fractional
     }
 
-    static func tone(for remaining: Double) -> HomeReadingTone {
-        guard remaining.isFinite else { return .neutral }
-        if remaining == 0 { return .critical }
-        if remaining > 0, remaining <= RemainingPercentText.lowRemainingThreshold { return .warning }
-        return .neutral
+    static func tone(for window: UsageWindow, now: Date) -> HomeReadingTone {
+        HomeReadingTone(QuotaLevel(window: window, now: now))
     }
 
     static func scopeLabel(_ window: UsageWindow) -> String {
@@ -543,10 +557,11 @@ enum HomeInterfaceFormatting {
                                            accessibilityLabel: spoken, toolTip: spoken)
                 }
                 let pace = role == .weekly ? QuotaPace(window: window, now: now) : nil
-                let spoken = "\(scope), \(remainingText(remaining)), \(exact)" + (pace.map { ". \(paceSentence($0))" } ?? "")
+                let lineTone = tone(for: window, now: now)
+                let spoken = "\(scope), \(remainingText(remaining, tone: lineTone)), \(exact)" + (pace.map { ". \(paceSentence($0))" } ?? "")
                 return HomeReadingLine(preface: preface(window), primary: "\(RemainingPercentText.format(remaining)) left", secondary: schedule,
                                        tertiary: pace.map { paceText($0.verdict) },
-                                       tone: tone(for: remaining), accessibilityLabel: spoken, toolTip: spoken)
+                                       tone: lineTone, accessibilityLabel: spoken, toolTip: spoken)
             })
         }
     }
@@ -661,11 +676,11 @@ enum HomeInterfaceFormatting {
         let windows = account.snapshot?.windows ?? []
         var rows: [HomeDetailContent.Row] = windows.map { window in
             let scope = scopeLabel(window)
-            let value = detailValue(window, basis: basis)
+            let value = detailValue(window, basis: basis, now: now)
             let detail = detailSchedule(window, now: now, basis: basis)
             let tone: HomeReadingTone
-            if basis == .current, window.isActive != false, let remaining = remainingPercent(window) {
-                tone = Self.tone(for: remaining)
+            if basis == .current, window.isActive != false, remainingPercent(window) != nil {
+                tone = Self.tone(for: window, now: now)
             } else {
                 tone = .neutral
             }
@@ -699,7 +714,7 @@ enum HomeInterfaceFormatting {
         return rows
     }
 
-    private static func detailValue(_ window: UsageWindow, basis: ReadingBasis) -> String {
+    private static func detailValue(_ window: UsageWindow, basis: ReadingBasis, now: Date) -> String {
         if window.isActive == false { return "Inactive" }
         switch basis {
         case .unavailable: return "Unavailable"
@@ -709,7 +724,7 @@ enum HomeInterfaceFormatting {
             return "Unknown"
         case .current:
             guard let remaining = remainingPercent(window) else { return "Unknown" }
-            return remainingText(remaining)
+            return remainingText(remaining, tone: tone(for: window, now: now))
         }
     }
 

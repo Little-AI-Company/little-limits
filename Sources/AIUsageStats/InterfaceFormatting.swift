@@ -33,14 +33,10 @@ enum InterfaceFormatting {
         return "\(RemainingPercentText.format(max(0, 100 - used))) left"
     }
 
-    static func remainingWithStatus(_ window: UsageWindow) -> String {
+    static func remainingWithStatus(_ window: UsageWindow, now: Date) -> String {
         let value = remaining(window)
         guard window.isActive != false, let used = window.utilizationPercent, used.isFinite else { return value }
-        switch HomeInterfaceFormatting.tone(for: max(0, 100 - used)) {
-        case .neutral: return value
-        case .warning: return "\(value), Low"
-        case .critical: return "\(value), Limit reached"
-        }
+        return HomeInterfaceFormatting.tone(for: window, now: now).word.map { "\(value), \($0)" } ?? value
     }
 
     static func lastKnownRemaining(_ window: UsageWindow) -> String {
@@ -59,7 +55,7 @@ enum InterfaceFormatting {
     }
 
     static func reading(_ window: UsageWindow, snapshot: AccountSnapshot, now: Date) -> (value: String, timing: String) {
-        let value = isOutdated(snapshot, now: now) ? lastKnownRemaining(window) : remainingWithStatus(window)
+        let value = isOutdated(snapshot, now: now) ? lastKnownRemaining(window) : remainingWithStatus(window, now: now)
         let timing = snapshot.state == .authenticationRequired ? ""
             : window.isActive == false ? "Not current"
             : window.hasNoPendingReset && snapshot.isCurrent(at: now) ? HomeInterfaceFormatting.noPendingResetText

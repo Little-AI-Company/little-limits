@@ -4,13 +4,24 @@ import UsageCore
 @MainActor
 final class AccountSidebarCellView: NSTableCellView {
     enum Indicator: Equatable {
-        case none, low, limitReached, signInRequired, stale
+        case none, useSoon, low, almostOut, limitReached, signInRequired, stale
+
+        init(_ tone: HomeReadingTone) {
+            switch tone {
+            case .neutral: self = .none
+            case .useSoon: self = .useSoon
+            case .warning: self = .low
+            case .almostOut: self = .almostOut
+            case .critical: self = .limitReached
+            }
+        }
 
         @MainActor fileprivate var symbol: (name: String, color: NSColor)? {
             switch self {
             case .none: nil
+            case .useSoon: ("hourglass", .controlAccentColor)
             case .low: ("exclamationmark.triangle.fill", StateSymbolColor.warning)
-            case .limitReached: ("exclamationmark.octagon.fill", StateSymbolColor.critical)
+            case .almostOut, .limitReached: ("exclamationmark.octagon.fill", StateSymbolColor.critical)
             case .signInRequired: ("person.crop.circle.badge.exclamationmark.fill", StateSymbolColor.critical)
             case .stale: ("clock", .secondaryLabelColor)
             }

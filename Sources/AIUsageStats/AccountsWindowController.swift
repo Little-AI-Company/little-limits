@@ -456,13 +456,12 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         var state: String
         switch summary {
         case let .available(remaining, _, windowTitle):
-            let window = snapshot?.currentWindows.first(where: { $0.title == windowTitle }).map(InterfaceFormatting.usageTitle) ?? windowTitle
+            let limiting = snapshot?.currentWindows.first(where: { $0.title == windowTitle })
+            let window = limiting.map(InterfaceFormatting.usageTitle) ?? windowTitle
             var value = "\(RemainingPercentText.format(remaining)) left"
-            switch HomeInterfaceFormatting.tone(for: remaining) {
-            case .critical: value += ", Limit reached"; indicator = .limitReached
-            case .warning: value += ", Low"; indicator = .low
-            case .neutral: break
-            }
+            let tone = limiting.map { HomeInterfaceFormatting.tone(for: $0, now: now) } ?? .neutral
+            if let word = tone.word { value += ", \(word)" }
+            indicator = AccountSidebarCellView.Indicator(tone)
             text = "\(value) · \(window)"
             state = "\(value). Lowest remaining current quota: \(window)."
         case .unknown:

@@ -95,6 +95,39 @@ public enum DemoFixtures {
         ]
     }
 
+    public static let stateProfiles = [
+        AccountProfile(id: UUID(uuidString: "00000000-0000-0000-0000-000000000021")!, provider: .claude, label: "Use soon",
+                       source: .demo, providerEmail: "usesoon@example.invalid"),
+        AccountProfile(id: UUID(uuidString: "00000000-0000-0000-0000-000000000022")!, provider: .claude, label: "Low",
+                       source: .demo, providerEmail: "low@example.invalid"),
+        AccountProfile(id: UUID(uuidString: "00000000-0000-0000-0000-000000000023")!, provider: .codex, label: "Almost out",
+                       source: .demo, providerAccountID: "state-codex-almost", providerEmail: "almostout@example.invalid"),
+        AccountProfile(id: UUID(uuidString: "00000000-0000-0000-0000-000000000024")!, provider: .codex, label: "Grace",
+                       source: .demo, providerAccountID: "state-codex-grace", providerEmail: "grace@example.invalid"),
+        AccountProfile(id: UUID(uuidString: "00000000-0000-0000-0000-000000000025")!, provider: .codex, label: "Limit reached",
+                       source: .demo, providerAccountID: "state-codex-limit", providerEmail: "limit@example.invalid")
+    ]
+
+    public static var stateSnapshots: [AccountSnapshot] {
+        let now = Date()
+        let hour: TimeInterval = 3_600
+        func snapshot(_ index: Int, session: Double, weekly: Double, weeklyResetsAfter: TimeInterval) -> AccountSnapshot {
+            AccountSnapshot(profileID: stateProfiles[index].id, fetchedAt: now, windows: [
+                UsageWindow(id: "five_hour", title: "5 hours", utilizationPercent: session,
+                            resetsAt: now.addingTimeInterval(3 * hour), windowDurationMinutes: 300),
+                UsageWindow(id: "seven_day", title: "7 days", utilizationPercent: weekly,
+                            resetsAt: now.addingTimeInterval(weeklyResetsAfter), windowDurationMinutes: 10_080)
+            ], state: .available, detail: "Fictional demonstration data.", planName: "Max")
+        }
+        return [
+            snapshot(0, session: 10, weekly: 30, weeklyResetsAfter: 20 * hour),
+            snapshot(1, session: 20, weekly: 85, weeklyResetsAfter: 4 * 24 * hour),
+            snapshot(2, session: 40, weekly: 97, weeklyResetsAfter: 3 * 24 * hour),
+            snapshot(3, session: 30, weekly: 92, weeklyResetsAfter: 6 * hour),
+            snapshot(4, session: 100, weekly: 100, weeklyResetsAfter: 2 * 24 * hour)
+        ]
+    }
+
     private static let homeClaudePersonalID = UUID(uuidString: "00000000-0000-0000-0000-000000000011")!
     private static let homeClaudeStudioID = UUID(uuidString: "00000000-0000-0000-0000-000000000012")!
     private static let homeCodexWorkID = UUID(uuidString: "00000000-0000-0000-0000-000000000013")!

@@ -188,6 +188,9 @@ final class ApplicationModel {
             } else if CommandLine.arguments.contains("--demo-reading-states") {
                 profiles = DemoFixtures.homeProfiles
                 snapshots = Dictionary(uniqueKeysWithValues: DemoFixtures.homeReadingStateSnapshots.map { ($0.profileID, $0) })
+            } else if CommandLine.arguments.contains("--demo-states") {
+                profiles = DemoFixtures.stateProfiles
+                snapshots = Dictionary(uniqueKeysWithValues: DemoFixtures.stateSnapshots.map { ($0.profileID, $0) })
             } else if CommandLine.arguments.contains("--demo-home") {
                 profiles = DemoFixtures.homeProfiles
                 snapshots = Dictionary(uniqueKeysWithValues: DemoFixtures.homeSnapshots.map { ($0.profileID, $0) })

@@ -6,7 +6,8 @@ import UsageHistory
 final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
     private let model = ApplicationModel(isDemo: CommandLine.arguments.contains("--demo")
         || CommandLine.arguments.contains("--demo-home")
-        || CommandLine.arguments.contains("--demo-reading-states"))
+        || CommandLine.arguments.contains("--demo-reading-states")
+        || CommandLine.arguments.contains("--demo-states"))
     private let statusMenu = NSMenu(title: "Little Limits")
     private let accountFilterMenu = NSMenu(title: "Show Account")
     private var isMenuTracking = false
