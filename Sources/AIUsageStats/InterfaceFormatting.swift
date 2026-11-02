@@ -97,6 +97,11 @@ enum InterfaceFormatting {
         return "Expires in \(UsageFormatting.countdown(to: date, now: now))"
     }
 
+    static func creditExpiry(_ balance: CreditBalance, date: Date, now: Date = Date()) -> String {
+        guard balance.id.hasPrefix("monthly_grant"), date > now else { return compactExpiry(date, now: now) }
+        return "Current grant expires in \(UsageFormatting.countdown(to: date, now: now))"
+    }
+
     static func compactCreditTitle(_ balance: CreditBalance) -> String {
         switch balance.id {
         case "monthly_grant": return "Monthly grant"
@@ -140,7 +145,7 @@ enum InterfaceFormatting {
         }
         if let date = balance.asOf { lines.append("Observed \(exactDate(date)).") }
         else { lines.append("Observation time unknown.") }
-        if let date = balance.expiresAt { lines.append("\(compactExpiry(date, now: now)) · \(exactDate(date)).") }
+        if let date = balance.expiresAt { lines.append("\(creditExpiry(balance, date: date, now: now)) · \(exactDate(date)).") }
         else { lines.append(balance.doesNotExpire ? "Does not expire." : "Expiration date unavailable.") }
         if let status = balance.status { lines.append("Status: \(status)") }
         if let detail = balance.detail { lines.append(detail) }
@@ -150,7 +155,7 @@ enum InterfaceFormatting {
     static func compactCreditTiming(_ balance: CreditBalance, now: Date = Date()) -> String {
         var parts: [String] = []
         if balance.source == .manual { parts.append("Manual") }
-        if let date = balance.expiresAt { parts.append(compactExpiry(date, now: now)) }
+        if let date = balance.expiresAt { parts.append(creditExpiry(balance, date: date, now: now)) }
         else if balance.doesNotExpire { parts.append("No expiry") }
         else if balance.amount != nil { parts.append("Expiry unknown") }
         if balance.source != .manual,

@@ -142,7 +142,7 @@ enum UsageMenu {
         for credit in credits where !isEarnedReset(credit) && !isPlaceholder(credit) {
             var timing: [String] = []
             if credit.source == .manual { timing.append("Manual") }
-            if let date = credit.expiresAt { timing.append(InterfaceFormatting.compactExpiry(date, now: now)) }
+            if let date = credit.expiresAt { timing.append(InterfaceFormatting.creditExpiry(credit, date: date, now: now)) }
             else if credit.doesNotExpire { timing.append("No expiry") }
             if credit.source != .manual,
                credit.asOf.map({ !AccountSnapshot.isObservationCurrent($0, now: now) }) == true || credit.status == "Stale" {
