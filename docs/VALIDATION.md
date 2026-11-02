@@ -2,6 +2,20 @@
 
 This file records observed results, not intended behavior. Update the tested revision and relevant checks when the implementation changes.
 
+## Design crit and bug hunt before the next release, November 2, 2026
+
+Design crit in two rounds ([round 1](design/crits/2026-11-02-round1.md), [round 2](design/crits/2026-11-02-round2.md)) on the packaged app, demo fixtures only, M1 Max on macOS 27. Eight findings, none above severity 2, all fixed and rechecked in the packaged app; round 3 was not needed.
+
+Bug hunt: `codex exec -m gpt-6.1-sol` at high effort, read-only, over `v0.3.0..fe6776e` under `Sources/`, with the sol-loop rules. Round 1 found four bugs; round 2 approved the fixes (e8b879d, bd1e854, afd41b0).
+
+| Check | Result |
+| --- | --- |
+| `little-limits status` and the MCP `pick_account` tool on a redacted copy of a 44-minute-old limits file | Before: current percentages and "Use now, Codex: acct2"; MCP `stale: true` but every account `current`. After: "Last known 34%", "Stale, read 44 min ago", and "Use now, Codex: none. The reading of acct2 is no longer current."; MCP pick `none_usable`. |
+| `--demo-states -RunDryAlerts YES -NudgeThreshold 25 --notification-diagnostics` after the run-out fix | The Use soon nudge and the run-out warnings for Claude low and Codex almostout still post; Codex limit, already at 0%, gets none. |
+| `swift test` on the M4 at afd41b0 | All tests passed. |
+
+Not verified: the stale API balance rule with a real failed Platform refresh, and the morning digest with two accounts of one provider that share an email (no fixture has both).
+
 ## Nudges, burn list and run-out warning, November 2, 2026
 
 Packaged with `scripts/package_app.sh` on Parker's M1 Max, macOS 27.0.1, from `feat(alerts)`. Nudges and the warning are off by default, so each run turned them on for one launch with launch arguments; no stored preference was changed, and the alert ledger written during the real run was removed afterwards.
