@@ -13,6 +13,7 @@ final class GeneralSettingsViewController: NSViewController {
     private let weekdaysButton = NSButton(checkboxWithTitle: "On weekdays only", target: nil, action: nil)
     private let digestStatus = InterfaceControls.label("")
     private let quotaAlerts: QuotaAlerts
+    private let nudgeButton = NSButton(checkboxWithTitle: "Nudge when at least", target: nil, action: nil)
     private let nudgeThreshold = NSPopUpButton(frame: .zero, pullsDown: false)
     private let runDryButton = NSButton(checkboxWithTitle: "Warn when an account will run out and another has room", target: nil, action: nil)
     private let burnRows = InterfaceControls.stack([], spacing: 6)
@@ -95,16 +96,21 @@ final class GeneralSettingsViewController: NSViewController {
     }
 
     private func alertSetup() -> NSView {
-        nudgeThreshold.addItem(withTitle: "Off")
         for threshold in QuotaAlerts.thresholds { nudgeThreshold.addItem(withTitle: "\(threshold)%") }
-        nudgeThreshold.selectItem(at: quotaAlerts.preferences.nudgeThreshold.flatMap { QuotaAlerts.thresholds.firstIndex(of: $0) }.map { $0 + 1 } ?? 0)
+        let threshold = quotaAlerts.preferences.nudgeThreshold
+        nudgeThreshold.selectItem(at: QuotaAlerts.thresholds.firstIndex(of: threshold ?? 25) ?? 0)
+        nudgeThreshold.isEnabled = threshold != nil
+        nudgeButton.state = threshold != nil ? .on : .off
+        nudgeButton.target = self
+        nudgeButton.action = #selector(changeAlerts(_:))
+        nudgeButton.setAccessibilityLabel("Nudge when part of a week would reset unused")
         nudgeThreshold.target = self
         nudgeThreshold.action = #selector(changeAlerts(_:))
         nudgeThreshold.setAccessibilityLabel("Nudge when at least this much of a week would reset unused")
         runDryButton.state = quotaAlerts.preferences.warnsRunDry ? .on : .off
         runDryButton.target = self
         runDryButton.action = #selector(changeAlerts(_:))
-        let first = NSStackView(views: [InterfaceControls.label("Nudge when at least"), nudgeThreshold,
+        let first = NSStackView(views: [nudgeButton, nudgeThreshold,
                                         InterfaceControls.label("of a week would reset unused")])
         first.orientation = .horizontal
         first.alignment = .firstBaseline
@@ -119,7 +125,9 @@ final class GeneralSettingsViewController: NSViewController {
     @objc private func changeAlerts(_ sender: Any) {
         var preferences = quotaAlerts.preferences
         let index = nudgeThreshold.indexOfSelectedItem
-        preferences.nudgeThreshold = index > 0 ? QuotaAlerts.thresholds[index - 1] : nil
+        preferences.nudgeThreshold = nudgeButton.state == .on && QuotaAlerts.thresholds.indices.contains(index)
+            ? QuotaAlerts.thresholds[index] : nil
+        nudgeThreshold.isEnabled = nudgeButton.state == .on
         preferences.warnsRunDry = runDryButton.state == .on
         quotaAlerts.update(preferences)
     }
