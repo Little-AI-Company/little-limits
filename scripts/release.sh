@@ -54,6 +54,7 @@ xcrun stapler validate "$application"
 spctl --assess --type execute --verbose=2 "$application"
 lipo -verify_arch "$application/Contents/MacOS/AIUsageStats" arm64 x86_64
 lipo -verify_arch "$application/Contents/MacOS/UsageCapture" arm64 x86_64
+lipo -verify_arch "$application/Contents/Helpers/little-limits" arm64 x86_64
 [[ "$(plutil -extract CFBundleShortVersionString raw "$application/Contents/Info.plist")" == "$version" ]] || fail "The app is not version $version."
 archive="$release_directory/Little-Limits-$version.zip"
 rm -f "$archive"

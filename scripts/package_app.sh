@@ -62,9 +62,10 @@ mkdir -p "$output_directory"
 temporary_directory="$(mktemp -d "$output_directory/.package.XXXXXX")"
 trap 'rm -rf "$temporary_directory"' EXIT
 application="$temporary_directory/Little Limits.app"
-mkdir -p "$application/Contents/MacOS" "$application/Contents/Resources"
+mkdir -p "$application/Contents/MacOS" "$application/Contents/Helpers" "$application/Contents/Resources"
 install -m 755 "$binary_directory/AIUsageStats" "$application/Contents/MacOS/AIUsageStats"
 install -m 755 "$binary_directory/UsageCapture" "$application/Contents/MacOS/UsageCapture"
+install -m 755 "$binary_directory/little-limits" "$application/Contents/Helpers/little-limits"
 cp Resources/Info.plist "$application/Contents/Info.plist"
 cp Resources/AppIcon.icns Resources/AppIconNight.icns "$application/Contents/Resources/"
 cp LICENSE "$application/Contents/Resources/LICENSE.txt"
@@ -79,6 +80,7 @@ else
     signing_arguments+=(--timestamp=none)
 fi
 codesign "${signing_arguments[@]}" "$application/Contents/MacOS/UsageCapture"
+codesign "${signing_arguments[@]}" "$application/Contents/Helpers/little-limits"
 codesign "${signing_arguments[@]}" "$application"
 codesign --verify --deep --strict --verbose=2 "$application"
 if [[ "$distribution" == 1 && -n "${NOTARY_PROFILE:-}" ]]; then

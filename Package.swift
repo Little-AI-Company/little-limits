@@ -16,6 +16,7 @@ var targets: [Target] = [
 products += [
     .executable(name: "AIUsageStats", targets: ["AIUsageStats"]),
     .executable(name: "UsageCapture", targets: ["UsageCapture"]),
+    .executable(name: "little-limits", targets: ["LimitsCommand"]),
     .library(name: "UsageCore", targets: ["UsageCore"])
 ]
 dependencies.append(.package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.11.1"))
@@ -23,6 +24,7 @@ targets += [
     .target(name: "UsageCore"),
     .target(name: "UsageHistoryStore", dependencies: ["UsageHistory", .product(name: "GRDB", package: "GRDB.swift")]),
     .executableTarget(name: "UsageCapture", dependencies: ["UsageCore"]),
+    .executableTarget(name: "LimitsCommand", dependencies: ["UsageCore"]),
     .executableTarget(name: "AIUsageStats", dependencies: ["UsageCore", "UsageHistory", "UsageHistoryStore",
                                                              .product(name: "GRDB", package: "GRDB.swift")],
                       resources: [.copy("Resources/ProviderIcons")]),

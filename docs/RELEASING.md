@@ -13,10 +13,11 @@ plutil -lint "dist/Little Limits.app/Contents/Info.plist"
 codesign --verify --deep --strict --verbose=2 "dist/Little Limits.app"
 lipo -archs "dist/Little Limits.app/Contents/MacOS/AIUsageStats"
 lipo -archs "dist/Little Limits.app/Contents/MacOS/UsageCapture"
+lipo -archs "dist/Little Limits.app/Contents/Helpers/little-limits"
 open -n "dist/Little Limits.app"
 ```
 
-The script builds all Release products, embeds `AIUsageStats` and the `UsageCapture` helper, builds the app icons (see [App icons](#app-icons)), copies the license, metadata, and generated SwiftPM provider-icon resource bundle, signs the helper and bundle with the selected local identity, verifies the signature, and creates a ZIP using `ditto`.
+The script builds all Release products, embeds `AIUsageStats`, the `UsageCapture` helper and the `little-limits` command in `Contents/Helpers`, builds the app icons (see [App icons](#app-icons)), copies the license, metadata, and generated SwiftPM provider-icon resource bundle, signs the helpers and bundle with the selected local identity, verifies the signature, and creates a ZIP using `ditto`.
 
 Use the same existing code-signing certificate for successive development builds. `CODE_SIGN_IDENTITY` overrides the identity stored as a single line in the ignored `.local-signing-identity` file. List available identities with `security find-identity -v -p codesigning`, then select the intended personal development identity by its certificate hash. This file contains only a public certificate identifier, never a private key or credential. Packaging does not create certificates, change Keychain trust, or edit private-key access controls.
 
