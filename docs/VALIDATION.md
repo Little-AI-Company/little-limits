@@ -2,6 +2,22 @@
 
 This file records observed results, not intended behavior. Update the tested revision and relevant checks when the implementation changes.
 
+## Nudges, burn list and run-out warning, November 2, 2026
+
+Packaged with `scripts/package_app.sh` on Parker's M1 Max, macOS 27.0.1, from `feat(alerts)`. Nudges and the warning are off by default, so each run turned them on for one launch with launch arguments; no stored preference was changed, and the alert ledger written during the real run was removed afterwards.
+
+| Check | Result |
+| --- | --- |
+| Real accounts, `-NudgeThreshold 25 -RunDryAlerts YES` with a two-task burn list, `--show-settings --notification-diagnostics` | After the first refresh: "Claude bazelshaw: ~90% of the week resets unused tomorrow", body "94% left, resets Tue 4am. At your pace about 90% would go unused." and "Burn list: \"Write tests for UsageHistoryStore\"" (the Claude task, ahead of the Either task). macOS showed the banner. No other real account qualified, and no run-out warning fired: none is running dry. The first try said "~95%" for 94% left; the estimate now rounds down. |
+| `--demo-states -RunDryAlerts YES` | "Claude low runs out around 11:39pm" naming Claude usesoon (70% left, resets sooner), and "Codex almostout runs out around 1:55pm" naming Codex room (80% left). The account already at 0% got none. Both banners showed. |
+| `--demo-states -NudgeThreshold 25` with the burn list | "Claude usesoon: ~65% of the week resets unused tomorrow" with the Claude task; the Copy Burn Item action was offered. |
+| Settings | The Alerts row shows the threshold pop-up and the run-out checkbox; the Burn list row shows each task with its provider pop-up and Remove, and Add Task. The page scrolls. |
+| `swift test` | All existing tests passed. |
+
+Recording: `~/Desktop/little-limits-proof/phase-3/phase3-nudge-and-run-dry.mp4` (not committed), composited from Little Limits' own windows and the notification banners.
+
+Not verified: the Copy Burn Item, Snooze 3 Hours and Not This Week actions by click (no click access this session), the final nudge timing, quiet hours, the four-a-week limit over a real week, and nudges driven by 12 hours or more of drain history on an account that is close to its threshold.
+
 ## Quota states, morning digest and menu bar options, November 2, 2026
 
 Packaged with `scripts/package_app.sh` on Parker's M1 Max, macOS 27.0.1, from the Phase 2 commits (`feat(core)` Use soon and Almost out through `fix(notifications)` on the digest wording).
