@@ -130,6 +130,35 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
         }
     }
 
+    private init(version: Int, asOf: Date, timeZone: String, accounts: [Account], useNow: [UseNowPick]) {
+        self.version = version
+        self.asOf = asOf
+        self.timeZone = timeZone
+        self.accounts = accounts
+        self.useNow = useNow
+    }
+
+    public func revalidated(at now: Date) -> LimitsDigest {
+        let expired = accounts.filter { $0.isExpired(at: now) }
+        let accounts = accounts.map { account in
+            account.isExpired(at: now) ? account.lastKnown(now: now) : account.withUsableCredits(now: now)
+        }
+        let isExpired = { (provider: Provider, shortLabel: String?) in
+            expired.contains { $0.provider == provider && $0.shortLabel == shortLabel }
+        }
+        let useNow = useNow.map { pick -> UseNowPick in
+            guard pick.outcome == .picked, isExpired(pick.provider, pick.shortLabel) else {
+                guard isExpired(pick.provider, pick.runnerUp) else { return pick }
+                return UseNowPick(provider: pick.provider, need: pick.need, outcome: pick.outcome, account: pick.account,
+                                  shortLabel: pick.shortLabel, runnerUp: nil, usableAt: pick.usableAt, reason: pick.reason)
+            }
+            return UseNowPick(provider: pick.provider, need: pick.need, outcome: .noneUsable, account: nil, shortLabel: nil,
+                              runnerUp: nil, usableAt: nil,
+                              reason: "The reading of \(pick.shortLabel ?? "that account") is no longer current. Open Little Limits to read again.")
+        }
+        return LimitsDigest(version: version, asOf: asOf, timeZone: timeZone, accounts: accounts, useNow: useNow)
+    }
+
     public func age(at now: Date) -> TimeInterval { max(0, now.timeIntervalSince(asOf)) }
 
     public func isOutdated(at now: Date) -> Bool { age(at: now) > Self.outdatedAge }
@@ -253,16 +282,42 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
         }
     }
 
-    private static func apiUsable(_ credits: [APICredit], now: Date) -> [CurrencyAmount] {
+    fileprivate static func apiUsable(_ credits: [APICredit], now: Date) -> [CurrencyAmount] {
         var totals: [String: Decimal] = [:]
         var order: [String] = []
         for credit in credits where credit.kind != .other && credit.status != "Stale" {
+            if credit.source != .manual, let asOf = credit.asOf, asOf > now || now.timeIntervalSince(asOf) > outdatedAge { continue }
             guard let amount = credit.amount, let currency = credit.currency,
                   credit.expiresAt.map({ $0 > now }) ?? true else { continue }
             if totals[currency] == nil { order.append(currency) }
             totals[currency, default: 0] += amount
         }
         return order.map { CurrencyAmount(currency: $0, amount: totals[$0] ?? 0) }
+    }
+}
+
+extension LimitsDigest.Account {
+    fileprivate func isExpired(at now: Date) -> Bool {
+        guard state == .current else { return false }
+        guard let observedAt, AccountSnapshot.isObservationCurrent(observedAt, now: now) else { return true }
+        return windows.contains { $0.resetsAt.map { $0 <= now } == true }
+    }
+
+    fileprivate func lastKnown(now: Date) -> LimitsDigest.Account {
+        let windows = windows.map { window in
+            LimitsDigest.Window(kind: window.kind, role: window.role, percentLeft: nil,
+                                lastKnownPercentLeft: window.percentLeft ?? window.lastKnownPercentLeft, resetsAt: window.resetsAt,
+                                resetsDisplay: window.resetsDisplay, level: nil)
+        }
+        return LimitsDigest.Account(label: label, shortLabel: shortLabel, provider: provider, plan: plan, state: .stale,
+                                    observedAt: observedAt, weeklyPercentLeft: nil, windows: windows, earnedResets: earnedResets,
+                                    apiCredits: apiCredits, apiUsable: LimitsDigest.apiUsable(apiCredits, now: now))
+    }
+
+    fileprivate func withUsableCredits(now: Date) -> LimitsDigest.Account {
+        LimitsDigest.Account(label: label, shortLabel: shortLabel, provider: provider, plan: plan, state: state,
+                             observedAt: observedAt, weeklyPercentLeft: weeklyPercentLeft, windows: windows, earnedResets: earnedResets,
+                             apiCredits: apiCredits, apiUsable: LimitsDigest.apiUsable(apiCredits, now: now))
     }
 }
 

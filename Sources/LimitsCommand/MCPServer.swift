@@ -4,7 +4,7 @@ import UsageCore
 struct DigestSource {
     let url: URL
 
-    func read() throws -> LimitsDigest { try LimitsDigest.read(from: url) }
+    func read() throws -> LimitsDigest { try LimitsDigest.read(from: url).revalidated(at: Date()) }
 
     static func missingMessage(_ error: Error, url: URL) -> String {
         if (error as NSError).domain == NSCocoaErrorDomain, (error as NSError).code == NSFileReadNoSuchFileError {

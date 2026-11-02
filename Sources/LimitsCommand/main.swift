@@ -34,7 +34,8 @@ if let index = arguments.firstIndex(of: "--digest") {
 switch arguments {
 case [], ["status"]:
     do {
-        print(LimitsDigestText.overview(try LimitsDigest.read(from: digestURL), now: Date()))
+        let now = Date()
+        print(LimitsDigestText.overview(try LimitsDigest.read(from: digestURL).revalidated(at: now), now: now))
     } catch {
         fail(DigestSource.missingMessage(error, url: digestURL), code: 2)
     }
