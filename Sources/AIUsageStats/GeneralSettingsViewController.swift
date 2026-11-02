@@ -296,6 +296,7 @@ final class GeneralSettingsViewController: NSViewController {
         guard let text = copySources[sender]?.stringValue else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        for button in copySources.keys { button.title = button === sender ? "Copied" : "Copy" }
     }
 
     private func configureIconButton() {
