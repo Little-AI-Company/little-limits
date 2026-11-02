@@ -5,10 +5,12 @@ struct StatusItemSummary: Equatable {
     struct Reading: Equatable {
         let provider: Provider
         let remainingPercent: Int?
+        let level: QuotaLevel?
     }
 
     let readings: [Reading]
     let isStale: Bool
+    let appearance: NSAppearance.Name?
 }
 
 @MainActor
@@ -41,9 +43,27 @@ enum StatusItemImage {
         return image
     }()
 
-    static func render(_ summary: StatusItemSummary) -> NSImage {
+    static func render(_ summary: StatusItemSummary, appearance: NSAppearance) -> NSImage {
+        guard summary.appearance != nil else { return render(summary, colors: nil) }
+        var image = NSImage()
+        appearance.performAsCurrentDrawingAppearance {
+            image = render(summary, colors: summary.readings.map { $0.level.map(color) ?? .labelColor })
+        }
+        return image
+    }
+
+    private static func color(_ level: QuotaLevel) -> NSColor {
+        switch level {
+        case .useSoon: .controlAccentColor
+        case .low: StateSymbolColor.warning
+        case .almostOut, .limitReached: StateSymbolColor.critical
+        }
+    }
+
+    private static func render(_ summary: StatusItemSummary, colors: [NSColor]?) -> NSImage {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
+        let neutral = colors == nil ? NSColor.black : NSColor.labelColor
+        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: neutral]
         let labels = summary.readings.map { $0.remainingPercent.map { "\($0)%" } ?? "?" }
         let sizes = labels.map { ($0 as NSString).size(withAttributes: attributes) }
         let iconSize: CGFloat = 14
@@ -66,9 +86,16 @@ enum StatusItemImage {
             NSGraphicsContext.current = context
             var x: CGFloat = 0
             for (index, reading) in summary.readings.enumerated() {
-                ProviderIcons.images[reading.provider]?.draw(in: NSRect(x: x, y: (height - iconSize) / 2, width: iconSize, height: iconSize))
+                let iconRect = NSRect(x: x, y: (height - iconSize) / 2, width: iconSize, height: iconSize)
+                ProviderIcons.images[reading.provider]?.draw(in: iconRect)
+                if colors != nil {
+                    neutral.set()
+                    iconRect.fill(using: .sourceAtop)
+                }
                 x += iconSize + valueSpacing
-                (labels[index] as NSString).draw(at: NSPoint(x: x, y: floor((height - sizes[index].height) / 2)), withAttributes: attributes)
+                var labelAttributes = attributes
+                labelAttributes[.foregroundColor] = colors?[index] ?? neutral
+                (labels[index] as NSString).draw(at: NSPoint(x: x, y: floor((height - sizes[index].height) / 2)), withAttributes: labelAttributes)
                 x += ceil(sizes[index].width) + providerSpacing
             }
             if summary.isStale {
@@ -77,7 +104,7 @@ enum StatusItemImage {
             NSGraphicsContext.restoreGraphicsState()
             image.addRepresentation(bitmap)
         }
-        image.isTemplate = true
+        image.isTemplate = colors == nil
         return image
     }
 }

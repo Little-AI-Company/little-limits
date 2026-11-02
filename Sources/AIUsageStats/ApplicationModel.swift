@@ -55,7 +55,8 @@ final class ApplicationModel {
             : defaults.stringArray(forKey: Self.menuBarAccountsKey).map { Set($0.compactMap(UUID.init(uuidString:))) }
         let legacy = isDemo ? [] : defaults.stringArray(forKey: Self.legacyMenuBarHiddenKey) ?? []
         legacyMenuBarHiddenAccountIDs = Set(legacy.compactMap(UUID.init(uuidString:)))
-        menuBarPrefersUseFirst = !isDemo && defaults.bool(forKey: Self.menuBarUseFirstKey)
+        menuBarPrefersUseFirst = defaults.bool(forKey: Self.menuBarUseFirstKey)
+        menuBarColorsLowNumbers = defaults.bool(forKey: Self.menuBarColorsLowNumbersKey)
     }
 
     nonisolated private static let logger = Logger(subsystem: "com.parkerrex.ai-usage-stats", category: "History")
@@ -143,6 +144,8 @@ final class ApplicationModel {
     private var legacyMenuBarHiddenAccountIDs: Set<UUID>
     private static let menuBarUseFirstKey = "MenuBarUseFirst"
     private var menuBarPrefersUseFirst: Bool
+    private static let menuBarColorsLowNumbersKey = "MenuBarColorsLowNumbers"
+    private(set) var menuBarColorsLowNumbers: Bool
 
     var menuBarAccountIDs: Set<UUID>? { chosenMenuBarAccountIDs }
 
@@ -174,6 +177,12 @@ final class ApplicationModel {
     func showUseFirstPerProviderInMenuBar() {
         saveMenuBarUseFirst(true)
         saveMenuBarChoice(nil)
+    }
+
+    func setMenuBarColorsLowNumbers(_ colors: Bool) {
+        menuBarColorsLowNumbers = colors
+        if !isDemo { UserDefaults.standard.set(colors, forKey: Self.menuBarColorsLowNumbersKey) }
+        onChange?()
     }
 
     private func saveMenuBarUseFirst(_ usesFirst: Bool) {

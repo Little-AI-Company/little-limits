@@ -33,35 +33,35 @@ public enum AccountQuotaSummary: Sendable, Equatable {
                           windowTitle: limiting.title)
     }
 
-    private static func generalMeasuredWindows(_ snapshot: AccountSnapshot) -> [(remainingPercent: Double, title: String)] {
+    private static func generalMeasuredWindows(_ snapshot: AccountSnapshot) -> [(remainingPercent: Double, window: UsageWindow)] {
         snapshot.currentWindows.compactMap { window in
             guard window.role == .session || window.role == .weekly,
                   let used = window.utilizationPercent, used.isFinite else { return nil }
-            return (100 - used, window.title)
+            return (100 - used, window)
         }
     }
 
     public static func lowestCurrent(accountIDs: [UUID], snapshots: [UUID: AccountSnapshot], now: Date = Date())
-        -> (accountID: UUID, remainingPercent: Double, windowTitle: String)? {
-        var lowest: (accountID: UUID, remainingPercent: Double, windowTitle: String)?
+        -> (accountID: UUID, remainingPercent: Double, windowTitle: String, window: UsageWindow)? {
+        var lowest: (accountID: UUID, remainingPercent: Double, windowTitle: String, window: UsageWindow)?
         for id in accountIDs {
             guard let snapshot = snapshots[id] else { continue }
             guard case .available = AccountQuotaSummary(snapshot: snapshot.generalWindowsOnly, accountID: id, now: now) else { continue }
-            for window in generalMeasuredWindows(snapshot) where window.remainingPercent < lowest?.remainingPercent ?? .infinity {
-                lowest = (id, window.remainingPercent, window.title)
+            for measured in generalMeasuredWindows(snapshot) where measured.remainingPercent < lowest?.remainingPercent ?? .infinity {
+                lowest = (id, measured.remainingPercent, measured.window.title, measured.window)
             }
         }
         return lowest
     }
 
     public static func lowestLastKnown(accountIDs: [UUID], snapshots: [UUID: AccountSnapshot], now: Date = Date())
-        -> (accountID: UUID, remainingPercent: Double, windowTitle: String)? {
-        var lowest: (accountID: UUID, remainingPercent: Double, windowTitle: String)?
+        -> (accountID: UUID, remainingPercent: Double, windowTitle: String, window: UsageWindow)? {
+        var lowest: (accountID: UUID, remainingPercent: Double, windowTitle: String, window: UsageWindow)?
         for id in accountIDs {
             guard let snapshot = snapshots[id], snapshot.profileID == id,
                   let fetchedAt = snapshot.fetchedAt, fetchedAt <= now else { continue }
-            for window in generalMeasuredWindows(snapshot) where window.remainingPercent < lowest?.remainingPercent ?? .infinity {
-                lowest = (id, window.remainingPercent, window.title)
+            for measured in generalMeasuredWindows(snapshot) where measured.remainingPercent < lowest?.remainingPercent ?? .infinity {
+                lowest = (id, measured.remainingPercent, measured.window.title, measured.window)
             }
         }
         return lowest

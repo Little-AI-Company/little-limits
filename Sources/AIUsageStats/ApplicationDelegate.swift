@@ -15,6 +15,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private var isMenuTracking = false
     private var statusItem: NSStatusItem?
     private var displayedStatusSummary: StatusItemSummary?
+    private var statusAppearanceObservation: NSKeyValueObservation?
     private var accounts: AccountsWindowController?
     private var isAccountsWindowOpen = false
     private var refreshTimer: Timer?
@@ -118,6 +119,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             groups = [Provider.claude, .codex].map { provider in (provider, model.profiles.filter { $0.provider == provider }) }
                 .filter { !$0.profiles.isEmpty }
         }
+        let colorsLowNumbers = model.menuBarColorsLowNumbers
         let overview = model.menuBarShowsUseFirst ? UsageOverview(profiles: model.profiles, snapshots: model.snapshots, now: now) : nil
         for (provider, profiles) in groups {
             let name = InterfaceFormatting.provider(provider)
@@ -128,7 +130,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
                    let weekly = account.snapshot?.currentWindows.first(where: { $0.role == .weekly }),
                    let used = weekly.utilizationPercent {
                     let remaining = Int(min(100, max(0, 100 - used)).rounded())
-                    readings.append(StatusItemSummary.Reading(provider: provider, remainingPercent: remaining))
+                    readings.append(StatusItemSummary.Reading(provider: provider, remainingPercent: remaining,
+                                                              level: colorsLowNumbers ? QuotaLevel(window: weekly, now: now) : nil))
                     descriptions.append("\(name): use \(InterfaceFormatting.accountIdentity(account.profile)) first, \(remaining)% left, "
                         + InterfaceFormatting.usageTitle(weekly) + ". " + (pick.reason.hasSuffix(".") ? String(pick.reason.dropLast()) : pick.reason))
                     continue
@@ -141,7 +144,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             if lastKnown != nil { showsLastKnown = true }
             let lowest = current ?? lastKnown
             let remaining = lowest.map { Int(min(100, max(0, $0.remainingPercent)).rounded()) }
-            readings.append(StatusItemSummary.Reading(provider: provider, remainingPercent: remaining))
+            let level = colorsLowNumbers ? current.flatMap { QuotaLevel(window: $0.window, now: now) } : nil
+            readings.append(StatusItemSummary.Reading(provider: provider, remainingPercent: remaining, level: level))
             let notCurrent = profiles.compactMap { profile -> String? in
                 let summary = AccountQuotaSummary(snapshot: model.snapshots[profile.id]?.generalWindowsOnly, accountID: profile.id, now: now)
                 guard let reason = Self.notCurrentReason(summary) else { return nil }
@@ -165,9 +169,17 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
                 || snapshot.fetchedAt.map { !AccountSnapshot.isObservationCurrent($0, now: now) } == true
                 || snapshot.generalWindowsOnly.currentWindows.contains { $0.resetsAt.map { $0 <= now } == true }
         }
-        let summary = StatusItemSummary(readings: readings, isStale: stale || showsLastKnown)
-        if displayedStatusSummary != summary, let button = statusItem?.button {
-            button.image = readings.isEmpty ? StatusItemImage.appGlyph : StatusItemImage.render(summary)
+        let button = statusItem?.button
+        if statusAppearanceObservation == nil, let button {
+            statusAppearanceObservation = button.observe(\.effectiveAppearance) { [weak self] _, _ in
+                Task { @MainActor in self?.render() }
+            }
+        }
+        let colored = readings.contains { $0.level != nil }
+        let summary = StatusItemSummary(readings: readings, isStale: stale || showsLastKnown,
+                                        appearance: colored ? button?.effectiveAppearance.name : nil)
+        if displayedStatusSummary != summary, let button {
+            button.image = readings.isEmpty ? StatusItemImage.appGlyph : StatusItemImage.render(summary, appearance: button.effectiveAppearance)
             button.imagePosition = .imageOnly
             button.imageScaling = .scaleProportionallyDown
             displayedStatusSummary = summary
@@ -367,6 +379,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             account.state = model.showsInMenuBar(profile.id) ? .on : .off
             submenu.addItem(account)
         }
+        submenu.addItem(.separator())
+        let colors = NSMenuItem(title: "Color Low Numbers", action: #selector(toggleMenuBarColorsLowNumbers(_:)), keyEquivalent: "")
+        colors.target = self
+        colors.state = model.menuBarColorsLowNumbers ? .on : .off
+        submenu.addItem(colors)
         item.submenu = submenu
         return item
     }
@@ -374,6 +391,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     @objc private func showLowestPerProvider(_ sender: NSMenuItem) { model.showLowestPerProviderInMenuBar() }
 
     @objc private func showUseFirstPerProvider(_ sender: NSMenuItem) { model.showUseFirstPerProviderInMenuBar() }
+
+    @objc private func toggleMenuBarColorsLowNumbers(_ sender: NSMenuItem) {
+        model.setMenuBarColorsLowNumbers(!model.menuBarColorsLowNumbers)
+    }
 
     @objc private func toggleMenuBarAccount(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? UUID else { return }
