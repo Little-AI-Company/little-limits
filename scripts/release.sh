@@ -60,9 +60,11 @@ fi
 codesign --verify --deep --strict --verbose=2 "$application"
 xcrun stapler validate "$application"
 spctl --assess --type execute --verbose=2 "$application"
-lipo -verify_arch "$application/Contents/MacOS/AIUsageStats" arm64 x86_64
-lipo -verify_arch "$application/Contents/MacOS/UsageCapture" arm64 x86_64
-lipo -verify_arch "$application/Contents/Helpers/little-limits" arm64 x86_64
+for executable in MacOS/AIUsageStats MacOS/UsageCapture Helpers/little-limits; do
+    for architecture in arm64 x86_64; do
+        lipo "$application/Contents/$executable" -verify_arch "$architecture" || fail "$executable has no $architecture slice."
+    done
+done
 [[ "$(plutil -extract CFBundleShortVersionString raw "$application/Contents/Info.plist")" == "$version" ]] || fail "The app is not version $version."
 archive="$release_directory/Little-Limits-$version.zip"
 rm -f "$archive"
