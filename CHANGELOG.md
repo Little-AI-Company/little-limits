@@ -41,7 +41,7 @@ The app is now called Little Limits, with new Paper and Night icons. Reset times
 
 ### Changed
 
-- **Name:** Limits Left is now Little Limits. Your accounts, sign-ins, settings, and usage history stay. With Homebrew, `brew update && brew upgrade --cask` moves you to the new name. If you installed by hand, quit **Limits Left** and move it to the Trash after you install Little Limits.
+- **Name:** Limits Left is now Little Limits. Your accounts, sign-ins, settings, and usage history stay. With Homebrew, `brew update && brew upgrade --cask` moves you to the new name. On Homebrew 7, run `brew trust parkerrex/tap` first. If you installed by hand, quit **Limits Left** and move it to the Trash after you install Little Limits.
 - **App icon:** New Paper and Night icons. Paper replaces Enamel. **Settings** has an **App icon** choice of Paper or Night, and if you chose Enamel before, you now have Paper.
 
 ## 0.2.1 (2026-10-16)

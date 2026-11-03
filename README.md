@@ -64,6 +64,8 @@ The forecast and the Models page come from a history the app keeps on your Mac. 
 brew install --cask parkerrex/tap/little-limits
 ```
 
+**Upgrading from Limits Left or AI Usage Stats:** Homebrew 7 reads the tap only after you trust it, so run `brew trust parkerrex/tap` once, then `brew update && brew upgrade --cask`.
+
 **Or download it:** get the `Little-Limits-<version>.zip` file from the [latest release](https://github.com/Little-AI-Company/little-limits/releases/latest), unzip it, and drag **Little Limits** into your Applications folder.
 
 The app is signed and notarized by Apple, so it opens without security warnings.
