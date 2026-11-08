@@ -94,8 +94,10 @@ CLONE_URL="${CLONE_URL:-https://github.com/$(basename "$(dirname "$origin_url")"
 cd "$ROOT"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/push-main.XXXXXX")"
 CAPPED_PID=""
+WATCHDOG_PID=""
 cleanup() {
   [ -z "$CAPPED_PID" ] || kill -TERM -- "-$CAPPED_PID" 2>/dev/null || true
+  [ -z "$WATCHDOG_PID" ] || kill -KILL -- "-$WATCHDOG_PID" 2>/dev/null || true
   rm -rf "$tmp"
 }
 trap cleanup EXIT
@@ -198,27 +200,26 @@ scan_secrets() {
   [ "$code" -eq 0 ] || say "gitleaks could not run (exit $code); the secret scan is skipped"
 }
 
-TIMED_OUT=0
 capped() {
-  local rc=0 start=$SECONDS
-  TIMED_OUT=0
+  local rc=0
+  rm -f "$tmp/timed-out"
   set -m
   bash -c "$1" >>"$tmp/check.log" 2>&1 &
   CAPPED_PID=$!
+  (
+    sleep "$CAP"
+    : >"$tmp/timed-out"
+    kill -TERM -- "-$CAPPED_PID" 2>/dev/null
+    sleep 2
+    kill -KILL -- "-$CAPPED_PID" 2>/dev/null
+  ) >/dev/null 2>&1 &
+  WATCHDOG_PID=$!
   set +m
-  while kill -0 "$CAPPED_PID" 2>/dev/null; do
-    if [ $((SECONDS - start)) -ge "$CAP" ]; then
-      TIMED_OUT=1
-      kill -TERM -- "-$CAPPED_PID" 2>/dev/null || true
-      sleep 2
-      kill -KILL -- "-$CAPPED_PID" 2>/dev/null || true
-      break
-    fi
-    sleep 1
-  done
   wait "$CAPPED_PID" 2>/dev/null || rc=$?
-  CAPPED_PID=""
-  [ "$TIMED_OUT" -eq 0 ] || rc=124
+  kill -KILL -- "-$WATCHDOG_PID" 2>/dev/null || true
+  wait "$WATCHDOG_PID" 2>/dev/null || true
+  CAPPED_PID="" WATCHDOG_PID=""
+  [ ! -e "$tmp/timed-out" ] || rc=124
   return "$rc"
 }
 
