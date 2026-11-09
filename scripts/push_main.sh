@@ -107,6 +107,24 @@ trap 'exit 130' INT TERM
 git fetch --quiet origin main || finish 1 "fetch-failed - : git fetch origin main"
 
 trailer() { git log -1 --format="%(trailers:key=$2,valueonly,unfold)" "$1" | sed '/^$/d'; }
+json_text() { printf '%s' "$1" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+beat_items() {
+  local token="${HQ_ACCOUNT_TOKEN:-${WIKI_AGENT_TOKEN:-}}" beaten=" " commit item note answer
+  [ -n "$token" ] && command -v curl >/dev/null 2>&1 || return 0
+  for commit in $(git rev-list "$1..$2"); do
+    for item in $(trailer "$commit" Item); do
+      case "$beaten" in *" $item "*) continue ;; esac
+      beaten="$beaten$item "
+      note="$(json_text "$(printf 'pushed %s %s' "$(git rev-parse --short "$commit")" "$(git log -1 --format=%s "$commit")" | cut -c1-280)")"
+      answer="$(curl -fsS --max-time 5 "${HQ_URL:-https://hq.thelittleworker.com}/mcp" -H "authorization: Bearer $token" -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' \
+        -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"beat_item\",\"arguments\":{\"item\":\"$(json_text "$item")\",\"note\":\"$note\"}}}" 2>/dev/null)" || answer=""
+      case "$answer" in
+        *"$item is live:"*) say "beat $item on HQ" ;;
+        *) say "HQ took no beat for $item (no claim from this token, or HQ did not answer); the push stands" ;;
+      esac
+    done
+  done
+}
 amend_trailers() {
   local drop="$1" args=() t
   shift
@@ -328,7 +346,9 @@ for ((try = 1; try <= RETRIES; try++)); do
   run_check
   amend_trailers "Tested" "$TESTED"
   sha="$(git rev-parse HEAD)"
+  base="$(git rev-parse origin/main)"
   if out="$(git push --porcelain origin "$sha:refs/heads/main" 2>&1)"; then
+    beat_items "$base" "$sha"
     finish 0 "pushed $sha"
   fi
   printf '%s\n' "$out" >&2
