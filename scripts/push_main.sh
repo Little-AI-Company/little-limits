@@ -244,12 +244,26 @@ killed_lines() {
     git log -1 --format=%B "$c" | awk -v c="${c:0:12}" "$KILL_AWK"'{ if ((k = killed($0)) != "") print "commit " c ": " k ": " $0 }'
   done
 }
+count_kills() {
+  local token="${HQ_ACCOUNT_TOKEN:-${WIKI_AGENT_TOKEN:-}}" kills lines line rest
+  [ -n "$token" ] && command -v curl >/dev/null 2>&1 || return 0
+  kills="$(printf '%s\n' "$1" | awk -F': ' '{ n[$2]++ } END { for (k in n) printf "%s\"%s\":%d", (s++ ? "," : ""), k, n[k] }')"
+  lines=""
+  while IFS= read -r line; do
+    rest="${line#*: }"
+    lines="$lines${lines:+,}{\"where\":\"$(json_text "${line%%: *}")\",\"kill\":\"$(json_text "${rest%%: *}")\",\"text\":\"$(json_text "${rest#*: }" | cut -c1-240)\"}"
+  done < <(printf '%s\n' "$1" | head -10)
+  curl -fsS --max-time 4 "${HQ_URL:-https://hq.thelittleworker.com}/api/kills/caught" -H "authorization: Bearer $token" -H 'content-type: application/json' \
+    -d "{\"repo\":\"$(json_text "$(basename "$origin_url")")\",\"sha\":\"$(git rev-parse HEAD)\",\"kills\":{$kills},\"lines\":[$lines]}" >/dev/null 2>&1 &&
+    say "counted on HQ's Kill catches page" || true
+}
 refuse_killed() {
   local found
   found="$(killed_lines)"
   [ -n "$found" ] || return 0
   say "these lines hold something on the kill list (RULES.md, Kill list):"
   printf '%s\n' "$found" >&2
+  count_kills "$found"
   finish 5 "killed $(git rev-parse HEAD) - : rewrite these lines without it, then run this again; a quote keeps its words in quotes or a > line"
 }
 
