@@ -30,7 +30,7 @@ in every small repository and is written in little-worker-hq.
 The last line on standard output is "PUSH: <state> <sha>". Exit codes:
   0 pushed or checked   1 usage or git error   2 the check failed, main unchanged
   3 rebase conflict     4 main moved 10 times  5 not pushable (dirty, nothing,
-  a missing Customer-note:, a new code comment, a secret, no Mac to check on)
+  a missing Customer-note:, a new code comment, a kill, a secret, no Mac to check on)
 USAGE
   exit 1
 }
@@ -77,6 +77,8 @@ PACKAGE=""
 NOTE_FREE_SCOPES=""
 COMMENT_SCAN=""
 COMMENT_SKIP='^(node_modules|vendor)/'
+KILL_FILES='\.(md|mdx|markdown|txt|ya?ml)$'
+KILL_SKIP='(^|/)(node_modules|vendor|fixtures)/'
 NOTICES=()
 M4_DIR=""
 CLONE_URL=""
@@ -207,6 +209,50 @@ refuse_comments() {
   finish 5 "comments $(git rev-parse HEAD) - : take the new comments out, then run this again"
 }
 
+KILL_AWK="$(
+  cat <<'AWK'
+function killed(text,   t, pre, n, parts) {
+  t = text
+  if (t ~ /^[ \t]*>/ || t ~ /^[ \t-]*quote:/) return ""
+  if (match(t, /^[ \t-]*[A-Za-z_][A-Za-z0-9_-]*:[ \t]*"/) && t ~ /"[ \t]*$/) { t = substr(t, RLENGTH + 1); sub(/"[ \t]*$/, "", t) }
+  gsub(/`[^`]*`/, "", t)
+  gsub(/"[^"]*"/, "", t)
+  gsub(/“[^”]*”/, "", t)
+  t = tolower(t)
+  if (index(t, "—") || index(t, " – ")) return "em dash"
+  if (t ~ /here('|’)?s the thing|here is the thing/) return "here's the thing"
+  if (t ~ /(^|[^a-z])genuinely([^a-z]|$)/) return "genuinely"
+  if (t ~ /(^|[^a-z])truly([^a-z]|$)/) return "truly"
+  if (t ~ /(^|[^a-z])honestly([^a-z]|$)/) return "honestly"
+  if (match(t, /(^|[^a-z])(isn('|’)t|is not|aren('|’)t|are not|wasn('|’)t|was not|it('|’)s not|that('|’)s not)[^.!?]*[,;:.!?]+ *(it('|’)s|it is|they('|’)re|they are|that('|’)s|this is|it was)([^a-z]|$)/)) {
+    pre = substr(t, 1, RSTART)
+    n = split(pre, parts, /[.!?]/)
+    if (parts[n] !~ /(^|[^a-z])(if|when|whenever|unless|until|because|while|once|since|though|although)([^a-z]|$)/) return "X isn't Y, it's Z"
+  }
+  return ""
+}
+AWK
+)"
+killed_lines() {
+  local c
+  git diff -U0 --no-color --no-ext-diff --no-renames origin/main...HEAD |
+    KILL_FILES_RE="$KILL_FILES" KILL_SKIP_RE="$KILL_SKIP" awk "$KILL_AWK"'
+      /^\+\+\+ / { file = substr($0, 7); scan = file ~ ENVIRON["KILL_FILES_RE"] && file !~ ENVIRON["KILL_SKIP_RE"]; next }
+      /^@@ / { split($3, at, ","); line = substr(at[1], 2) + 0; next }
+      /^\+/ { text = substr($0, 2); if (scan && (k = killed(text)) != "") print file ":" line ": " k ": " text; line++ }'
+  for c in $(git rev-list origin/main..HEAD); do
+    git log -1 --format=%B "$c" | awk -v c="${c:0:12}" "$KILL_AWK"'{ if ((k = killed($0)) != "") print "commit " c ": " k ": " $0 }'
+  done
+}
+refuse_killed() {
+  local found
+  found="$(killed_lines)"
+  [ -n "$found" ] || return 0
+  say "these lines hold something on the kill list (RULES.md, Kill list):"
+  printf '%s\n' "$found" >&2
+  finish 5 "killed $(git rev-parse HEAD) - : rewrite these lines without it, then run this again; a quote keeps its words in quotes or a > line"
+}
+
 scan_secrets() {
   if ! command -v gitleaks >/dev/null 2>&1; then
     say "no gitleaks here; the secret scan is skipped"
@@ -302,6 +348,7 @@ run_check() {
   fi
   customer_notes
   refuse_comments
+  refuse_killed
   scan_secrets
   if [ -n "$CHECK_PATHS" ] && ! git diff --name-only origin/main...HEAD | grep -Eq "$CHECK_PATHS"; then
     TESTED="Tested: $label skipped (nothing it reads changed) tree $tree"
