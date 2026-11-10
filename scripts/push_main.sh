@@ -414,7 +414,7 @@ for ((try = 1; try <= RETRIES; try++)); do
   fi
   printf '%s\n' "$out" >&2
   case "$out" in
-    *"non-fast-forward"* | *"fetch first"* | *"incorrect old value"*) ;;
+    *"non-fast-forward"* | *"fetch first"* | *"incorrect old value"* | *"cannot lock ref"*) ;;
     *) finish 1 "push-refused $sha - : see the git output above" ;;
   esac
   say "main moved (try $try of $RETRIES); fetching, rebasing and checking again"
