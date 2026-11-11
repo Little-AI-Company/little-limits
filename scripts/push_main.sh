@@ -224,6 +224,8 @@ function killed(text,   t, pre, n, parts) {
   if (t ~ /(^|[^a-z])genuinely([^a-z]|$)/) return "genuinely"
   if (t ~ /(^|[^a-z])truly([^a-z]|$)/) return "truly"
   if (t ~ /(^|[^a-z])honestly([^a-z]|$)/) return "honestly"
+  gsub(/grok bots?/, "", t)
+  if (t ~ /(^|[^a-z0-9_-])bots?([^a-z0-9_-]|$)/) return "bot"
   if (match(t, /(^|[^a-z])(isn('|’)t|is not|aren('|’)t|are not|wasn('|’)t|was not|it('|’)s not|that('|’)s not)[^.!?]*[,;:.!?]+ *(it('|’)s|it is|they('|’)re|they are|that('|’)s|this is|it was)([^a-z]|$)/)) {
     pre = substr(t, 1, RSTART)
     n = split(pre, parts, /[.!?]/)
