@@ -127,6 +127,23 @@ beat_items() {
     done
   done
 }
+close_findings() {
+  local token="${HQ_ACCOUNT_TOKEN:-${WIKI_AGENT_TOKEN:-}}" closed=" " commit finding answer
+  [ -n "$token" ] && command -v curl >/dev/null 2>&1 || return 0
+  for commit in $(git rev-list --reverse "$1..$2"); do
+    for finding in $(trailer "$commit" Finding); do
+      case "$finding" in F-[1-9]*) ;; *) continue ;; esac
+      case "$closed" in *" $finding "*) continue ;; esac
+      closed="$closed$finding "
+      answer="$(curl -fsS --max-time 5 "${HQ_URL:-https://hq.thelittleworker.com}/api/findings/call" -H "authorization: Bearer $token" -H 'content-type: application/json' \
+        -d "{\"tool\":\"update_finding\",\"input\":{\"finding\":\"$(json_text "$finding")\",\"state\":\"fixed\",\"sha\":\"$commit\"}}" 2>/dev/null)" || answer=""
+      case "$answer" in
+        *"\"text\":\"$finding"*) say "marked $finding fixed on HQ at $(git rev-parse --short "$commit")" ;;
+        *) say "HQ did not mark $finding fixed; call update_finding with state fixed and the commit; the push stands" ;;
+      esac
+    done
+  done
+}
 amend_trailers() {
   local drop="$1" args=() t
   shift
@@ -412,6 +429,7 @@ for ((try = 1; try <= RETRIES; try++)); do
   base="$(git rev-parse origin/main)"
   if out="$(git push --porcelain origin "$sha:refs/heads/main" 2>&1)"; then
     beat_items "$base" "$sha"
+    close_findings "$base" "$sha"
     finish 0 "pushed $sha"
   fi
   printf '%s\n' "$out" >&2
