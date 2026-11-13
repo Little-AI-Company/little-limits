@@ -110,7 +110,7 @@ Public releases are signed with the Developer ID Application certificate of RAPT
 
 4. Publish the archive as `Little-Limits-<version>.zip` on a `v<version>` GitHub release, then update the cask in `ParkerRex/homebrew-tap` with the version and SHA-256. Install with `brew install --cask parkerrex/tap/<cask>` on a clean account to confirm. The cask is `Casks/little-limits.rb`.
 
-5. Add the version to `CHANGELOG.md` and `website/changelog/index.html` with the [changelog skill](../.agents/skills/changelog/SKILL.md), in the release commit or right after it. Keep the GitHub release notes in line with it.
+5. Add the version to `CHANGELOG.md` and `website/changelog/index.html` with the [changelog skill](../.agents/skills/changelog/SKILL.md), in the release commit or right after it. Keep the GitHub release notes in line with it. In the same commit, change the version in the three places the download page names it: the hero line and `softwareVersion` in `website/index.html`, and `website/llms.txt`.
 
 Keep certificates, private keys, notarization credentials, and private account data out of the repository and bundle. Changing the signing team from a local development identity to the release team can make macOS ask once for access to saved Keychain sign-ins.
 
