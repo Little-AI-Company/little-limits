@@ -9,6 +9,8 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
     public let timeZone: String
     public let accounts: [Account]
     public let useNow: [UseNowPick]
+    public let appVersion: String?
+    public let appPath: String?
 
     public enum AccountState: String, Codable, Sendable {
         case current
@@ -57,6 +59,7 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
         public let count: Int?
         public let nextExpiresAt: Date?
         public let observedAt: Date?
+        public let expiresAt: [Date]?
 
         public func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
@@ -64,7 +67,14 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
             try container.encode(count, forKey: .count)
             try container.encode(nextExpiresAt, forKey: .nextExpiresAt)
             try container.encode(observedAt, forKey: .observedAt)
+            try container.encode(expiresAt, forKey: .expiresAt)
         }
+    }
+
+    public struct ProviderCredits: Codable, Sendable, Equatable {
+        public let amount: Decimal?
+        public let unlimited: Bool
+        public let asOf: Date?
     }
 
     public enum CreditKind: String, Codable, Sendable {
@@ -103,6 +113,7 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
         public let earnedResets: EarnedResets
         public let apiCredits: [APICredit]
         public let apiUsable: [CurrencyAmount]
+        public let credits: ProviderCredits?
 
         public func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
@@ -117,10 +128,11 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
             try container.encode(earnedResets, forKey: .earnedResets)
             try container.encode(apiCredits, forKey: .apiCredits)
             try container.encode(apiUsable, forKey: .apiUsable)
+            try container.encode(credits, forKey: .credits)
         }
     }
 
-    public init(overview: UsageOverview, now: Date, calendar: Calendar) {
+    public init(overview: UsageOverview, now: Date, calendar: Calendar, appVersion: String? = nil, appPath: String? = nil) {
         version = Self.currentVersion
         asOf = now
         timeZone = calendar.timeZone.identifier
@@ -128,14 +140,19 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
         useNow = overview.providers.flatMap { provider in
             UseNowNeed.allCases.map { UseNowRule.pick(provider: provider.provider, accounts: overview.accounts, now: now, calendar: calendar, need: $0) }
         }
+        self.appVersion = appVersion
+        self.appPath = appPath
     }
 
-    private init(version: Int, asOf: Date, timeZone: String, accounts: [Account], useNow: [UseNowPick]) {
+    private init(version: Int, asOf: Date, timeZone: String, accounts: [Account], useNow: [UseNowPick], appVersion: String?,
+                 appPath: String?) {
         self.version = version
         self.asOf = asOf
         self.timeZone = timeZone
         self.accounts = accounts
         self.useNow = useNow
+        self.appVersion = appVersion
+        self.appPath = appPath
     }
 
     public func revalidated(at now: Date) -> LimitsDigest {
@@ -156,7 +173,8 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
                               runnerUp: nil, usableAt: nil,
                               reason: "The reading of \(pick.shortLabel ?? "that account") is no longer current. Open Little Limits to read again.")
         }
-        return LimitsDigest(version: version, asOf: asOf, timeZone: timeZone, accounts: accounts, useNow: useNow)
+        return LimitsDigest(version: version, asOf: asOf, timeZone: timeZone, accounts: accounts, useNow: useNow,
+                            appVersion: appVersion, appPath: appPath)
     }
 
     public func age(at now: Date) -> TimeInterval { max(0, now.timeIntervalSince(asOf)) }
@@ -221,7 +239,8 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
                        observedAt: snapshot?.fetchedAt,
                        weeklyPercentLeft: windows.first { $0.role == .weekly }?.percentLeft,
                        windows: windows, earnedResets: earnedResets(account, now: now),
-                       apiCredits: credits, apiUsable: apiUsable(credits, now: now))
+                       apiCredits: credits, apiUsable: apiUsable(credits, now: now),
+                       credits: providerCredits(snapshot?.credits ?? []))
     }
 
     private static func role(_ window: UsageWindow) -> WindowRole {
@@ -254,16 +273,22 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
         let credits = account.snapshot?.credits.filter { $0.unit == .resets } ?? []
         guard !credits.isEmpty else {
             return EarnedResets(status: account.profile.provider == .claude ? .notSupported : .unknown,
-                                count: nil, nextExpiresAt: nil, observedAt: nil)
+                                count: nil, nextExpiresAt: nil, observedAt: nil, expiresAt: nil)
         }
         guard let summary = credits.first(where: { $0.id == "quota_reset_credits" }), let amount = summary.amount,
               amount >= 0 else {
-            return EarnedResets(status: .unknown, count: nil, nextExpiresAt: nil, observedAt: nil)
+            return EarnedResets(status: .unknown, count: nil, nextExpiresAt: nil, observedAt: nil, expiresAt: nil)
         }
-        let next = credits.filter { $0.id != "quota_reset_credits" && $0.status?.lowercased() == "available" }
-            .compactMap(\.expiresAt).filter { $0 > now }.min()
+        let expiries = credits.filter { $0.id != "quota_reset_credits" && $0.status?.lowercased() == "available" }
+            .compactMap(\.expiresAt).filter { $0 > now }.sorted()
         return EarnedResets(status: .supported, count: NSDecimalNumber(decimal: amount).intValue,
-                            nextExpiresAt: next, observedAt: summary.asOf)
+                            nextExpiresAt: expiries.first, observedAt: summary.asOf, expiresAt: expiries)
+    }
+
+    private static func providerCredits(_ credits: [CreditBalance]) -> ProviderCredits? {
+        guard let credit = credits.first(where: { $0.unit == .credits }),
+              credit.amount != nil || credit.isUnlimited || credit.asOf != nil else { return nil }
+        return ProviderCredits(amount: credit.amount, unlimited: credit.isUnlimited, asOf: credit.asOf)
     }
 
     private static func apiCredits(_ credits: [CreditBalance]) -> [APICredit] {
@@ -311,13 +336,13 @@ extension LimitsDigest.Account {
         }
         return LimitsDigest.Account(label: label, shortLabel: shortLabel, provider: provider, plan: plan, state: .stale,
                                     observedAt: observedAt, weeklyPercentLeft: nil, windows: windows, earnedResets: earnedResets,
-                                    apiCredits: apiCredits, apiUsable: LimitsDigest.apiUsable(apiCredits, now: now))
+                                    apiCredits: apiCredits, apiUsable: LimitsDigest.apiUsable(apiCredits, now: now), credits: credits)
     }
 
     fileprivate func withUsableCredits(now: Date) -> LimitsDigest.Account {
         LimitsDigest.Account(label: label, shortLabel: shortLabel, provider: provider, plan: plan, state: state,
                              observedAt: observedAt, weeklyPercentLeft: weeklyPercentLeft, windows: windows, earnedResets: earnedResets,
-                             apiCredits: apiCredits, apiUsable: LimitsDigest.apiUsable(apiCredits, now: now))
+                             apiCredits: apiCredits, apiUsable: LimitsDigest.apiUsable(apiCredits, now: now), credits: credits)
     }
 }
 

@@ -108,7 +108,9 @@ final class ApplicationModel {
 
     private func writeLimitsDigest(now: Date = Date()) {
         guard !isDemo else { return }
-        let digest = LimitsDigest(overview: UsageOverview(profiles: profiles, snapshots: snapshots, now: now), now: now, calendar: .current)
+        let digest = LimitsDigest(overview: UsageOverview(profiles: profiles, snapshots: snapshots, now: now), now: now, calendar: .current,
+                                  appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+                                  appPath: Bundle.main.bundleURL.path)
         let previous = digestWrite
         digestWrite = Task.detached(priority: .utility) {
             await previous?.value

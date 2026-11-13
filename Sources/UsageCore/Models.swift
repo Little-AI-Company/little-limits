@@ -119,11 +119,13 @@ public struct CreditBalance: Identifiable, Codable, Sendable, Equatable {
     public let doesNotExpire: Bool
     public let currencyCode: String?
     public let originalAmount: Decimal?
+    public let grantedAt: Date?
 
     public init(id: String, title: String, amount: Decimal?, unit: CreditUnit = .usd,
                 expiresAt: Date? = nil, source: CreditSource = .provider,
                 asOf: Date? = nil, detail: String? = nil, isUnlimited: Bool = false, status: String? = nil,
-                doesNotExpire: Bool = false, currencyCode: String? = nil, originalAmount: Decimal? = nil) {
+                doesNotExpire: Bool = false, currencyCode: String? = nil, originalAmount: Decimal? = nil,
+                grantedAt: Date? = nil) {
         self.id = id
         self.title = title
         self.amount = amount
@@ -137,6 +139,7 @@ public struct CreditBalance: Identifiable, Codable, Sendable, Equatable {
         self.doesNotExpire = doesNotExpire
         self.currencyCode = currencyCode
         self.originalAmount = originalAmount
+        self.grantedAt = grantedAt
     }
 }
 

@@ -106,7 +106,8 @@ public struct CodexUsageResponse: Decodable, Sendable {
                 credits.append(CreditBalance(id: "quota_reset_" + credit.id, title: credit.title ?? "Earned reset",
                                              amount: nil, unit: .resets,
                                              expiresAt: credit.expiresAt.map(Date.init(timeIntervalSince1970:)),
-                                             asOf: observedAt, status: credit.status, doesNotExpire: credit.doesNotExpire))
+                                             asOf: observedAt, status: credit.status, doesNotExpire: credit.doesNotExpire,
+                                             grantedAt: credit.grantedAt.map(Date.init(timeIntervalSince1970:))))
             }
         }
         let empty = windows.isEmpty && credits.isEmpty
