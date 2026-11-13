@@ -98,9 +98,11 @@ else
 fi
 
 sed_script="s/^( *version ).*/\\1\"$version\"/;s/^( *sha256 ).*/\\1\"$sha256\"/"
+binary_line='binary "#{appdir}/Little Limits.app/Contents/Helpers/little-limits"'
+add_binary="grep -qF 'Contents/Helpers/little-limits' Casks/little-limits.rb || perl -pi -e 's|^( *)app \"Little Limits\\.app\"\\n\\z|\$&\${1}$binary_line\\n|' Casks/little-limits.rb"
 printf '\nLittle Limits %s (build %s) is built, notarized and landed on main as %s.\nArtifact: %s\nSHA-256: %s\n' "$version" "$build_number" "$release_commit" "$archive" "$sha256"
 printf '\nParker, step 1. Publish the release:\n\n'
 printf "gh release create v%s '%s' --repo Little-AI-Company/little-limits --target %s --title 'Little Limits %s' --notes-file '%s'\n" "$version" "$archive" "$release_commit" "$version" "$notes"
-printf '\nStep 2. Casks/little-limits.rb needs exactly these lines:\n\n  version "%s"\n  sha256 "%s"\n  url "%s"\n' "$version" "$sha256" "$download_url"
-printf '\nThe url line stays as it is. Apply it and push the tap:\n\n'
-printf "cd \"\$(brew --repository parkerrex/tap)\" && git pull -q --ff-only && grep -qF '%s' Casks/little-limits.rb && sed -i '' -E '%s' Casks/little-limits.rb && git commit -qam 'little-limits %s' && git push\n" "$download_url" "$sed_script" "$version"
+printf '\nStep 2. Casks/little-limits.rb needs exactly these lines:\n\n  version "%s"\n  sha256 "%s"\n  url "%s"\n  %s\n' "$version" "$sha256" "$download_url" "$binary_line"
+printf '\nThe url line stays as it is. The binary line puts the little-limits command on PATH; the command adds it under the app line when the cask lacks it. Apply it and push the tap:\n\n'
+printf "cd \"\$(brew --repository parkerrex/tap)\" && git pull -q --ff-only && grep -qF '%s' Casks/little-limits.rb && sed -i '' -E '%s' Casks/little-limits.rb && { %s; } && grep -qF 'Contents/Helpers/little-limits' Casks/little-limits.rb && git commit -qam 'little-limits %s' && git push\n" "$download_url" "$sed_script" "$add_binary" "$version"

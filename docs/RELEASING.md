@@ -108,7 +108,7 @@ Public releases are signed with the Developer ID Application certificate of RAPT
 
 3. Verify the notarized app before archiving it: `codesign --verify --deep --strict`, `xcrun stapler validate`, `spctl --assess --type execute --verbose=2`, and `lipo -archs` on both executables. Create the release archive with `ditto -c -k --keepParent` and record its `shasum -a 256`.
 
-4. Publish the archive as `Little-Limits-<version>.zip` on a `v<version>` GitHub release, then update the cask in `ParkerRex/homebrew-tap` with the version and SHA-256. Install with `brew install --cask parkerrex/tap/<cask>` on a clean account to confirm. The cask is `Casks/little-limits.rb`.
+4. Publish the archive as `Little-Limits-<version>.zip` on a `v<version>` GitHub release, then update the cask in `ParkerRex/homebrew-tap` with the version and SHA-256, and a `binary "#{appdir}/Little Limits.app/Contents/Helpers/little-limits"` line under the `app` line so `little-limits` lands on PATH (`release.sh` prints the edit and adds the line when the cask lacks it). Install with `brew install --cask parkerrex/tap/<cask>` on a clean account to confirm. The cask is `Casks/little-limits.rb`.
 
 5. Add the version to `CHANGELOG.md` and `website/changelog/index.html` with the [changelog skill](../.agents/skills/changelog/SKILL.md), in the release commit or right after it. Keep the GitHub release notes in line with it. In the same commit, change the version in the three places the download page names it: the hero line and `softwareVersion` in `website/index.html`, and `website/llms.txt`.
 
