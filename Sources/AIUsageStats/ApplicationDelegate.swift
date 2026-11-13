@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import UsageCore
 import UsageHistory
 
@@ -493,6 +494,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             statusMenu.addItem(UsageMenu.stateLine(message, detail: message, target: self, action: #selector(showAccounts(_:))))
         }
         if model.isChangingAccounts { statusMenu.addItem(UsageMenu.progress("Saving account…")) }
+        if !model.profiles.isEmpty, !model.isDemo, SMAppService.mainApp.status != .enabled {
+            statusMenu.addItem(UsageMenu.stateLine("Starts only when opened. Turn on Launch at login…",
+                                                   detail: "After a restart Little Limits stays closed and its readings go stale until it is opened.",
+                                                   target: self, action: #selector(showSettings(_:))))
+        }
         if !model.profiles.isEmpty { statusMenu.addItem(menuBarAccountsItem()) }
         appendApplicationCommands(includeRefresh: !model.profiles.isEmpty, includeSetup: model.profiles.isEmpty)
     }

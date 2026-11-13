@@ -127,7 +127,7 @@ enum InterfaceFormatting {
             guard let code = currencyCode else { return "\(NSDecimalNumber(decimal: amount).stringValue) (currency unavailable)" }
             return NSDecimalNumber(decimal: amount).doubleValue.formatted(.currency(code: code))
         case .credits:
-            return "\(NSDecimalNumber(decimal: amount).stringValue) credits"
+            return "\(amount.formatted(.number.precision(.fractionLength(0)))) credits"
         case .resets:
             return "\(NSDecimalNumber(decimal: amount).stringValue) resets"
         }
