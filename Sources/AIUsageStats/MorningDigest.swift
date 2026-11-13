@@ -80,6 +80,10 @@ final class MorningDigest {
         let missed = now.timeIntervalSince(due) > 10 * 60 ? due : nil
         Task {
             await model.refreshAndWait(timeout: Self.refreshTimeout)
+            guard preferences.isEnabled else {
+                isPosting = false
+                return
+            }
             let sent = Date()
             let digest = LimitsDigest(overview: UsageOverview(profiles: model.profiles, snapshots: model.snapshots, now: sent),
                                       now: sent, calendar: calendar)
