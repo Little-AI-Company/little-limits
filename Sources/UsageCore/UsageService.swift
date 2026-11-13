@@ -654,16 +654,24 @@ public actor UsageService {
             credentials.refreshPending = true
             try claudeCredentials.save(credentials, accountID: profile.id, allowInteraction: false)
             let pendingCredentials = credentials
+            var step = "the token refresh"
             do {
                 let token = try await claudeClient.refresh(refreshToken)
+                step = "reading the renewed sign-in"
                 credentials = try token.credentials(identity: pendingCredentials.identity, previousRefreshToken: refreshToken)
+                step = "the profile request"
                 let providerProfile = try await claudeClient.profile(accessToken: credentials.accessToken)
+                step = "the account check"
                 _ = try providerProfile.resolvedIdentity(expected: profile.providerAccountID,
                                                        tokenAccount: token.account?.uuid, tokenOrganization: token.organization?.uuid)
+                step = "the connection check"
                 try validateClaudeCredentials(pendingCredentials, profileID: profile.id, generation: generation)
+                step = "saving to Keychain"
                 try claudeCredentials.save(credentials, accountID: profile.id, allowInteraction: false)
             } catch {
-                throw UsageError.authenticationRequired("Claude sign-in renewal could not be confirmed. Reconnect this account.")
+                let cause = (error as? UsageError)?.errorDescription ?? "No reason was given."
+                let text = "Claude sign-in renewal stopped at \(step). \(cause)"
+                throw UsageError.authenticationRequired(text.hasSuffix("Reconnect this account.") ? text : text + " Reconnect this account.")
             }
         }
         let providerProfile = try await claudeClient.profile(accessToken: credentials.accessToken)

@@ -455,7 +455,9 @@ struct ClaudeOAuthClient: Sendable {
         if authorizationExchange, [400, 401, 403].contains(response.status) {
             throw UsageError.authenticationRequired("Claude did not accept this read-only authorization. This experimental connection may be unavailable.")
         }
-        if [401, 403].contains(response.status) { throw UsageError.authenticationRequired("Claude access was refused. Reconnect this account.") }
+        if [401, 403].contains(response.status) {
+            throw UsageError.authenticationRequired("Claude access was refused (HTTP \(response.status)). Reconnect this account.")
+        }
         if response.status == 429 { throw UsageError.providerFailure("Claude is limiting usage checks. Wait before checking again.") }
         guard (200...299).contains(response.status) else {
             throw UsageError.providerFailure("Claude could not complete the account request (HTTP \(response.status)).")
