@@ -110,6 +110,12 @@ public enum UseNowRule {
                   let amount = summary.amount, amount > 0 else { return nil }
             return NSDecimalNumber(decimal: amount).intValue
         }.reduce(0, +)
+        let resetGrants: [CreditBalance] = members.flatMap { account -> [CreditBalance] in
+            (account.snapshot?.credits ?? []).filter { credit in
+                credit.unit == .resets && credit.id != "quota_reset_credits" && credit.status?.lowercased() == "available"
+            }
+        }
+        let firstExpiry: Date? = resetGrants.compactMap(\.expiresAt).filter { $0 > now }.min()
         var reason = "No current \(provider.title) account has at least \(Int(minimumPercentLeft))% of its week and 5-hour window left."
         if let soonest {
             reason += " \(soonest.account.shortIdentity) is usable \(LimitsDigestText.moment(soonest.date, now: now, calendar: calendar))."
@@ -118,7 +124,11 @@ public enum UseNowRule {
         if notCurrent > 0 {
             reason += " \(notCurrent) account\(notCurrent == 1 ? " has" : "s have") no current reading."
         }
-        if earned > 0 { reason += " \(earned) earned reset\(earned == 1 ? "" : "s") available." }
+        if earned > 0 {
+            reason += " \(earned) earned reset\(earned == 1 ? "" : "s") available"
+            if let firstExpiry { reason += ", first expires \(LimitsDigestText.moment(firstExpiry, now: now, calendar: calendar))" }
+            reason += "."
+        }
         return UseNowPick(provider: provider, need: need, outcome: .noneUsable, account: nil, shortLabel: nil, runnerUp: nil,
                           usableAt: soonest?.date,
                           reason: reason)

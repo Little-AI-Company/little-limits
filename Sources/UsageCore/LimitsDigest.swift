@@ -276,8 +276,7 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
     private static func earnedResets(_ account: UsageOverviewAccount, now: Date) -> EarnedResets {
         let credits = account.snapshot?.credits.filter { $0.unit == .resets } ?? []
         guard !credits.isEmpty else {
-            return EarnedResets(status: account.profile.provider == .claude ? .notSupported : .unknown,
-                                count: nil, nextExpiresAt: nil, observedAt: nil, expiresAt: nil)
+            return EarnedResets(status: .unknown, count: nil, nextExpiresAt: nil, observedAt: nil, expiresAt: nil)
         }
         guard let summary = credits.first(where: { $0.id == "quota_reset_credits" }), let amount = summary.amount,
               amount >= 0 else {

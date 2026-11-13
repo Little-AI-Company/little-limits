@@ -111,7 +111,7 @@ public enum LimitsDigestText {
                 parts.append("\(account.shortLabel) (Codex) unknown")
             }
         }
-        if accounts.contains(where: { $0.provider == .claude }) { parts.append("Claude: not supported") }
+        if accounts.contains(where: { $0.provider == .claude }) { parts.append("Claude limit resets: not read yet") }
         return parts.isEmpty ? nil : "Earned resets: " + parts.joined(separator: ". ") + "."
     }
 
@@ -253,7 +253,7 @@ extension LimitsDigestText {
         for account in digest.accounts where account.provider == .codex && account.earnedResets.status == .supported {
             guard let count = account.earnedResets.count, count > 0 else { continue }
             var text = "\(account.provider.title) \(account.shortLabel): \(count) earned reset\(count == 1 ? "" : "s")"
-            if let next = account.earnedResets.nextExpiresAt { text += ", next expires \(moment(next, now: now, calendar: calendar))" }
+            if let expiries = expiriesText(account.earnedResets, now: now, calendar: calendar) { text += ", \(expiries)" }
             lines.append(text)
         }
         for account in digest.accounts where !account.apiUsable.isEmpty {

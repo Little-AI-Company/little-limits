@@ -604,8 +604,8 @@ enum HomeInterfaceFormatting {
         let basis = readingBasis(account, now: now)
         let credits = account.snapshot?.credits.filter { $0.unit == .resets } ?? []
         if credits.isEmpty, account.profile.provider == .claude {
-            return EarnedFacts(unavailableReason: "Not supported", isSupported: false,
-                               help: "Claude accounts do not report earned resets.")
+            return EarnedFacts(unavailableReason: "Not read yet", isSupported: false,
+                               help: "Little Limits does not read Claude limit resets yet.")
         }
         switch basis {
         case .authentication:

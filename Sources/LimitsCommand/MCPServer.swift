@@ -197,7 +197,7 @@ struct MCPServer {
                  ["type": "object", "properties": ["within_days": ["type": "number", "minimum": 0, "default": 7]]])
             case .earnedResets:
                 ("Earned resets",
-                 "Banked quota resets: the Codex count and the expiry of each one. Claude does not support earned resets.",
+                 "Banked quota resets: the Codex count and the expiry of each one. Little Limits does not read Claude limit resets yet.",
                  ["type": "object", "properties": [:]])
             case .apiCredits:
                 ("API credits",
