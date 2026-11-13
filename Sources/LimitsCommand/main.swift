@@ -7,7 +7,8 @@ func usage() -> String {
 
       status          Print what is left on each Claude and Codex account, when it resets,
                       and which account to use now. This is the default.
-      status --json   Print the limits file Little Limits writes after each refresh.
+      status --json   Print the limits file Little Limits writes after each refresh, checked
+                      against the clock, with age_minutes and stale added.
       mcp             Run a read-only MCP server on standard input and output for
                       Claude Code, Codex CLI and Claude Desktop.
       --digest <path> Read this limits file instead of the one Little Limits writes.
@@ -41,7 +42,15 @@ case [], ["status"]:
     }
 case ["status", "--json"]:
     do {
-        FileHandle.standardOutput.write(try LimitsDigest.read(from: digestURL).encoded())
+        let now = Date()
+        let digest = try LimitsDigest.read(from: digestURL).revalidated(at: now)
+        var status: [String: JSONValue] = [:]
+        if case .object(let fields) = try JSONDecoder().decode(JSONValue.self, from: digest.encoded()) { status = fields }
+        status["age_minutes"] = .integer(Int(digest.age(at: now) / 60))
+        status["stale"] = .bool(digest.isOutdated(at: now))
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        FileHandle.standardOutput.write(try encoder.encode(JSONValue.object(status)))
         print()
     } catch {
         fail(DigestSource.missingMessage(error, url: digestURL), code: 2)

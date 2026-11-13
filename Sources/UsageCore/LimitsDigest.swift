@@ -171,13 +171,17 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
             }
             return UseNowPick(provider: pick.provider, need: pick.need, outcome: .noneUsable, account: nil, shortLabel: nil,
                               runnerUp: nil, usableAt: nil,
-                              reason: "The reading of \(pick.shortLabel ?? "that account") is no longer current. Open Little Limits to read again.")
+                              reason: "The reading of \(pick.shortLabel ?? "that account") is no longer current. Open Little Limits to read again: \(openCommand)")
         }
         return LimitsDigest(version: version, asOf: asOf, timeZone: timeZone, accounts: accounts, useNow: useNow,
                             appVersion: appVersion, appPath: appPath)
     }
 
     public func age(at now: Date) -> TimeInterval { max(0, now.timeIntervalSince(asOf)) }
+
+    public var openCommand: String { "open -g -j \"\(appPath ?? Self.installedAppPath)\"" }
+
+    public static let installedAppPath = "/Applications/Little Limits.app"
 
     public func isOutdated(at now: Date) -> Bool { age(at: now) > Self.outdatedAge }
 

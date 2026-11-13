@@ -159,7 +159,7 @@ struct MCPServer {
     private var instructions: String {
         """
         Little Limits reports what is left on each Claude and Codex subscription account on this Mac, when each window resets, \
-        earned resets, Claude API credits, and which account to use now. Every number is what is left, never what is used. \
+        earned resets with each expiry, Claude API credits, Codex credits, and which account to use now. Every number is what is left, never what is used. \
         Answers come from the file the Little Limits app writes after each refresh; check as_of, age_minutes and stale before \
         treating a value as current. A null value is unknown, never zero. The tools are read-only and never refresh, buy, or reset anything.
         """
@@ -184,7 +184,7 @@ struct MCPServer {
             let (title, description, schema): (String, String, JSONValue) = switch self {
             case .limitsOverview:
                 ("Limits overview",
-                 "Where are my accounts at: weekly and 5-hour quota left on every Claude and Codex account, when each resets, earned resets, Claude API credits, and which account to use now.",
+                 "Where are my accounts at: weekly and 5-hour quota left on every Claude and Codex account, when each resets, earned resets, Claude API credits, Codex credits, and which account to use now.",
                  ["type": "object", "properties": ["provider": provider]])
             case .pickAccount:
                 ("Pick an account",
@@ -197,11 +197,11 @@ struct MCPServer {
                  ["type": "object", "properties": ["within_days": ["type": "number", "minimum": 0, "default": 7]]])
             case .earnedResets:
                 ("Earned resets",
-                 "Banked quota resets: the Codex count and next expiry. Claude does not support earned resets.",
+                 "Banked quota resets: the Codex count and the expiry of each one. Claude does not support earned resets.",
                  ["type": "object", "properties": [:]])
             case .apiCredits:
                 ("API credits",
-                 "Claude API credits read from the Claude Platform (experimental): purchased, monthly grant and promotional amounts kept apart, each with its expiry.",
+                 "Claude API credits read from the Claude Platform (experimental): purchased, monthly grant and promotional amounts kept apart, each with its expiry. Codex credits as Codex reports them, with when they were read.",
                  ["type": "object", "properties": [:]])
             }
             return ["name": .string(rawValue), "title": .string(title), "description": .string(description), "inputSchema": schema,
@@ -275,10 +275,20 @@ struct MCPServer {
                 })]
             case .apiCredits:
                 let lines = LimitsDigestText.apiCreditLines(digest.accounts, now: now, calendar: calendar)
-                text = ([heading] + (lines.isEmpty ? ["No Claude accounts are set up in Little Limits."] : lines)).joined(separator: "\n")
-                structured = ["accounts": .array(try digest.accounts.filter { $0.provider == .claude }.map { account in
-                    ["account": .string(account.label), "api_credits": try encode(account.apiCredits),
-                     "api_usable": try encode(account.apiUsable)]
+                    + LimitsDigestText.codexCreditLines(digest.accounts, now: now, calendar: calendar)
+                text = ([heading] + (lines.isEmpty ? ["No Claude accounts or Codex credits are in Little Limits."] : lines)).joined(separator: "\n")
+                structured = ["accounts": .array(try digest.accounts.compactMap { account -> JSONValue? in
+                    let entry: JSONValue
+                    switch account.provider {
+                    case .claude:
+                        entry = ["account": .string(account.label), "provider": .string(account.provider.rawValue),
+                                 "api_credits": try encode(account.apiCredits), "api_usable": try encode(account.apiUsable)]
+                    case .codex:
+                        guard let credits = account.credits else { return nil }
+                        entry = ["account": .string(account.label), "provider": .string(account.provider.rawValue),
+                                 "state": .string(account.state.rawValue), "credits": try encode(credits)]
+                    }
+                    return entry
                 })]
             }
             var content = structured

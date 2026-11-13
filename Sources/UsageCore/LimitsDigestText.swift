@@ -19,9 +19,10 @@ public enum LimitsDigestText {
 
     public static func heading(_ digest: LimitsDigest, now: Date, calendar: Calendar) -> String {
         let age = digest.age(at: now)
-        var text = "Little Limits, as of \(moment(digest.asOf, now: now, calendar: calendar)) (\(ageText(age)))"
+        let zone = calendar.timeZone.abbreviation(for: digest.asOf) ?? calendar.timeZone.identifier
+        var text = "Little Limits, as of \(moment(digest.asOf, now: now, calendar: calendar)) (\(ageText(age))), times in \(zone)"
         if digest.isOutdated(at: now) {
-            text += ". Not current: Little Limits last wrote this \(ageText(age)). Open Little Limits to read again."
+            text += ". Not current: Little Limits last wrote this \(ageText(age)). Open it to read again: \(digest.openCommand)"
         }
         return text
     }
@@ -31,6 +32,7 @@ public enum LimitsDigestText {
         var lines: [String] = []
         if let earned = earnedResetsLine(accounts, now: now, calendar: calendar) { lines.append(earned) }
         lines += apiCreditLines(accounts, now: now, calendar: calendar)
+        lines += codexCreditLines(accounts, now: now, calendar: calendar)
         for pick in digest.useNow where pick.need == .weekly && (provider == nil || pick.provider == provider) {
             lines.append(useNowLine(pick))
         }
@@ -102,7 +104,7 @@ public enum LimitsDigestText {
             case .supported:
                 let count = earned.count ?? 0
                 var text = "\(account.shortLabel) (Codex) \(count) left"
-                if count > 0, let next = earned.nextExpiresAt { text += ", first expires \(moment(next, now: now, calendar: calendar))" }
+                if count > 0, let expiries = expiriesText(earned, now: now, calendar: calendar) { text += ", \(expiries)" }
                 if account.state != .current { text = "\(account.shortLabel) (Codex) last known \(count) left" }
                 parts.append(text)
             case .unknown, .notSupported:
@@ -111,6 +113,28 @@ public enum LimitsDigestText {
         }
         if accounts.contains(where: { $0.provider == .claude }) { parts.append("Claude: not supported") }
         return parts.isEmpty ? nil : "Earned resets: " + parts.joined(separator: ". ") + "."
+    }
+
+    public static func expiriesText(_ earned: LimitsDigest.EarnedResets, now: Date, calendar: Calendar) -> String? {
+        let dates = (earned.expiresAt ?? earned.nextExpiresAt.map { [$0] } ?? []).filter { $0 > now }
+        guard !dates.isEmpty else { return nil }
+        let list = dates.map { moment($0, now: now, calendar: calendar) }.joined(separator: ", ")
+        return earned.expiresAt == nil ? "first expires \(list)" : "expiring \(list)"
+    }
+
+    public static func codexCreditLines(_ accounts: [LimitsDigest.Account], now: Date, calendar: Calendar) -> [String] {
+        accounts.filter { $0.provider == .codex }.compactMap { account -> String? in
+            guard let credits = account.credits else { return nil }
+            let amount: String = credits.unlimited ? "unlimited" : (credits.amount.map(creditCount) ?? "unknown")
+            let qualifier = account.state == .current ? "" : "last known "
+            var text = "Codex credits, \(account.shortLabel): \(qualifier)\(amount)"
+            if let asOf = credits.asOf { text += " (as of \(moment(asOf, now: now, calendar: calendar)))" }
+            return text + "."
+        }
+    }
+
+    public static func creditCount(_ amount: Decimal) -> String {
+        amount.formatted(.number.precision(.fractionLength(0)).locale(Locale(identifier: "en_US")))
     }
 
     public static func apiCreditLines(_ accounts: [LimitsDigest.Account], now: Date, calendar: Calendar) -> [String] {
@@ -183,7 +207,7 @@ public enum LimitsDigestText {
             return "\(formatter.string(from: date)) \(time)"
         }
         formatter.dateFormat = calendar.component(.year, from: date) == calendar.component(.year, from: now) ? "MMM d" : "MMM d, yyyy"
-        return formatter.string(from: date)
+        return "\(formatter.string(from: date)) \(time)"
     }
 }
 
