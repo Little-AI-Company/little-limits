@@ -81,7 +81,7 @@ The experimental Console connection keeps a separate persistent WebKit data stor
 
 Public releases are signed with the Developer ID Application certificate of RAPTURE ENTERTAINERS, INC. (team `9FL5S77YVH`), notarized by Apple, and published as a GitHub release and a Homebrew cask in `ParkerRex/homebrew-tap`. Local Apple Development or ad hoc builds are never published.
 
-`scripts/release.sh <version>` runs steps 1 to 3 on the release Mac, with `NOTARY_PROFILE` set or `build/XcodeUploadOptions.plist` present. It needs a clean checkout of the current `origin/main` and a `CHANGELOG.md` section for the version, lands the version bump as `release: <version>`, and stops before step 4: it prints the `gh release create` command, the cask lines, and the tap push for Parker.
+`scripts/release.sh <version>` runs steps 1 to 3 on the release Mac, with `NOTARY_PROFILE` set or `build/XcodeUploadOptions.plist` present. It needs a clean checkout of the current `origin/main` and a `CHANGELOG.md` section for the version, lands the version bump as `release: <version>`, and stops before step 4: it prints the `gh release create` command, the cask lines, and the tap push for Parker. When `release: <version>` is already the last change to `Resources/Info.plist` on main (main moved while the first run built, so it stopped after landing the bump), running it again with the same version builds and verifies that version from the current main, lands nothing, and prints the same steps with the current main as the release target.
 
 1. Build the universal, hardened-runtime package from a clean `main` commit whose `Tested:` trailers pass and whose GitHub Actions run on `main` passed:
 

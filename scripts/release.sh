@@ -24,19 +24,29 @@ git fetch --quiet origin main
 [[ -z "$(git status --porcelain)" ]] || fail 'The working tree must be clean.'
 grep -qF "## $version (" CHANGELOG.md || fail "CHANGELOG.md has no $version section. Write and land it first (.agents/skills/changelog/SKILL.md)."
 current_version="$(plutil -extract CFBundleShortVersionString raw Resources/Info.plist)"
-[[ "$current_version" != "$version" && "$(printf '%s\n%s\n' "$current_version" "$version" | sort -V | tail -1)" == "$version" ]] ||
-    fail "$version must be newer than $current_version."
+version_landed=0
+if [[ "$current_version" == "$version" ]]; then
+    [[ "$(git log -1 --format=%s -- Resources/Info.plist)" == "release: $version" ]] || fail "$version must be newer than $current_version."
+    version_landed=1
+else
+    [[ "$(printf '%s\n%s\n' "$current_version" "$version" | sort -V | tail -1)" == "$version" ]] || fail "$version must be newer than $current_version."
+fi
 base_commit="$(git rev-parse HEAD)"
-build_number=$(($(plutil -extract CFBundleVersion raw Resources/Info.plist) + 1))
 
-trap 'git checkout --quiet -- Resources/Info.plist' EXIT
-sed -i.bak -E \
-    -e "/CFBundleShortVersionString/{n;s|<string>.*</string>|<string>$version</string>|;}" \
-    -e "/<key>CFBundleVersion</{n;s|<string>.*</string>|<string>$build_number</string>|;}" \
-    Resources/Info.plist
-rm -f Resources/Info.plist.bak
-[[ "$(plutil -extract CFBundleShortVersionString raw Resources/Info.plist)" == "$version" &&
-    "$(plutil -extract CFBundleVersion raw Resources/Info.plist)" == "$build_number" ]] || fail 'Could not set the version in Resources/Info.plist.'
+if [[ "$version_landed" == 1 ]]; then
+    build_number="$(plutil -extract CFBundleVersion raw Resources/Info.plist)"
+    printf 'Version %s (build %s) is already on main; building it from %s.\n' "$version" "$build_number" "$base_commit"
+else
+    build_number=$(($(plutil -extract CFBundleVersion raw Resources/Info.plist) + 1))
+    trap 'git checkout --quiet -- Resources/Info.plist' EXIT
+    sed -i.bak -E \
+        -e "/CFBundleShortVersionString/{n;s|<string>.*</string>|<string>$version</string>|;}" \
+        -e "/<key>CFBundleVersion</{n;s|<string>.*</string>|<string>$build_number</string>|;}" \
+        Resources/Info.plist
+    rm -f Resources/Info.plist.bak
+    [[ "$(plutil -extract CFBundleShortVersionString raw Resources/Info.plist)" == "$version" &&
+        "$(plutil -extract CFBundleVersion raw Resources/Info.plist)" == "$build_number" ]] || fail 'Could not set the version in Resources/Info.plist.'
+fi
 
 rm -rf "$release_directory"
 DISTRIBUTION=1 UNIVERSAL=1 CODE_SIGN_IDENTITY="$signing_identity" OUTPUT_DIRECTORY="$release_directory" scripts/package_app.sh
@@ -77,10 +87,15 @@ notes="$release_directory/notes.md"
     printf '\nSHA-256 of Little-Limits-%s.zip: `%s`. Signed with Developer ID and notarized by Apple.\n' "$version" "$sha256"
 } >"$notes"
 
-git commit --quiet -am "release: $version" -m "Raises the version to $version (build $build_number)."
-scripts/push_main.sh
-release_commit="$(git rev-parse HEAD)"
-[[ "$(git rev-parse HEAD^)" == "$base_commit" ]] || fail "main moved while building. $release_commit is landed but $archive was built from $base_commit; run this again."
+if [[ "$version_landed" == 1 ]]; then
+    release_commit="$base_commit"
+else
+    git commit --quiet -am "release: $version" -m "Raises the version to $version (build $build_number)."
+    scripts/push_main.sh
+    release_commit="$(git rev-parse HEAD)"
+    [[ "$(git rev-parse HEAD^)" == "$base_commit" ]] ||
+        fail "main moved while building. $release_commit is landed but $archive was built from $base_commit. Run scripts/release.sh $version again: it builds the landed version from the new main and lands nothing."
+fi
 
 sed_script="s/^( *version ).*/\\1\"$version\"/;s/^( *sha256 ).*/\\1\"$sha256\"/"
 printf '\nLittle Limits %s (build %s) is built, notarized and landed on main as %s.\nArtifact: %s\nSHA-256: %s\n' "$version" "$build_number" "$release_commit" "$archive" "$sha256"
