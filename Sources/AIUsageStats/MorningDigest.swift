@@ -76,8 +76,7 @@ final class MorningDigest {
 
     private func post(due: Date, now: Date, calendar: Calendar) {
         isPosting = true
-        lastDay = Self.dayKey(now, calendar: calendar)
-        defaults?.set(lastDay, forKey: Self.lastDayKey)
+        let day = Self.dayKey(now, calendar: calendar)
         let missed = now.timeIntervalSince(due) > 10 * 60 ? due : nil
         Task {
             await model.refreshAndWait(timeout: Self.refreshTimeout)
@@ -85,8 +84,11 @@ final class MorningDigest {
             let digest = LimitsDigest(overview: UsageOverview(profiles: model.profiles, snapshots: model.snapshots, now: sent),
                                       now: sent, calendar: calendar)
             let notice = LimitsDigestText.morningDigest(digest, now: sent, calendar: calendar, missed: missed)
-            await notifications.post(identifier: "morning-digest-\(Self.dayKey(sent, calendar: calendar))",
-                                     title: notice.title, body: notice.body)
+            if await notifications.post(identifier: "morning-digest-\(Self.dayKey(sent, calendar: calendar))",
+                                        title: notice.title, body: notice.body) {
+                lastDay = day
+                defaults?.set(day, forKey: Self.lastDayKey)
+            }
             isPosting = false
         }
     }
