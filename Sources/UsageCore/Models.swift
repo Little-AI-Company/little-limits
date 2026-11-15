@@ -205,8 +205,8 @@ public enum UsageFormatting {
         let days = minutes / 1_440
         let hours = minutes % 1_440 / 60
         let remainingMinutes = minutes % 60
-        if days > 0 { return "\(days)d \(hours)h" }
-        if hours > 0 { return "\(hours)h \(remainingMinutes)m" }
+        if days > 0 { return hours > 0 ? "\(days)d \(hours)h" : "\(days)d" }
+        if hours > 0 { return remainingMinutes > 0 ? "\(hours)h \(remainingMinutes)m" : "\(hours)h" }
         return "\(remainingMinutes)m"
     }
 }

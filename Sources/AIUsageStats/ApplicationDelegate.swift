@@ -105,8 +105,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
         if accounts?.window?.isVisible == true { accounts?.render() }
         if isMenuTracking {
-            for item in statusMenu.items where item.action == #selector(reconnectAccountFromMenu(_:)) {
-                item.isEnabled = canReconnectFromMenu
+            for item in statusMenu.items where item.action == #selector(reconnectAccountFromMenu(_:))
+                || item.action == #selector(refreshAccountFromMenu(_:)) {
+                item.isEnabled = validateMenuItem(item)
             }
             for item in statusMenu.items where item.action == #selector(refreshAllAccounts(_:)) {
                 item.title = model.isRefreshing ? "Refreshing…" : "Refresh All"
@@ -377,8 +378,9 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         useFirst.state = model.menuBarShowsUseFirst ? .on : .off
         submenu.addItem(useFirst)
         submenu.addItem(.separator())
+        let names = Dictionary(uniqueKeysWithValues: UsageOverview(profiles: model.profiles, snapshots: [:]).accounts.map { ($0.id, $0.shortIdentity) })
         for profile in model.profiles {
-            let account = NSMenuItem(title: "\(InterfaceFormatting.provider(profile.provider)) · \(InterfaceFormatting.accountIdentity(profile))",
+            let account = NSMenuItem(title: "\(InterfaceFormatting.provider(profile.provider)) · \(names[profile.id] ?? InterfaceFormatting.accountIdentity(profile))",
                                      action: #selector(toggleMenuBarAccount(_:)), keyEquivalent: "")
             account.target = self
             account.representedObject = profile.id
@@ -417,6 +419,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         presentAccountsWindow(sender, presentation: .preserve)
         accounts?.reconnectAccount(id: id)
     }
+    @objc private func refreshAccountFromMenu(_ sender: NSMenuItem) {
+        guard validateMenuItem(sender), let id = sender.representedObject as? UUID else { return }
+        model.refreshAccount(id)
+    }
+    @objc private func quitApplication(_ sender: Any?) { NSApp.terminate(sender) }
 
     @objc private func addClaudeAccount(_ sender: Any?) { addAccount(.claude) }
     @objc private func addCodexAccount(_ sender: Any?) { addAccount(.codex) }
@@ -451,6 +458,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             return accountsLoaded
         case #selector(reconnectAccountFromMenu(_:)):
             return canReconnectFromMenu
+        case #selector(refreshAccountFromMenu(_:)):
+            return accountsLoaded && !model.isDemo && !model.isRefreshing && !model.isChangingAccounts
         default:
             return true
         }
@@ -486,8 +495,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
                                            consoleMessages: model.consoleMessages, now: now, target: self,
                                            homeAction: #selector(showAccounts(_:)),
                                            openAction: #selector(openAccountFromMenu(_:)),
-                                           reconnectAction: #selector(reconnectAccountFromMenu(_:))) {
-            if item.action == #selector(reconnectAccountFromMenu(_:)) { item.isEnabled = validateMenuItem(item) }
+                                           reconnectAction: #selector(reconnectAccountFromMenu(_:)),
+                                           refreshAction: #selector(refreshAccountFromMenu(_:))) {
+            if item.action == #selector(reconnectAccountFromMenu(_:)) || item.action == #selector(refreshAccountFromMenu(_:)) {
+                item.isEnabled = validateMenuItem(item)
+            }
             statusMenu.addItem(item)
         }
         if let message = model.message {
@@ -507,6 +519,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let commands = makeApplicationMenu(includeRefresh: includeRefresh, includeSetup: includeSetup, includeSettings: true)
         for item in commands.items {
             commands.removeItem(item)
+            if item.action == #selector(NSApplication.terminate(_:)) {
+                item.action = #selector(quitApplication(_:))
+                item.target = self
+                if #available(macOS 27, *) { item.preferredImageVisibility = .hidden }
+            }
             statusMenu.addItem(item)
         }
     }
