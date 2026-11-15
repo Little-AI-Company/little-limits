@@ -39,8 +39,8 @@ enum HomeReadingTone: Equatable {
 
     var symbolColor: NSColor {
         switch self {
-        case .neutral: .labelColor
-        case .useSoon: .controlAccentColor
+        case .neutral: BrandPalette.label
+        case .useSoon: BrandPalette.markBlue
         case .warning: StateSymbolColor.warning
         case .almostOut, .critical: StateSymbolColor.critical
         }
@@ -48,18 +48,40 @@ enum HomeReadingTone: Equatable {
 }
 
 enum StateSymbolColor {
-    static let warning = darkenedInLightAppearance(.systemOrange)
-    static let critical = darkenedInLightAppearance(.systemRed)
-
-    private static func darkenedInLightAppearance(_ color: NSColor) -> NSColor {
-        func resolved(_ name: NSAppearance.Name) -> NSColor {
-            var value = color
-            NSAppearance(named: name)?.performAsCurrentDrawingAppearance { value = color.usingColorSpace(.sRGB) ?? color }
-            return value
+    static let warning = NSColor(name: nil) { appearance in
+        let value = switch appearance.bestMatch(from: [.aqua, .darkAqua, .accessibilityHighContrastAqua,
+                                                       .accessibilityHighContrastDarkAqua]) {
+        case .darkAqua: 0xff9f0a
+        case .accessibilityHighContrastAqua: 0x8f4e00
+        case .accessibilityHighContrastDarkAqua: 0xffb340
+        default: 0xa35a00
         }
-        let light = resolved(.aqua).blended(withFraction: 0.3, of: .black) ?? color
-        let dark = resolved(.darkAqua)
-        return NSColor(name: nil) { appearance in appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light }
+        return NSColor(srgbRed: CGFloat((value >> 16) & 0xff) / 255, green: CGFloat((value >> 8) & 0xff) / 255,
+                       blue: CGFloat(value & 0xff) / 255, alpha: 1)
+    }
+    static let critical = BrandPalette.destructive
+}
+
+enum HomeAccountState: Equatable {
+    case signInRequired
+    case stale
+    case unavailable
+    case unknown
+
+    var symbolName: String {
+        switch self {
+        case .signInRequired: "person.crop.circle.badge.exclamationmark.fill"
+        case .stale: "clock"
+        case .unavailable: "exclamationmark.circle"
+        case .unknown: "questionmark.circle"
+        }
+    }
+
+    @MainActor var symbolColor: NSColor {
+        switch self {
+        case .signInRequired: StateSymbolColor.critical
+        case .stale, .unavailable, .unknown: BrandPalette.secondaryLabel
+        }
     }
 }
 
@@ -93,7 +115,7 @@ struct HomeAccountRow: Equatable, Identifiable {
     var identityIsEmail: Bool
     var plan: String?
     var status: String?
-    var showsReconnect: Bool
+    var state: HomeAccountState?
     var session: HomeMeterCell
     var weekly: HomeMeterCell
     var other: HomeMeterCell
@@ -127,9 +149,18 @@ struct HomeTotalLine: Equatable {
 }
 
 struct HomeAttentionItem: Equatable, Identifiable {
+    enum Action: Equatable {
+        case reconnect
+        case refresh
+    }
+
     var id: UUID
-    var text: String
-    var showsReconnect: Bool
+    var state: HomeAccountState
+    var word: String
+    var account: String
+    var detail: String?
+    var action: Action
+    var help: String
 }
 
 struct HomeDetailContent: Equatable {
@@ -151,7 +182,7 @@ struct HomeDetailContent: Equatable {
 @MainActor
 enum HomeText {
     static func label(_ string: String, size: CGFloat, weight: NSFont.Weight = .regular,
-                      digits: Bool = false, color: NSColor = .labelColor) -> NSTextField {
+                      digits: Bool = false, color: NSColor = BrandPalette.label) -> NSTextField {
         let field = HomeStaticTextField(labelWithString: string)
         field.font = digits ? .monospacedDigitSystemFont(ofSize: size, weight: weight) : .systemFont(ofSize: size, weight: weight)
         field.textColor = color
@@ -162,11 +193,19 @@ enum HomeText {
     }
 
     static func stateSymbol(_ tone: HomeReadingTone, color: NSColor? = nil, size: CGFloat = 11) -> NSImageView? {
-        guard let name = tone.symbolName, let word = tone.word,
-              let image = NSImage(systemSymbolName: name, accessibilityDescription: word)?
+        guard let name = tone.symbolName, let word = tone.word else { return nil }
+        return symbol(name, description: word, color: color ?? tone.symbolColor, size: size)
+    }
+
+    static func stateSymbol(_ state: HomeAccountState, description: String, size: CGFloat = 11) -> NSImageView? {
+        symbol(state.symbolName, description: description, color: state.symbolColor, size: size)
+    }
+
+    private static func symbol(_ name: String, description: String, color: NSColor, size: CGFloat) -> NSImageView? {
+        guard let image = NSImage(systemSymbolName: name, accessibilityDescription: description)?
                 .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: size, weight: .semibold)) else { return nil }
         let view = HomePassImageView(image: image)
-        view.contentTintColor = color ?? tone.symbolColor
+        view.contentTintColor = color
         view.setContentHuggingPriority(.required, for: .horizontal)
         view.setContentCompressionResistancePriority(.required, for: .horizontal)
         view.setAccessibilityElement(false)
@@ -204,15 +243,18 @@ final class HomePassImageView: NSImageView {
 enum HomeInterfaceFormatting {
     static let emptyPeriodText = "No reported resets in this period."
     static let addAccountTitle = "Add an Account"
-    static let addAccountMessage = "Add a Claude or Codex account to see remaining quota and reset times."
+    static let addAccountMessage = "See how much is left on each Claude and Codex account, and when it resets."
     static let loadingMessage = "Loading accounts…"
     static let loadErrorTitle = "Accounts Could Not Be Loaded"
-    static let loadErrorMessage = "Little Limits could not read its saved account list. Saved accounts were not changed. Choose Retry Loading Accounts to try again."
+    static let loadErrorMessage = "Your saved accounts were not changed."
     static let sessionColumnHelp = "Remaining quota for the 5-hour window. A window is placed here only when its reported duration is 5 hours, or when its name says 5 hours and no duration was reported."
     static let weeklyColumnHelp = "Remaining quota for the weekly window. Other durations stay in the last quota column."
     static let otherColumnHelp = "Every other reported quota window, including model-scoped limits such as Weekly · Fable 5. Names come from the reading."
     static let earnedColumnHelp = "Earned resets available and their next expiry. Expiry is separate from usage window resets and is not placed on the calendar."
-    static let updatedColumnHelp = "When this account's usage was last read."
+    static var updatedColumnHelp: String {
+        let zone = TimeZone.current
+        return "When this account's usage was last read. Times are in \(zone.abbreviation() ?? zone.identifier)."
+    }
     static let unknownResetText = "Reset time unknown"
     static let noPendingResetText = "No reset pending"
 
@@ -242,11 +284,6 @@ enum HomeInterfaceFormatting {
             return "\(startMonthText) \(startDay) – \(endMonthText) \(endDay), \(startYear)"
         }
         return "\(startMonthText) \(startDay), \(startYear) – \(endMonthText) \(endDay), \(endYear)"
-    }
-
-    static func readingContext(now: Date, calendar: Calendar) -> String {
-        let zone = calendar.timeZone.abbreviation(for: now) ?? calendar.timeZone.identifier
-        return "Remaining percentages from the latest reading · Times in \(zone)"
     }
 
     static func weekdayTitles(days: [Date], calendar: Calendar) -> [String] {
@@ -308,18 +345,33 @@ enum HomeInterfaceFormatting {
             case .unknown, .stale, .unavailable, .authenticationRequired: break
             }
             let basis = readingBasis(account, now: now)
-            let state: String
+            let name = "\(account.profile.provider.title) \(account.shortIdentity)"
             let reconnectable = account.profile.source != .codexDefaultLogin
+            let state = accountState(account, basis: basis) ?? .unknown
+            let word: String
+            var detail: String?
+            let help: String
             switch basis {
             case .authentication:
-                state = reconnectable ? "Sign-in required. Choose Reconnect…" : "Sign-in required. Sign in to the Codex CLI in Terminal, then choose Refresh All."
-            case .historical: state = "\(staleText(account, now: now)). Choose Refresh All to read it again."
-            case .unavailable: state = "Unavailable. Choose Refresh All to try again."
-            case .absent: state = "\(absentStatus(account)). Choose Refresh All to try again."
-            case .current: state = accountStatus(account, basis: basis, now: now) ?? "Some usage unknown"
+                word = "Sign-in required"
+                detail = reconnectable ? nil : "Sign in to the Codex CLI first"
+                help = reconnectable ? "Sign in to \(name) again." : "Sign in to the Codex CLI in Terminal, then refresh \(name)."
+            case .historical:
+                word = "Stale"
+                detail = account.snapshot?.fetchedAt.flatMap { $0 <= now ? "last read \(timeText($0))" : nil }
+                help = "Read \(name) again."
+            case .unavailable:
+                word = "Unavailable"
+                help = "Try reading \(name) again."
+            case .absent:
+                word = absentStatus(account)
+                help = "Try reading \(name) again."
+            case .current:
+                word = accountStatus(account, basis: basis, now: now) ?? "Some usage unknown"
+                help = "Read \(name) again."
             }
-            return HomeAttentionItem(id: account.id, text: "\(account.profile.provider.title) \(account.shortIdentity): \(state)",
-                                     showsReconnect: basis == .authentication && reconnectable)
+            return HomeAttentionItem(id: account.id, state: state, word: word, account: name, detail: detail,
+                                     action: basis == .authentication && reconnectable ? .reconnect : .refresh, help: help)
         }
     }
 
@@ -328,11 +380,11 @@ enum HomeInterfaceFormatting {
     static func totalLines(_ overview: UsageOverview, now: Date, calendar: Calendar) -> [HomeTotalLine] {
         let names = Dictionary(uniqueKeysWithValues: overview.accounts.map { ($0.id, "\($0.profile.provider.title) \($0.shortIdentity)") })
         return overview.providers.filter { $0.accountCount > 1 }.flatMap { provider -> [HomeTotalLine] in
-            let pools = [provider.weekly] + provider.scopedWeekly
+            let pools = [provider.weekly] + provider.scopedWeekly.filter { $0.countedAccountIDs.count + $0.unknownAccountIDs.count > 1 }
             var lines = pools.map { pool in
                 let label = poolLabel(pool)
-                let value = poolValue(pool)
-                let detail = poolUnknownText(pool) ?? ""
+                let value = poolShareValue(pool)
+                let detail = poolShareDetail(pool)
                 let help = poolHelp(pool, names: names)
                 return HomeTotalLine(label: label, value: value, detail: detail,
                                      accessibilityLabel: "\(provider.provider.title) \(label) total, \(value)\(detail.isEmpty ? "" : ", \(detail)")",
@@ -355,6 +407,21 @@ enum HomeInterfaceFormatting {
         if pool.countedAccountIDs.isEmpty, pool.unknownAccountIDs.isEmpty { return "Not supported" }
         guard let remaining = pool.remainingPercent else { return "Unknown" }
         return "\(RemainingPercentText.format(remaining)) of \(Int(pool.capacityPercent))% left"
+    }
+
+    static func poolShareValue(_ pool: QuotaPool) -> String {
+        guard let remaining = pool.remainingPercent, pool.capacityPercent > 0 else { return poolValue(pool) }
+        return "\(RemainingPercentText.format(remaining / pool.capacityPercent * 100)) left"
+    }
+
+    static func poolShareDetail(_ pool: QuotaPool) -> String {
+        var parts: [String] = []
+        let counted = pool.countedAccountIDs.count
+        if pool.remainingPercent != nil, pool.capacityPercent > 0, counted > 0 {
+            parts.append("of \(counted) account\(counted == 1 ? "" : "s")")
+        }
+        if let unknown = poolUnknownText(pool) { parts.append(unknown) }
+        return parts.joined(separator: " · ")
     }
 
     static func poolUnknownText(_ pool: QuotaPool) -> String? {
@@ -381,15 +448,38 @@ enum HomeInterfaceFormatting {
         switch reset {
         case .reset(let reset):
             let accounts = reset.accountIDs.count == 1 ? names[reset.accountIDs[0]] ?? "1 account" : "\(reset.accountIDs.count) accounts"
-            let relative = "in \(UsageFormatting.countdown(to: reset.resetsAt, now: now))"
-            let value = "+\(percentText(reset.gainPercent))"
-            return (value, "\(relative) · \(scheduleText(reset.resetsAt, now: now, calendar: calendar)) · \(accounts)",
-                    "\(accounts) resets \(relative), \(InterfaceFormatting.exactDate(reset.resetsAt)), adding \(value) to the weekly total.")
+            let relative = relativeText(reset.resetsAt, now: now)
+            let gain = percentText(reset.gainPercent)
+            return (leadingSchedule(reset.resetsAt, now: now, calendar: calendar), "\(relative), adds \(gain) · \(accounts)",
+                    "\(accounts) resets \(relative), \(InterfaceFormatting.exactDate(reset.resetsAt)), adding \(gain) to the weekly total.")
         case .nonePending:
             return (noPendingResetText, "", "Every counted account has 100% of its weekly quota left.")
         case .unknown:
             return ("Unknown", "", "No current weekly reading under 100% left reports when its quota comes back.")
         }
+    }
+
+    static func relativeText(_ date: Date, now: Date) -> String {
+        let seconds = date.timeIntervalSince(now)
+        guard seconds > 0 else { return "now" }
+        if seconds >= 86_400 {
+            let days = Int((seconds / 86_400).rounded())
+            return "in \(days) day\(days == 1 ? "" : "s")"
+        }
+        if seconds >= 3_600 {
+            let hours = Int((seconds / 3_600).rounded())
+            return "in \(hours) hour\(hours == 1 ? "" : "s")"
+        }
+        return "in \(max(1, Int((seconds / 60).rounded(.up)))) min"
+    }
+
+    static func clockText(_ date: Date, calendar: Calendar) -> String {
+        timeText(date, calendar: calendar)
+    }
+
+    static func leadingSchedule(_ date: Date, now: Date, calendar: Calendar) -> String {
+        if calendar.isDate(date, inSameDayAs: now) { return "Today \(timeText(date, calendar: calendar))" }
+        return scheduleText(date, now: now, calendar: calendar)
     }
 
     static func paceText(_ verdict: QuotaPace.Verdict) -> String {
@@ -465,20 +555,22 @@ enum HomeInterfaceFormatting {
         let basis = readingBasis(account, now: now)
         let plan = planName(account)
         let status = accountStatus(account, basis: basis, now: now)
+        let state = accountState(account, basis: basis)
         let updated = updatedParts(account, now: now, basis: basis)
         var spoken = ["\(account.profile.provider.title) \(account.shortIdentity)"]
         spoken.append(identityIsEmail ? "Verified email \(identity)" : "Email unavailable. Saved name \(account.identity)")
         if let plan { spoken.append("Plan \(plan)") }
         if let status { spoken.append(status) }
-        spoken.append("Updated \(updated.primary)\(updated.secondary.map { ", \($0)" } ?? "")")
+        if !updated.primary.isEmpty {
+            spoken.append("Updated \(updated.primary)\(updated.secondary.map { ", \($0)" } ?? "")")
+        }
         let toolTip = spoken.joined(separator: ". ")
         func cell(_ role: UsageWindowRole) -> HomeMeterCell {
             meterCell(role, account: account, namesWindow: role == .other && namesOther, now: now, calendar: calendar, basis: basis)
         }
         return HomeAccountRow(id: account.id, provider: account.profile.provider,
                               title: "\(account.profile.provider.title) \(account.shortIdentity)",
-                              identity: identity, identityIsEmail: identityIsEmail, plan: plan, status: status,
-                              showsReconnect: basis == .authentication && account.profile.source != .codexDefaultLogin,
+                              identity: identity, identityIsEmail: identityIsEmail, plan: plan, status: status, state: state,
                               session: cell(.session), weekly: cell(.weekly), other: cell(.other),
                               earned: earnedCell(account, now: now, calendar: calendar),
                               updatedPrimary: updated.primary, updatedSecondary: updated.secondary,
@@ -517,11 +609,11 @@ enum HomeInterfaceFormatting {
         func preface(_ window: UsageWindow) -> [String] { namesWindow ? [scopeLabel(window)] : [] }
         switch basis {
         case .unavailable:
-            return .message(message("Unavailable", help: "The provider did not return this quota. Choose Refresh All to try again."))
+            return .message(quietEmpty(help: "The provider did not return this quota. Refresh the account to try again."))
         case .authentication where windows.isEmpty:
-            return .message(message("Unavailable", help: "Sign-in required. Choose Reconnect… to read this quota."))
+            return .message(quietEmpty(help: "Sign-in required. Reconnect the account to read this quota."))
         case .absent:
-            if windows.isEmpty { return .message(message("Unavailable", help: noReadingHelp)) }
+            if windows.isEmpty { return .message(quietEmpty(help: noReadingHelp)) }
             if matching.isEmpty { return .message(message("Unknown", help: "No measured value. Unknown is not zero.")) }
             return .meters(matching.map { window in
                 if window.isActive == false { return inactiveLine(window, now: now, calendar: calendar) }
@@ -577,6 +669,9 @@ enum HomeInterfaceFormatting {
 
     private static func earnedCell(_ account: UsageOverviewAccount, now: Date, calendar: Calendar) -> HomeMeterCell {
         let facts = earnedFacts(account, now: now, calendar: calendar)
+        if facts.unavailableReason == "Unavailable" {
+            return .message(quietEmpty(help: facts.help))
+        }
         if let reason = facts.unavailableReason {
             var line = message(reason, help: facts.help)
             line.isQuiet = !facts.isSupported
@@ -609,7 +704,7 @@ enum HomeInterfaceFormatting {
         }
         switch basis {
         case .authentication:
-            return EarnedFacts(unavailableReason: "Unavailable", help: "Sign-in required. Choose Reconnect… to read earned resets.")
+            return EarnedFacts(unavailableReason: "Unavailable", help: "Sign-in required. Reconnect the account to read earned resets.")
         case .unavailable:
             return EarnedFacts(unavailableReason: "Unavailable", help: "The provider did not return earned resets.")
         case .absent, .historical, .current:
@@ -784,6 +879,16 @@ enum HomeInterfaceFormatting {
         }
     }
 
+    private static func accountState(_ account: UsageOverviewAccount, basis: ReadingBasis) -> HomeAccountState? {
+        switch basis {
+        case .authentication: .signInRequired
+        case .historical: .stale
+        case .unavailable: .unavailable
+        case .absent: (account.snapshot?.windows ?? []).isEmpty ? .unavailable : .unknown
+        case .current: nil
+        }
+    }
+
     private static func absentStatus(_ account: UsageOverviewAccount) -> String {
         (account.snapshot?.windows ?? []).isEmpty ? "Unavailable" : "Observation time unknown"
     }
@@ -791,7 +896,7 @@ enum HomeInterfaceFormatting {
     static let noReadingHelp = "No usage reading yet. Choose Refresh All to read usage."
 
     private static func updatedParts(_ account: UsageOverviewAccount, now: Date, basis: ReadingBasis) -> (primary: String, secondary: String?) {
-        guard let observed = account.snapshot?.fetchedAt, observed <= now else { return ("Unavailable", nil) }
+        guard let observed = account.snapshot?.fetchedAt, observed <= now else { return ("", nil) }
         let time = timeText(observed)
         switch basis {
         case .authentication, .unavailable: return (time, "Not refreshed")
@@ -820,6 +925,12 @@ enum HomeInterfaceFormatting {
     private static func message(_ primary: String, help: String) -> HomeReadingLine {
         HomeReadingLine(primary: primary, secondary: nil, tertiary: nil, tone: .neutral,
                         accessibilityLabel: help, toolTip: help)
+    }
+
+    private static func quietEmpty(help: String) -> HomeReadingLine {
+        var line = message("", help: help)
+        line.isQuiet = true
+        return line
     }
 
     private static func sharedDurationTitle(_ windows: [UsageWindow]) -> String? {

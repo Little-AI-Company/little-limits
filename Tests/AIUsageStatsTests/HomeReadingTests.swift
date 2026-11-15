@@ -11,7 +11,7 @@ func missingObservationDoesNotPresentRetainedPercentagesAsHistory() {
         #expect(line.primary.hasPrefix("Unknown"))
         #expect(!line.primary.contains("70%"))
         #expect(!line.primary.contains("Last known"))
-        #expect(row.updatedPrimary == "Unavailable")
+        #expect(row.updatedPrimary.isEmpty)
         #expect(row.status == "Observation time unknown")
     }
 }
@@ -25,7 +25,7 @@ func partialQuotaKeepsKnownValuesAndIndependentEarnedResets() {
     #expect(homeLines(row.session)[0].primary == "63% left")
     #expect(homeLines(row.weekly)[0].primary == "Unknown")
     #expect(homeLines(row.earned)[0].primary == "2 available")
-    #expect(row.updatedPrimary != "Unavailable")
+    #expect(!row.updatedPrimary.isEmpty)
     #expect(row.status == "Some usage unknown")
 }
 
@@ -187,7 +187,7 @@ func inactiveQuotasDoNotRequestRecovery() {
                                      snapshots: [homeReadingProfile.id: snapshot], now: homeReadingNow)
         let items = HomeInterfaceFormatting.attentionItems(overview.accounts, now: homeReadingNow)
         #expect(items.isEmpty == (state != .authenticationRequired))
-        #expect(items.allSatisfy { $0.text == "Codex work: Sign-in required. Choose Reconnect…" && $0.showsReconnect })
+        #expect(items.allSatisfy { $0.word == "Sign-in required" && $0.account == "Codex work" && $0.action == .reconnect })
     }
 }
 

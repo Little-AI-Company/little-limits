@@ -50,7 +50,6 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
     private var forecastRange: HomeForecastRange = .nextWeek
     private var totalsTitle: NSTextField?
     private var calendarTitle: NSTextField?
-    private let contextLabel = NSTextField(labelWithString: "")
     private let attentionStack = NSStackView()
     private let emptyPeriodLabel = NSTextField(labelWithString: HomeInterfaceFormatting.emptyPeriodText)
     private let stateTitle = NSTextField(labelWithString: "")
@@ -96,7 +95,8 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         scroll.documentView = document
         scroll.hasVerticalScroller = true
         scroll.autohidesScrollers = true
-        scroll.drawsBackground = false
+        scroll.drawsBackground = true
+        scroll.backgroundColor = BrandPalette.contentBackground
         scroll.borderType = .noBorder
         document.translatesAutoresizingMaskIntoConstraints = false
         let column = NSStackView()
@@ -112,7 +112,7 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         readings.translatesAutoresizingMaskIntoConstraints = false
         attentionStack.orientation = .vertical
         attentionStack.alignment = .leading
-        attentionStack.spacing = 4
+        attentionStack.spacing = 6
         attentionStack.detachesHiddenViews = true
         attentionStack.setAccessibilityElement(true)
         attentionStack.setAccessibilityRole(.group)
@@ -122,43 +122,53 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         let tableTitle = sectionTitle("Account Usage")
         let calendarTitle = sectionTitle("Reset Calendar")
         self.calendarTitle = calendarTitle
-        for item in [totalsTitle, totalsView, tableTitle, contextLabel, attentionStack, tableView, forecastView, calendarTitle, emptyPeriodLabel,
-                     calendarView, demoLabel] {
+        for item in [totalsTitle, totalsView, tableTitle, attentionStack, tableView, calendarTitle, emptyPeriodLabel,
+                     calendarView, forecastView, demoLabel] {
             readings.addArrangedSubview(item)
         }
-        readings.setCustomSpacing(16, after: totalsView)
-        readings.setCustomSpacing(16, after: tableView)
+        readings.setCustomSpacing(24, after: totalsView)
+        readings.setCustomSpacing(12, after: attentionStack)
+        readings.setCustomSpacing(24, after: tableView)
+        readings.setCustomSpacing(24, after: calendarView)
         readings.setCustomSpacing(16, after: forecastView)
         stateStack.orientation = .vertical
-        stateStack.alignment = .leading
+        stateStack.alignment = .centerX
         stateStack.spacing = 8
         stateStack.detachesHiddenViews = true
         stateStack.translatesAutoresizingMaskIntoConstraints = false
-        stateTitle.font = .systemFont(ofSize: 16, weight: .semibold)
+        stateTitle.font = .systemFont(ofSize: 26, weight: .semibold)
+        stateTitle.textColor = BrandPalette.label
+        stateTitle.alignment = .center
         stateMessage.font = .systemFont(ofSize: 13)
-        stateMessage.preferredMaxLayoutWidth = 420
+        stateMessage.textColor = BrandPalette.secondaryLabel
+        stateMessage.alignment = .center
+        stateMessage.preferredMaxLayoutWidth = 480
         stateDetail.font = .systemFont(ofSize: 11)
-        stateDetail.textColor = .secondaryLabelColor
+        stateDetail.textColor = BrandPalette.secondaryLabel
+        stateDetail.alignment = .center
         stateDetail.isSelectable = true
-        stateDetail.preferredMaxLayoutWidth = 420
+        stateDetail.preferredMaxLayoutWidth = 480
         addButtons.orientation = .horizontal
-        addButtons.spacing = 8
+        addButtons.spacing = 12
         addButtons.addArrangedSubview(addClaudeButton)
         addButtons.addArrangedSubview(addCodexButton)
         for item in [stateTitle, stateMessage, stateDetail, addButtons, retryButton] {
             stateStack.addArrangedSubview(item)
         }
+        stateStack.setCustomSpacing(20, after: stateDetail)
         column.addArrangedSubview(readings)
-        column.addArrangedSubview(stateStack)
         document.addSubview(column)
+        document.addSubview(stateStack)
         NSLayoutConstraint.activate([
             document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
-            column.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 16),
-            column.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -16),
-            column.topAnchor.constraint(equalTo: document.topAnchor, constant: 16),
-            column.bottomAnchor.constraint(lessThanOrEqualTo: document.bottomAnchor, constant: -16),
+            column.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 20),
+            column.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -20),
+            column.topAnchor.constraint(equalTo: document.topAnchor, constant: 20),
+            column.bottomAnchor.constraint(lessThanOrEqualTo: document.bottomAnchor, constant: -20),
             readings.widthAnchor.constraint(equalTo: column.widthAnchor),
-            stateStack.widthAnchor.constraint(equalTo: column.widthAnchor),
+            stateStack.centerXAnchor.constraint(equalTo: document.centerXAnchor),
+            stateStack.centerYAnchor.constraint(equalTo: document.centerYAnchor),
+            stateStack.widthAnchor.constraint(lessThanOrEqualTo: document.widthAnchor, constant: -40),
             calendarView.widthAnchor.constraint(equalTo: readings.widthAnchor),
             tableView.widthAnchor.constraint(equalTo: readings.widthAnchor),
             attentionStack.widthAnchor.constraint(equalTo: readings.widthAnchor),
@@ -170,7 +180,7 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         let minimumHeight = document.heightAnchor.constraint(greaterThanOrEqualTo: scroll.contentView.heightAnchor)
         minimumHeight.isActive = true
         minimumDocumentHeight = minimumHeight
-        let fit = column.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -16)
+        let fit = column.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -20)
         fit.priority = .defaultHigh
         fit.isActive = true
         view = scroll
@@ -232,9 +242,8 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         totalsTitle?.isHidden = totals.isEmpty
         forecastHistory.observe(now: now, profiles: model.profiles, snapshots: model.snapshots)
         renderForecast()
-        contextLabel.stringValue = HomeInterfaceFormatting.readingContext(now: now, calendar: calendar)
         applyAttention(HomeInterfaceFormatting.attentionItems(accounts, now: now))
-        syncAttentionReconnect()
+        syncAttentionActions()
         demoLabel.isHidden = !model.isDemo
         let placed = HomeInterfaceFormatting.calendarEvents(visibleEvents, days: period.days, now: now, calendar: calendar)
         emptyPeriodLabel.isHidden = !placed.isEmpty
@@ -516,9 +525,12 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         onRetryAccountLoad?()
     }
 
-    @objc private func reconnectFromAttention(_ sender: NSButton) {
-        guard let id = attentionItems.first(where: { $0.id.uuidString == sender.identifier?.rawValue })?.id else { return }
-        onReconnectAccount?(id)
+    @objc private func performAttentionAction(_ sender: NSButton) {
+        guard let item = attentionItems.first(where: { $0.id.uuidString == sender.identifier?.rawValue }) else { return }
+        switch item.action {
+        case .reconnect: onReconnectAccount?(item.id)
+        case .refresh: model.refreshAccount(item.id)
+        }
     }
 
     // MARK: Content
@@ -527,17 +539,23 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
         bind(retryButton, action: #selector(retryLoad(_:)), help: "Try loading accounts again.")
         bind(addClaudeButton, action: #selector(addClaudeAccount(_:)), help: "Sign in to a Claude account.")
         bind(addCodexButton, action: #selector(addCodexAccount(_:)), help: "Add a Codex account signed in with the Codex CLI.")
-        contextLabel.font = .systemFont(ofSize: 12)
-        contextLabel.textColor = .labelColor
-        contextLabel.lineBreakMode = .byTruncatingTail
+        styleMainAction(addClaudeButton)
+        styleMainAction(retryButton)
         emptyPeriodLabel.font = .systemFont(ofSize: 13)
-        emptyPeriodLabel.textColor = .labelColor
+        emptyPeriodLabel.textColor = BrandPalette.secondaryLabel
         demoLabel.font = .systemFont(ofSize: 12)
-        demoLabel.textColor = .labelColor
+        demoLabel.textColor = BrandPalette.secondaryLabel
         calendarView.onActivate = { [weak self] id in self?.activate(id) }
-        if !model.isDemo {
-            tableView.onReconnect = { [weak self] id in self?.onReconnectAccount?(id) }
-        }
+    }
+
+    private func styleMainAction(_ button: NSButton) {
+        button.keyEquivalent = "\r"
+        button.bezelColor = BrandPalette.accentFill
+        button.contentTintColor = BrandPalette.labelOnAccent
+        button.attributedTitle = NSAttributedString(string: button.title, attributes: [
+            .foregroundColor: BrandPalette.labelOnAccent,
+            .font: NSFont.systemFont(ofSize: NSFont.systemFontSize, weight: .medium)
+        ])
     }
 
     private func configurePopover() {
@@ -579,6 +597,7 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
             addCodexButton.isEnabled = canChange
             retryButton.isHidden = true
         }
+        stateStack.setCustomSpacing(stateDetail.isHidden ? 20 : 4, after: stateMessage)
     }
 
     private func applyAttention(_ items: [HomeAttentionItem]) {
@@ -590,30 +609,44 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
             view.removeFromSuperview()
         }
         for item in items {
-            let text = NSTextField(wrappingLabelWithString: item.text)
-            text.font = .systemFont(ofSize: 12)
-            text.textColor = .labelColor
-            text.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-            let line = NSStackView(views: [text])
-            line.orientation = .horizontal
-            line.alignment = .firstBaseline
-            line.spacing = 8
-            if item.showsReconnect, !model.isDemo, onReconnectAccount != nil {
-                let reconnect = NSButton(title: "Reconnect…", target: self, action: #selector(reconnectFromAttention(_:)))
-                reconnect.bezelStyle = .rounded
-                reconnect.controlSize = .small
-                reconnect.identifier = NSUserInterfaceItemIdentifier(item.id.uuidString)
-                reconnect.setAccessibilityLabel("Reconnect \(item.text.components(separatedBy: ":").first ?? "")")
-                line.addArrangedSubview(reconnect)
+            var views: [NSView] = []
+            if let symbol = HomeText.stateSymbol(item.state, description: item.word, size: 13) { views.append(symbol) }
+            let word = HomeText.label(item.word, size: 13, weight: .semibold)
+            let account = HomeText.label(item.account, size: 13)
+            views.append(contentsOf: [word, account])
+            if let detail = item.detail {
+                views.append(HomeText.label(detail, size: 13, color: BrandPalette.secondaryLabel))
             }
+            for case let field as NSTextField in views { field.setAccessibilityElement(false) }
+            let title = item.action == .reconnect ? "Reconnect…" : "Refresh"
+            let button = NSButton(title: title, target: self, action: #selector(performAttentionAction(_:)))
+            button.bezelStyle = .rounded
+            button.controlSize = .small
+            button.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small))
+            button.identifier = NSUserInterfaceItemIdentifier(item.id.uuidString)
+            button.toolTip = item.help
+            button.setAccessibilityLabel(item.action == .reconnect ? "Reconnect \(item.account)" : "Refresh \(item.account)")
+            views.append(button)
+            let line = NSStackView(views: views)
+            line.orientation = .horizontal
+            line.alignment = .centerY
+            line.spacing = 6
+            line.setCustomSpacing(4, after: views[0])
+            line.setCustomSpacing(10, after: views[views.count - 2])
+            line.setAccessibilityElement(true)
+            line.setAccessibilityRole(.group)
+            line.setAccessibilityLabel([item.word, item.account, item.detail].compactMap { $0 }.joined(separator: ", "))
             attentionStack.addArrangedSubview(line)
         }
     }
 
-    private func syncAttentionReconnect() {
-        let canReconnect = !model.isRefreshing && !model.isChangingAccounts
+    private func syncAttentionActions() {
+        let canAct = !model.isDemo && !model.isRefreshing && !model.isChangingAccounts
         for case let line as NSStackView in attentionStack.arrangedSubviews {
-            for case let button as NSButton in line.arrangedSubviews { button.isEnabled = canReconnect }
+            for case let button as NSButton in line.arrangedSubviews {
+                let item = attentionItems.first { $0.id.uuidString == button.identifier?.rawValue }
+                button.isEnabled = canAct && (item?.action != .reconnect || onReconnectAccount != nil)
+            }
         }
     }
 
@@ -720,8 +753,8 @@ final class HomeViewController: NSViewController, NSPopoverDelegate, NSMenuItemV
 
     private func sectionTitle(_ text: String) -> NSTextField {
         let label = NSTextField(labelWithString: text)
-        label.font = .systemFont(ofSize: 13, weight: .semibold)
-        label.textColor = .labelColor
+        label.font = .systemFont(ofSize: 15, weight: .semibold)
+        label.textColor = BrandPalette.label
         label.setAccessibilityRole(.staticText)
         return label
     }

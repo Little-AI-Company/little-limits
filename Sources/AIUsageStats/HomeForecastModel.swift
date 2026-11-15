@@ -159,9 +159,7 @@ enum HomeForecastModel {
         let latest = Dictionary(grouping: own + ownLatest, by: \.accountID).mapValues { readings in
             readings.max { $0.observedAt < $1.observedAt }
         }
-        for account in members {
-            lines.append(updatedLine(account, latest: latest[account.id] ?? nil, now: now, calendar: calendar))
-        }
+        lines.append(updatedLine(members.map { ($0, latest[$0.id] ?? nil) }, now: now, calendar: calendar))
         lines[0].provider = provider.provider
 
         let start = now.addingTimeInterval(-range.horizon.duration)
@@ -214,30 +212,42 @@ enum HomeForecastModel {
                                  accessibilityLabel: "\(title) weekly total does not reach 0 percent in the \(range.title.lowercased())",
                                  toolTip: "At the current usage rate, with each counted account's reset, the weekly total stays above 0%.")
         }
-        let value = HomeInterfaceFormatting.scheduleText(date, now: now, calendar: calendar)
-        let detail = date <= now ? "Now" : "in \(UsageFormatting.countdown(to: date, now: now))"
+        let value = HomeInterfaceFormatting.leadingSchedule(date, now: now, calendar: calendar)
+        let detail = date <= now ? "Now" : HomeInterfaceFormatting.relativeText(date, now: now)
         return HomeTotalLine(label: label, value: value, detail: detail,
                              accessibilityLabel: "\(title) weekly total reaches 0 percent \(value), \(detail)",
                              toolTip: "Projected from the usage rate and each counted account's reset: "
                                  + "\(InterfaceFormatting.exactDate(date)).")
     }
 
-    static func updatedLine(_ account: UsageOverviewAccount, latest: QuotaReading?, now: Date,
-                             calendar: Calendar) -> HomeTotalLine {
-        let name = account.shortIdentity
-        guard let latest else {
-            return HomeTotalLine(label: "Updated", value: "No recorded reading", detail: name,
-                                 accessibilityLabel: "\(account.profile.provider.title) \(name) has no recorded reading",
-                                 toolTip: "No reading of \(name) is recorded yet.")
+    static func updatedLine(_ accounts: [(account: UsageOverviewAccount, latest: QuotaReading?)], now: Date,
+                            calendar: Calendar) -> HomeTotalLine {
+        func when(_ reading: QuotaReading?) -> String {
+            guard let reading else { return "No recorded reading" }
+            let date = reading.observedAt
+            if calendar.isDate(date, inSameDayAs: now) { return HomeInterfaceFormatting.clockText(date, calendar: calendar) }
+            return HomeInterfaceFormatting.scheduleText(date, now: now, calendar: calendar)
         }
-        let value = HomeInterfaceFormatting.scheduleText(latest.observedAt, now: now, calendar: calendar)
-        let changesOnly = latest.source.recordsOnlyChanges
-        let detail = changesOnly ? "\(name), changes only" : name
+        let newest = accounts.compactMap(\.latest).max { $0.observedAt < $1.observedAt }
+        let value = when(newest)
+        let outliers = accounts.filter { when($0.latest) != value }
+        let detail = outliers.map { "\($0.account.shortIdentity) \(when($0.latest))" }.joined(separator: " · ")
+        var spoken: [String] = []
+        var help: [String] = []
+        for (account, latest) in accounts {
+            let name = "\(account.profile.provider.title) \(account.shortIdentity)"
+            guard let latest else {
+                spoken.append("\(name) has no recorded reading")
+                help.append("No reading of \(name) is recorded yet.")
+                continue
+            }
+            let changesOnly = latest.source.recordsOnlyChanges
+            spoken.append("\(name) updated \(when(latest))" + (changesOnly ? ", recorded only when quota changes" : ""))
+            help.append("\(name): latest recorded reading \(InterfaceFormatting.exactDate(latest.observedAt))."
+                + (changesOnly ? " This source records a reading only when quota changes." : ""))
+        }
         return HomeTotalLine(label: "Updated", value: value, detail: detail,
-                             accessibilityLabel: "\(account.profile.provider.title) \(name) updated \(value)"
-                                 + (changesOnly ? ", recorded only when quota changes" : ""),
-                             toolTip: "Latest recorded reading: \(InterfaceFormatting.exactDate(latest.observedAt))."
-                                 + (changesOnly ? " This source records a reading only when quota changes." : ""))
+                             accessibilityLabel: spoken.joined(separator: ", "), toolTip: help.joined(separator: " "))
     }
 
     private static func chartLabel(title: String, capacity: Double, history: [[QuotaHistoryPoint]],

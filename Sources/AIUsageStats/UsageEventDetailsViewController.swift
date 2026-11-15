@@ -82,7 +82,7 @@ final class UsageEventDetailsViewController: NSViewController {
         }
         let heading = NSTextField(wrappingLabelWithString: content.heading)
         heading.font = .systemFont(ofSize: 13, weight: .semibold)
-        heading.textColor = .labelColor
+        heading.textColor = BrandPalette.label
         heading.preferredMaxLayoutWidth = 328
         heading.setAccessibilityLabel(content.heading)
         stack.addArrangedSubview(heading)
@@ -91,7 +91,7 @@ final class UsageEventDetailsViewController: NSViewController {
         }
         let updated = NSTextField(wrappingLabelWithString: content.updated)
         updated.font = .systemFont(ofSize: 12)
-        updated.textColor = .labelColor
+        updated.textColor = BrandPalette.secondaryLabel
         updated.preferredMaxLayoutWidth = 328
         updated.toolTip = content.updatedToolTip
         updated.setAccessibilityLabel(content.updated)
@@ -113,11 +113,11 @@ final class UsageEventDetailsViewController: NSViewController {
         group.spacing = 1
         let label = NSTextField(wrappingLabelWithString: row.label)
         label.font = .systemFont(ofSize: 12, weight: .semibold)
-        label.textColor = .labelColor
+        label.textColor = BrandPalette.label
         label.preferredMaxLayoutWidth = 328
         let value = NSTextField(wrappingLabelWithString: row.value)
         value.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-        value.textColor = .labelColor
+        value.textColor = BrandPalette.label
         value.preferredMaxLayoutWidth = 310
         group.addArrangedSubview(label)
         if let symbol = HomeText.stateSymbol(row.tone) {
@@ -132,7 +132,7 @@ final class UsageEventDetailsViewController: NSViewController {
         if let detail = row.detail {
             let detailField = NSTextField(wrappingLabelWithString: detail)
             detailField.font = .systemFont(ofSize: 11)
-            detailField.textColor = .secondaryLabelColor
+            detailField.textColor = BrandPalette.secondaryLabel
             detailField.preferredMaxLayoutWidth = 328
             group.addArrangedSubview(detailField)
         }

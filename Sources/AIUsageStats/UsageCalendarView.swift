@@ -245,7 +245,7 @@ private final class CalendarWeekdayHeader: NSView {
         if labels.count != 7 {
             labels.forEach { $0.removeFromSuperview() }
             labels = (0..<7).map { _ in
-                let label = HomeText.label("", size: 11, weight: .medium, color: .secondaryLabelColor)
+                let label = HomeText.label("", size: 11, weight: .medium, color: BrandPalette.secondaryLabel)
                 label.alignment = .center
                 label.translatesAutoresizingMaskIntoConstraints = false
                 addSubview(label)
@@ -272,7 +272,7 @@ private final class CalendarWeekdayHeader: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        NSColor.separatorColor.setStroke()
+        BrandPalette.separator.setStroke()
         let line = NSBezierPath()
         line.move(to: NSPoint(x: 0, y: 0.5))
         line.line(to: NSPoint(x: bounds.width, y: 0.5))
@@ -425,12 +425,12 @@ private final class CalendarGridView: NSView {
             path.move(to: NSPoint(x: 0, y: lineY))
             path.line(to: NSPoint(x: width, y: lineY))
         }
-        NSColor.separatorColor.setStroke()
+        BrandPalette.separator.setStroke()
         path.stroke()
         if let todayIndex, days.indices.contains(todayIndex) {
             let columnWidth = bounds.width / 7
             let circle = todayBadgeRect(todayIndex, columnWidth: columnWidth)
-            NSColor.labelColor.setFill()
+            BrandPalette.accentFill.setFill()
             NSBezierPath(ovalIn: circle).fill()
         }
     }
@@ -493,7 +493,7 @@ private final class CalendarGridView: NSView {
     }
 
     private func makeMonthLabel() -> NSTextField {
-        let label = HomeText.label("", size: 12, weight: .medium, color: .labelColor)
+        let label = HomeText.label("", size: 12, weight: .medium)
         label.autoresizingMask = []
         label.isHidden = true
         label.setAccessibilityElement(false)
@@ -504,11 +504,11 @@ private final class CalendarGridView: NSView {
         for index in days.indices {
             let outside = limitToAnchorMonth && !calendar.isDate(days[index], equalTo: anchor, toGranularity: .month)
             if index == todayIndex {
-                dateLabels[index].textColor = .textBackgroundColor
+                dateLabels[index].textColor = BrandPalette.labelOnAccent
             } else {
-                dateLabels[index].textColor = outside ? .secondaryLabelColor : .labelColor
+                dateLabels[index].textColor = outside ? BrandPalette.secondaryLabel : BrandPalette.label
             }
-            monthLabels[index].textColor = .secondaryLabelColor
+            monthLabels[index].textColor = BrandPalette.secondaryLabel
         }
     }
 
@@ -772,19 +772,17 @@ private final class UsageEventButton: NSButton {
     private func refreshColors() {
         guard let model else { return }
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            let fill: NSColor? = selected ? .selectedContentBackgroundColor
-                : hovered ? .unemphasizedSelectedContentBackgroundColor : nil
+            let fill: NSColor? = selected ? BrandPalette.selectedContentBackground
+                : hovered ? BrandPalette.fill : nil
             CATransaction.begin()
             CATransaction.setDisableActions(true)
             layer?.cornerRadius = fill == nil ? 0 : 5
             layer?.backgroundColor = fill?.cgColor
             CATransaction.commit()
-            let primary: NSColor = selected ? .alternateSelectedControlTextColor : .labelColor
-            for field in [timeField, scopeField, remainingField, identityField] {
-                field.textColor = primary
-            }
-            icon.contentTintColor = primary
-            symbol?.contentTintColor = selected ? primary : model.tone.symbolColor
+            for field in [timeField, scopeField] { field.textColor = BrandPalette.label }
+            for field in [remainingField, identityField] { field.textColor = BrandPalette.secondaryLabel }
+            icon.contentTintColor = BrandPalette.label
+            symbol?.contentTintColor = model.tone.symbolColor
         }
     }
 }

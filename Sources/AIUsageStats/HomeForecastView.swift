@@ -16,8 +16,8 @@ final class HomeForecastView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         let title = NSTextField(labelWithString: "Forecast")
-        title.font = .systemFont(ofSize: 13, weight: .semibold)
-        title.textColor = .labelColor
+        title.font = .systemFont(ofSize: 15, weight: .semibold)
+        title.textColor = BrandPalette.label
         rangePopUp.addItems(withTitles: HomeForecastRange.allCases.map(\.title))
         rangePopUp.controlSize = .small
         rangePopUp.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small))
@@ -90,8 +90,8 @@ final class HomeForecastView: NSView {
 
     private func plainLine(_ text: String) -> NSTextField {
         let line = NSTextField(wrappingLabelWithString: text)
-        line.font = .systemFont(ofSize: 12)
-        line.textColor = .labelColor
+        line.font = .systemFont(ofSize: 13)
+        line.textColor = BrandPalette.secondaryLabel
         return line
     }
 
@@ -110,13 +110,13 @@ private final class HomeForecastBlockView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         lines.setAccessibilityLabel("Forecast")
-        notice.font = .systemFont(ofSize: 12)
-        notice.textColor = .labelColor
+        notice.font = .systemFont(ofSize: 13)
+        notice.textColor = BrandPalette.secondaryLabel
         chart.sizingOptions = []
         let stack = NSStackView(views: [notice, lines, chart])
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 6
+        stack.spacing = 8
         stack.detachesHiddenViews = true
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
@@ -156,7 +156,7 @@ struct HomeForecastChart: View {
                     ForEach(run, id: \.date) { point in
                         LineMark(x: .value("Time", point.date), y: .value("Remaining", point.remainingPercent),
                                  series: .value("Line", "History \(index)"))
-                            .foregroundStyle(Color.primary)
+                            .foregroundStyle(Color(nsColor: BrandPalette.label))
                             .lineStyle(StrokeStyle(lineWidth: 1.5))
                             .accessibilityLabel("History, \(dateText(point.date, model: model))")
                             .accessibilityValue(valueText(point.remainingPercent, model: model))
@@ -165,31 +165,33 @@ struct HomeForecastChart: View {
                 ForEach(model.projection, id: \.date) { point in
                     LineMark(x: .value("Time", point.date), y: .value("Remaining", point.remainingPercent),
                              series: .value("Line", "Projection"))
-                        .foregroundStyle(Color.primary)
+                        .foregroundStyle(Color(nsColor: BrandPalette.label))
                         .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
                         .accessibilityLabel("Projection, \(dateText(point.date, model: model))")
                         .accessibilityValue(valueText(point.remainingPercent, model: model))
                 }
                 RuleMark(x: .value("Now", model.now))
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(Color(nsColor: BrandPalette.secondaryLabel))
                     .lineStyle(StrokeStyle(lineWidth: 1))
                     .annotation(position: .top, alignment: .center, spacing: 2) {
-                        Text("Now").font(.system(size: 10)).foregroundStyle(Color.primary)
+                        Text("Now").font(.system(size: 11)).foregroundStyle(Color(nsColor: BrandPalette.secondaryLabel))
                     }
             }
             .chartXScale(domain: model.start...model.end)
             .chartYScale(domain: 0...max(100, model.capacityPercent))
             .chartYAxis {
                 AxisMarks(position: .leading, values: Array(stride(from: 0, through: max(100, model.capacityPercent), by: 100))) { value in
-                    AxisGridLine()
+                    AxisGridLine().foregroundStyle(Color(nsColor: BrandPalette.separator))
                     AxisValueLabel {
-                        if let percent = value.as(Double.self) { Text("\(Int(percent))%") }
+                        if let percent = value.as(Double.self) {
+                            Text("\(Int(percent))%").foregroundStyle(Color(nsColor: BrandPalette.secondaryLabel))
+                        }
                     }
                 }
             }
             .chartXAxis {
                 AxisMarks(values: .automatic(desiredCount: 8)) { _ in
-                    AxisGridLine()
+                    AxisGridLine().foregroundStyle(Color(nsColor: BrandPalette.separator))
                     AxisTick()
                     AxisValueLabel(format: model.end.timeIntervalSince(model.start) > 2 * 86_400
                                    ? .dateTime.weekday(.abbreviated) : .dateTime.hour())

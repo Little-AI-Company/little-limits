@@ -2,8 +2,6 @@ import AppKit
 
 @MainActor
 final class UsageOverviewTableView: NSView, NSTableViewDataSource, NSTableViewDelegate {
-    var onReconnect: ((UUID) -> Void)?
-
     private let scroll = HomeNestedScrollView()
     private let table = NSTableView()
     private var rows: [HomeAccountRow] = []
@@ -19,6 +17,7 @@ final class UsageOverviewTableView: NSView, NSTableViewDataSource, NSTableViewDe
         table.allowsEmptySelection = true
         table.selectionHighlightStyle = .none
         table.gridStyleMask = .solidHorizontalGridLineMask
+        table.gridColor = BrandPalette.separator
         table.intercellSpacing = NSSize(width: 8, height: 4)
         table.rowSizeStyle = .custom
         table.usesAlternatingRowBackgroundColors = false
@@ -28,6 +27,7 @@ final class UsageOverviewTableView: NSView, NSTableViewDataSource, NSTableViewDe
         table.setAccessibilityLabel("Account usage")
         for column in Column.all {
             let tableColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(column.rawValue))
+            tableColumn.headerCell = PaperHeaderCell(textCell: column.defaultTitle)
             tableColumn.title = column.defaultTitle
             tableColumn.minWidth = column.minimumWidth
             tableColumn.maxWidth = 640
@@ -82,7 +82,6 @@ final class UsageOverviewTableView: NSView, NSTableViewDataSource, NSTableViewDe
         let headingsChanged = headings != self.headings
         guard rowsChanged || headingsChanged else { return }
         let selectedAccountID = self.rows.indices.contains(table.selectedRow) ? self.rows[table.selectedRow].id : nil
-        let reconnectAccountID = focusedReconnectAccountID()
         let tableHadFocus = window?.firstResponder === table
         let scrollOrigin = scroll.contentView.bounds.origin
         self.rows = rows
@@ -99,33 +98,10 @@ final class UsageOverviewTableView: NSView, NSTableViewDataSource, NSTableViewDe
             table.layoutSubtreeIfNeeded()
             scroll.contentView.scroll(to: scrollOrigin)
             scroll.reflectScrolledClipView(scroll.contentView)
-            if let reconnectAccountID {
-                if let row = rows.firstIndex(where: { $0.id == reconnectAccountID && $0.showsReconnect }) {
-                    table.scrollRowToVisible(row)
-                    let cell = table.view(atColumn: 0, row: row, makeIfNecessary: true) as? AccountCell
-                    if cell?.focusReconnect() != true {
-                        window?.makeFirstResponder(table)
-                    }
-                } else {
-                    window?.makeFirstResponder(table)
-                }
-            } else if tableHadFocus {
+            if tableHadFocus {
                 window?.makeFirstResponder(table)
             }
         }
-    }
-
-    private func focusedReconnectAccountID() -> UUID? {
-        guard let responder = window?.firstResponder as? NSView else { return nil }
-        var ancestor: NSView? = responder
-        while let candidate = ancestor {
-            if let cell = candidate as? AccountCell, cell.isReconnectControl(responder) {
-                return cell.accountID
-            }
-            if candidate === table { break }
-            ancestor = candidate.superview
-        }
-        return nil
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
@@ -137,11 +113,6 @@ final class UsageOverviewTableView: NSView, NSTableViewDataSource, NSTableViewDe
         case Column.account.rawValue:
             let cell = reuse(tableColumn.identifier, in: tableView) { AccountCell(frame: .zero) }
             cell.render(record)
-            if onReconnect != nil {
-                cell.onReconnect = { [weak self] in self?.onReconnect?(record.id) }
-            } else {
-                cell.onReconnect = nil
-            }
             return cell
         case Column.session.rawValue:
             let cell = reuse(tableColumn.identifier, in: tableView) { MeterCell(frame: .zero) }
@@ -255,39 +226,60 @@ private enum Column: String, CaseIterable {
     }
 }
 
+private final class PaperHeaderCell: NSTableHeaderCell {
+    override init(textCell string: String) {
+        super.init(textCell: string)
+        textColor = BrandPalette.secondaryLabel
+    }
+
+    required init(coder: NSCoder) {
+        super.init(coder: coder)
+    }
+
+    override func draw(withFrame cellFrame: NSRect, in controlView: NSView) {
+        BrandPalette.contentBackground.setFill()
+        cellFrame.fill()
+        BrandPalette.separator.setFill()
+        let hairline = controlView.isFlipped ? cellFrame.maxY - 1 : cellFrame.minY
+        NSRect(x: cellFrame.minX, y: hairline, width: cellFrame.width, height: 1).fill()
+        drawInterior(withFrame: cellFrame, in: controlView)
+    }
+}
+
 @MainActor
 private final class AccountCell: NSTableCellView {
-    var onReconnect: (() -> Void)? {
-        didSet { reconnectButton.isEnabled = onReconnect != nil }
-    }
-    private(set) var accountID: UUID?
     private let icon = NSImageView()
     private let titleField = HomeText.label("", size: 13, weight: .semibold)
-    private let identityField = HomeText.label("", size: 12)
-    private let planField = HomeText.label("", size: 12, color: .secondaryLabelColor)
+    private let planField = HomeText.label("", size: 13, color: BrandPalette.secondaryLabel)
+    private let identityField = HomeText.label("", size: 12, color: BrandPalette.secondaryLabel)
     private let statusField = HomeText.label("", size: 12)
-    private let reconnectButton = NSButton(title: "Reconnect…", target: nil, action: nil)
+    private let statusLine = NSStackView()
+    private var statusSymbol: NSImageView?
     private let lines = NSStackView()
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         icon.translatesAutoresizingMaskIntoConstraints = false
         icon.imageScaling = .scaleProportionallyDown
+        planField.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
+        planField.setContentHuggingPriority(.required, for: .horizontal)
+        let titleLine = NSStackView(views: [titleField, planField])
+        titleLine.orientation = .horizontal
+        titleLine.alignment = .firstBaseline
+        titleLine.spacing = 6
+        titleLine.detachesHiddenViews = true
+        statusLine.orientation = .horizontal
+        statusLine.alignment = .centerY
+        statusLine.spacing = 4
+        statusLine.addArrangedSubview(statusField)
         lines.orientation = .vertical
         lines.alignment = .leading
         lines.spacing = 2
         lines.detachesHiddenViews = true
         lines.translatesAutoresizingMaskIntoConstraints = false
-        reconnectButton.target = self
-        reconnectButton.action = #selector(reconnect(_:))
-        reconnectButton.bezelStyle = .rounded
-        reconnectButton.controlSize = .regular
-        reconnectButton.font = .systemFont(ofSize: NSFont.systemFontSize)
-        reconnectButton.setAccessibilityLabel("Reconnect")
-        for field in [titleField, identityField, planField, statusField] {
-            lines.addArrangedSubview(field)
+        for line in [titleLine, identityField, statusLine] {
+            lines.addArrangedSubview(line)
         }
-        lines.addArrangedSubview(reconnectButton)
         addSubview(icon)
         addSubview(lines)
         NSLayoutConstraint.activate([
@@ -296,7 +288,7 @@ private final class AccountCell: NSTableCellView {
             icon.widthAnchor.constraint(equalToConstant: 16),
             icon.heightAnchor.constraint(equalToConstant: 16),
             lines.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 6),
-            lines.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
+            lines.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -4),
             lines.topAnchor.constraint(equalTo: topAnchor, constant: 6)
         ])
     }
@@ -304,42 +296,32 @@ private final class AccountCell: NSTableCellView {
     required init?(coder: NSCoder) { nil }
 
     func render(_ row: HomeAccountRow) {
-        accountID = row.id
         let image = ProviderIcons.images[row.provider]
         if icon.image !== image { icon.image = image }
-        icon.contentTintColor = .labelColor
+        icon.contentTintColor = BrandPalette.label
         icon.isHidden = image == nil
         titleField.stringValue = row.title
-        identityField.stringValue = row.identity
-        identityField.setAccessibilityLabel(row.identityIsEmail ? "Verified email \(row.identity)" : "Email unavailable")
         planField.stringValue = row.plan ?? ""
         planField.isHidden = row.plan == nil
+        identityField.stringValue = row.identity
+        identityField.setAccessibilityLabel(row.identityIsEmail ? "Verified email \(row.identity)" : "Email unavailable")
         statusField.stringValue = row.status ?? ""
-        statusField.isHidden = row.status == nil
-        reconnectButton.isHidden = !row.showsReconnect
-        reconnectButton.setAccessibilityLabel("Reconnect \(row.title)")
-        reconnectButton.setAccessibilityIdentifier("home.reconnect.\(row.id.uuidString)")
+        statusLine.isHidden = row.status == nil
+        statusSymbol?.removeFromSuperview()
+        statusSymbol = nil
+        if let state = row.state, let status = row.status, let symbol = HomeText.stateSymbol(state, description: status) {
+            statusLine.insertArrangedSubview(symbol, at: 0)
+            statusSymbol = symbol
+        }
         toolTip = row.toolTip
         setAccessibilityLabel(row.accessibilityLabel)
     }
 
     static func height(for row: HomeAccountRow) -> CGFloat {
-        var lines: CGFloat = 2
-        if row.plan != nil { lines += 1 }
-        if row.status != nil { lines += 1 }
-        var height = 12 + lines * 18
-        if row.showsReconnect { height += 30 }
+        var height: CGFloat = 14 + 18 + 17
+        if row.status != nil { height += 17 }
         return height
     }
-
-    func isReconnectControl(_ view: NSView) -> Bool { view === reconnectButton }
-
-    func focusReconnect() -> Bool {
-        guard !reconnectButton.isHidden, reconnectButton.isEnabled else { return false }
-        return window?.makeFirstResponder(reconnectButton) ?? false
-    }
-
-    @objc private func reconnect(_ sender: Any?) { onReconnect?() }
 }
 
 @MainActor
@@ -374,28 +356,30 @@ private final class MeterCell: NSTableCellView {
             group.alignment = .leading
             group.spacing = 1
             for line in record.preface {
-                group.addArrangedSubview(HomeText.label(line, size: 12))
+                group.addArrangedSubview(HomeText.label(line, size: 12, color: BrandPalette.secondaryLabel))
             }
-            let primary = record.isQuiet
-                ? HomeText.label(record.primary, size: 12, color: .secondaryLabelColor)
-                : HomeText.label(record.primary, size: 12, weight: .semibold, digits: true)
-            if let symbol = HomeText.stateSymbol(record.tone) {
-                let value = NSStackView(views: [symbol, primary])
-                value.orientation = .horizontal
-                value.alignment = .centerY
-                value.spacing = 3
-                group.addArrangedSubview(value)
-            } else {
-                group.addArrangedSubview(primary)
-            }
-            if let word = record.tone.word {
-                group.addArrangedSubview(HomeText.label(word, size: 12))
+            if !record.primary.isEmpty {
+                let primary = record.isQuiet
+                    ? HomeText.label(record.primary, size: 13, color: BrandPalette.secondaryLabel)
+                    : HomeText.label(record.primary, size: 13, weight: .semibold, digits: true)
+                var value: [NSView] = [primary]
+                if let symbol = HomeText.stateSymbol(record.tone, size: 12) { value.insert(symbol, at: 0) }
+                if value.count == 1 {
+                    group.addArrangedSubview(primary)
+                } else {
+                    let line = NSStackView(views: value)
+                    line.orientation = .horizontal
+                    line.alignment = .centerY
+                    line.spacing = 4
+                    group.addArrangedSubview(line)
+                }
+                if let word = record.tone.word { group.addArrangedSubview(HomeText.label(word, size: 13)) }
             }
             if let secondary = record.secondary {
-                group.addArrangedSubview(HomeText.label(secondary, size: 11, color: .secondaryLabelColor))
+                group.addArrangedSubview(HomeText.label(secondary, size: 12, color: BrandPalette.secondaryLabel))
             }
             if let tertiary = record.tertiary {
-                group.addArrangedSubview(HomeText.label(tertiary, size: 11, color: .secondaryLabelColor))
+                group.addArrangedSubview(HomeText.label(tertiary, size: 12, color: BrandPalette.secondaryLabel))
             }
             lines.addArrangedSubview(group)
         }
@@ -407,10 +391,10 @@ private final class MeterCell: NSTableCellView {
     static func height(for cell: HomeMeterCell) -> CGFloat {
         let records = records(in: cell)
         let body = records.reduce(CGFloat(0)) { total, record in
-            var line: CGFloat = 18 + CGFloat(record.preface.count) * 16
-            if record.tone.word != nil { line += 16 }
-            if record.secondary != nil { line += 15 }
-            if record.tertiary != nil { line += 15 }
+            var line: CGFloat = (record.primary.isEmpty ? 0 : 18) + CGFloat(record.preface.count) * 16
+            if record.tone.word != nil, !record.primary.isEmpty { line += 17 }
+            if record.secondary != nil { line += 16 }
+            if record.tertiary != nil { line += 16 }
             return total + line + 6
         }
         return 12 + body
@@ -426,8 +410,8 @@ private final class MeterCell: NSTableCellView {
 
 @MainActor
 private final class UpdatedCell: NSTableCellView {
-    private let primaryField = HomeText.label("", size: 12, weight: .regular, digits: true)
-    private let secondaryField = HomeText.label("", size: 11, color: .secondaryLabelColor)
+    private let primaryField = HomeText.label("", size: 13, weight: .regular, digits: true)
+    private let secondaryField = HomeText.label("", size: 12, color: BrandPalette.secondaryLabel)
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -456,6 +440,6 @@ private final class UpdatedCell: NSTableCellView {
     }
 
     static func height(primary: String, secondary: String?) -> CGFloat {
-        secondary == nil ? 32 : 48
+        secondary == nil ? 32 : 50
     }
 }
