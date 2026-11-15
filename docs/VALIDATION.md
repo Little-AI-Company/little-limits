@@ -1101,3 +1101,17 @@ Local development build of the working tree on macOS 27.0.1, Apple M1 Max. Packa
 | Models page loading picture | `--show-home --show-models`, screen recorded: the new bust shows for about 1.2 s, the needle sweeps from the leftmost tick to the rightmost and back, the eyes follow it with no white highlight, and the needle, hub and eyes sit on the drawing. The rest pose drawn with the same numbers lands on the Codex icon within about 1 px. |
 
 Not verified: the Night icon in the Dock (the Dock is hidden on this Mac; About uses the same image), Reduce Motion on (a system setting, left unchanged; the rest pose is the animation's first frame), and Intel, macOS 14 and 15 runtime.
+
+## 2026-11-15 interface polish
+
+Packaged demo app on the M4, macOS 26.7.3, Apple silicon, after the five commits that moved the interface onto `BrandPalette`. Captures are in `.crit/2026-11-15-polish/final/` and `after/`.
+
+| Check | Result |
+| --- | --- |
+| `--demo-home`, `--demo-reading-states` in light and dark | Home order is Weekly Totals, Account Usage, Reset Calendar. Totals read `75% left`, `of 1 account · 1 account unknown`; Next reset reads `Wed 8:34 AM`, `in 3 days, adds 25% · Claude personal`. Each attention line has a symbol, state word, account and its own button. The sidebar names accounts as the table does, leads line 2 with the state word, and draws the neutral selection. |
+| `--demo --demo-empty`, `--demo --demo-load-error` | Centered 26 pt title, one line, Off-black main button. |
+| `--show-settings`, `--show-models` in light and dark | No restating captions; Backlog row; one AI assistants line per tool with Copy Command or Copy JSON; Models has no intro line and Off-black bars. |
+| `--show-menu` | Headings read `Claude · personal`; states are item symbols; Stale and Unavailable accounts offer Refresh; countdowns read `in 3d`, `Resets in 2h`; Quit has no icon. |
+| `swift test` | Passed in all four targets: 47, 15, 75 and 16 tests. |
+
+Not verified: the account page and add-account sheet (no demo route; checked by reading the code), VoiceOver, keyboard paths, the minimum window size, macOS 14 runtime, Intel, the status item strip, and Forecast below the fold, which no capture shows.
