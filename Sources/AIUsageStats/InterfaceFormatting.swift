@@ -15,6 +15,12 @@ enum InterfaceFormatting {
         return fallback.isEmpty ? "\(provider(profile.provider)) Account" : fallback
     }
 
+    static func accountNames(_ profiles: [AccountProfile]) -> [UUID: String] {
+        Dictionary(uniqueKeysWithValues: UsageOverview(profiles: profiles, snapshots: [:]).accounts.map {
+            ($0.id, "\($0.profile.provider.title) \($0.shortIdentity)")
+        })
+    }
+
     static func usageTitle(_ window: UsageWindow) -> String { usageTitle(window.title) }
 
     static func usageTitle(_ title: String) -> String {
@@ -216,7 +222,7 @@ enum InterfaceControls {
     static func label(_ text: String, size: CGFloat = 12, weight: NSFont.Weight = .regular) -> NSTextField {
         let label = NSTextField(wrappingLabelWithString: text)
         label.font = .systemFont(ofSize: size, weight: weight)
-        label.textColor = .labelColor
+        label.textColor = BrandPalette.label
         label.setContentCompressionResistancePriority(.required, for: .vertical)
         return label
     }
@@ -231,7 +237,11 @@ enum InterfaceControls {
 
     static func separator() -> NSBox {
         let box = NSBox()
-        box.boxType = .separator
+        box.boxType = .custom
+        box.borderWidth = 0
+        box.titlePosition = .noTitle
+        box.fillColor = BrandPalette.separator
+        box.heightAnchor.constraint(equalToConstant: 1).isActive = true
         return box
     }
 }

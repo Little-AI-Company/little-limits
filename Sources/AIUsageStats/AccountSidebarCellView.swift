@@ -4,7 +4,7 @@ import UsageCore
 @MainActor
 final class AccountSidebarCellView: NSTableCellView {
     enum Indicator: Equatable {
-        case none, useSoon, low, almostOut, limitReached, signInRequired, stale
+        case none, useSoon, low, almostOut, limitReached, signInRequired, stale, unavailable, inactive, waitingForSignIn
 
         init(_ tone: HomeReadingTone) {
             switch tone {
@@ -19,11 +19,14 @@ final class AccountSidebarCellView: NSTableCellView {
         @MainActor fileprivate var symbol: (name: String, color: NSColor)? {
             switch self {
             case .none: nil
-            case .useSoon: ("hourglass", .controlAccentColor)
+            case .useSoon: ("hourglass", BrandPalette.markBlue)
             case .low: ("exclamationmark.triangle.fill", StateSymbolColor.warning)
-            case .almostOut, .limitReached: ("exclamationmark.octagon.fill", StateSymbolColor.critical)
-            case .signInRequired: ("person.crop.circle.badge.exclamationmark.fill", StateSymbolColor.critical)
-            case .stale: ("clock", .secondaryLabelColor)
+            case .almostOut, .limitReached: ("exclamationmark.octagon.fill", BrandPalette.destructive)
+            case .signInRequired: ("person.crop.circle.badge.exclamationmark.fill", BrandPalette.destructive)
+            case .stale: ("clock", BrandPalette.secondaryLabel)
+            case .unavailable: ("exclamationmark.circle", BrandPalette.secondaryLabel)
+            case .inactive: ("pause.circle", BrandPalette.secondaryLabel)
+            case .waitingForSignIn: ("person.crop.circle.badge.clock", BrandPalette.secondaryLabel)
             }
         }
     }
@@ -48,10 +51,12 @@ final class AccountSidebarCellView: NSTableCellView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         icon.imageScaling = .scaleProportionallyDown
+        icon.contentTintColor = BrandPalette.label
+        identity.textColor = BrandPalette.label
         identity.lineBreakMode = .byTruncatingTail
         identity.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
         quota.font = Self.quotaFont(identitySize: NSFont.systemFontSize)
-        quota.textColor = .labelColor
+        quota.textColor = BrandPalette.secondaryLabel
         quota.lineBreakMode = .byTruncatingTail
         quota.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         indicator.imageScaling = .scaleProportionallyDown
@@ -111,17 +116,9 @@ final class AccountSidebarCellView: NSTableCellView {
         super.layout()
     }
 
-    override var backgroundStyle: NSView.BackgroundStyle {
-        didSet {
-            quota.cell?.backgroundStyle = backgroundStyle
-            updateIndicatorTint()
-        }
-    }
-
     private func updateIndicatorTint() {
-        guard let color = displayed?.indicator.symbol?.color else { return }
-        let tint: NSColor = backgroundStyle == .emphasized ? .alternateSelectedControlTextColor : color
-        if indicator.contentTintColor != tint { indicator.contentTintColor = tint }
+        guard let color = displayed?.indicator.symbol?.color, indicator.contentTintColor != color else { return }
+        indicator.contentTintColor = color
     }
 
     static func quotaFont(identitySize: CGFloat) -> NSFont {
@@ -136,8 +133,10 @@ final class HomeSidebarCellView: NSTableCellView {
         let image = NSImageView()
         image.image = NSImage(systemSymbolName: "house", accessibilityDescription: nil)
         image.imageScaling = .scaleProportionallyDown
+        image.contentTintColor = BrandPalette.label
         image.setAccessibilityElement(false)
         let label = NSTextField(labelWithString: "Home")
+        label.textColor = BrandPalette.label
         label.lineBreakMode = .byTruncatingTail
         label.setAccessibilityElement(false)
         imageView = image
@@ -160,6 +159,19 @@ final class HomeSidebarCellView: NSTableCellView {
     }
 
     required init?(coder: NSCoder) { nil }
+}
+
+@MainActor
+final class SidebarRowView: NSTableRowView {
+    static let selectionCornerRadius: CGFloat = 8
+    static let selectionInset: CGFloat = 10
+
+    override var interiorBackgroundStyle: NSView.BackgroundStyle { .normal }
+
+    override func drawSelection(in dirtyRect: NSRect) {
+        BrandPalette.selectedContentBackground.setFill()
+        NSBezierPath(roundedRect: bounds.insetBy(dx: Self.selectionInset, dy: 0), xRadius: Self.selectionCornerRadius, yRadius: Self.selectionCornerRadius).fill()
+    }
 }
 
 @MainActor

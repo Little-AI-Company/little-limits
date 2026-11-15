@@ -21,7 +21,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private let settings: GeneralSettingsViewController
     private var platform: ClaudePlatformViewController?
     private let splitController = PageCommandSplitViewController()
-    private let pageContainer = NSView()
+    private let pageContainer = BrandBackgroundView(color: BrandPalette.contentBackground)
     private let table = AccountSidebarTableView()
     private let addAccountButton = NSButton(title: "", target: nil, action: nil)
     private let removeAccountButton = NSButton(title: "", target: nil, action: nil)
@@ -51,6 +51,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
                               backing: .buffered, defer: false)
         window.title = "Home"
         window.toolbarStyle = .unified
+        window.backgroundColor = BrandPalette.windowBackground
         window.isReleasedWhenClosed = false
         super.init(window: window)
         window.delegate = self
@@ -116,6 +117,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         table.dataSource = self
         table.delegate = self
         table.style = .sourceList
+        table.backgroundColor = .clear
         table.rowSizeStyle = .default
         table.allowsEmptySelection = true
         table.setAccessibilityLabel("Sidebar")
@@ -154,7 +156,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         sidebarActions.alignment = .centerY
         sidebarActions.spacing = 6
         sidebarActions.translatesAutoresizingMaskIntoConstraints = false
-        let sidebar = NSView()
+        let sidebar = BrandBackgroundView(color: BrandPalette.sidebarBackground)
         sidebar.addSubview(accountScroll)
         sidebar.addSubview(sidebarActions)
         NSLayoutConstraint.activate([
@@ -171,8 +173,9 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     func render() {
         let previousID = selectedID
         let now = Date()
+        let names = InterfaceFormatting.accountNames(model.profiles)
         let nextDisplays = Dictionary(uniqueKeysWithValues: model.profiles.map { profile in
-            (profile.id, sidebarDisplay(profile: profile, now: now))
+            (profile.id, sidebarDisplay(profile: profile, name: names[profile.id] ?? InterfaceFormatting.accountIdentity(profile), now: now))
         })
         isUpdatingSelection = true
         let profilesChanged = displayedProfiles != model.profiles
@@ -370,7 +373,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         case .models: title = "Models"
         case .settings: title = "Settings"
         case .account, .platform:
-            title = model.profiles.first(where: { $0.id == selectedID }).map(distinctIdentity) ?? "Accounts"
+            title = selectedID.flatMap { InterfaceFormatting.accountNames(model.profiles)[$0] } ?? "Accounts"
             if section == .platform { subtitle = "API Credits" }
         }
         if window.title != title { window.title = title }
@@ -438,6 +441,8 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             let identifier = NSUserInterfaceItemIdentifier("models")
             let cell = tableView.makeView(withIdentifier: identifier, owner: self) as? ModelsSidebarCellView ?? ModelsSidebarCellView()
             cell.identifier = identifier
+            cell.imageView?.contentTintColor = BrandPalette.label
+            cell.textField?.textColor = BrandPalette.label
             return cell
         }
         guard let index = profileIndex(forSidebarRow: row), let display = sidebarDisplays[displayedProfiles[index].id] else { return nil }
@@ -448,7 +453,14 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         return cell
     }
 
-    private func sidebarDisplay(profile: AccountProfile, now: Date) -> AccountSidebarCellView.Display {
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        let identifier = NSUserInterfaceItemIdentifier("sidebarRow")
+        let rowView = tableView.makeView(withIdentifier: identifier, owner: self) as? SidebarRowView ?? SidebarRowView()
+        rowView.identifier = identifier
+        return rowView
+    }
+
+    private func sidebarDisplay(profile: AccountProfile, name: String, now: Date) -> AccountSidebarCellView.Display {
         let snapshot = model.snapshots[profile.id]
         let summary = AccountQuotaSummary(snapshot: snapshot, accountID: profile.id, now: now)
         let lastRead = snapshot.flatMap { $0.profileID == profile.id ? $0.fetchedAt : nil }
@@ -459,16 +471,17 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
         case let .available(remaining, _, windowTitle):
             let limiting = snapshot?.currentWindows.first(where: { $0.title == windowTitle })
             let window = limiting.map(InterfaceFormatting.usageTitle) ?? windowTitle
-            var value = "\(RemainingPercentText.format(remaining)) left"
+            let value = "\(RemainingPercentText.format(remaining)) left"
             let tone = limiting.map { HomeInterfaceFormatting.tone(for: $0, now: now) } ?? .neutral
-            if let word = tone.word { value += ", \(word)" }
             indicator = AccountSidebarCellView.Indicator(tone)
-            text = "\(value) · \(window)"
-            state = "\(value). Lowest remaining current quota: \(window)."
+            text = ([tone.word].compactMap { $0 } + [value, window]).joined(separator: " · ")
+            state = ([tone.word].compactMap { $0 } + [value]).joined(separator: ". ") + ". Lowest remaining current quota: \(window)."
         case .unknown:
+            indicator = .unavailable
             text = "Unavailable"
             state = "Unavailable. A complete current usage reading is not available."
         case .inactive:
+            indicator = .inactive
             text = "Inactive"
             state = "Inactive. All reported quota windows are inactive."
         case .stale:
@@ -476,6 +489,7 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             text = lastRead.map { "Stale · last read \(Self.shortTime($0))" } ?? "Stale"
             state = "Stale. The last reading is at least five minutes old or a reset has passed. Choose Refresh All to check usage."
         case .unavailable:
+            indicator = .unavailable
             text = "Unavailable"
             state = "Unavailable. The provider could not supply current usage."
         case .authenticationRequired:
@@ -484,23 +498,15 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
             state = "Sign-in required. Choose Reconnect… on the account page."
         }
         if model.isAwaitingCodexSignIn(profile.id) {
-            indicator = .none
+            indicator = .waitingForSignIn
             text = "Waiting for sign-in"
             state = "Waiting for Codex sign-in in Terminal."
         }
-        var description = "\(InterfaceFormatting.provider(profile.provider)), \(InterfaceFormatting.accountIdentity(profile)). \(state)"
+        var description = "\(name), \(InterfaceFormatting.accountIdentity(profile)). \(state)"
         if let lastRead { description += " Last read \(InterfaceFormatting.exactDate(lastRead))." }
         if InterfaceFormatting.accountEmail(profile) == "Email unavailable" { description += " Email unavailable." }
-        return AccountSidebarCellView.Display(identity: distinctIdentity(profile), provider: profile.provider,
+        return AccountSidebarCellView.Display(identity: name, provider: profile.provider,
                                               quotaText: text, indicator: indicator, description: description)
-    }
-
-    private func distinctIdentity(_ profile: AccountProfile) -> String {
-        let identity = InterfaceFormatting.accountIdentity(profile)
-        let shared = model.profiles.contains {
-            $0.id != profile.id && InterfaceFormatting.accountIdentity($0).caseInsensitiveCompare(identity) == .orderedSame
-        }
-        return shared ? "\(InterfaceFormatting.provider(profile.provider)) · \(identity)" : identity
     }
 
     private static func shortTime(_ date: Date) -> String {
@@ -769,6 +775,30 @@ final class AccountsWindowController: NSWindowController, NSTableViewDataSource,
     private func sidebarRow(for accountID: UUID) -> Int? {
         guard let index = displayedProfiles.firstIndex(where: { $0.id == accountID }) else { return nil }
         return index + Self.accountRowOffset
+    }
+}
+
+@MainActor
+private final class BrandBackgroundView: NSView {
+    private let color: NSColor
+
+    init(color: NSColor) {
+        self.color = color
+        super.init(frame: .zero)
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override var wantsUpdateLayer: Bool { true }
+
+    override func updateLayer() {
+        effectiveAppearance.performAsCurrentDrawingAppearance { layer?.backgroundColor = color.cgColor }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
     }
 }
 
