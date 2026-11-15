@@ -1113,5 +1113,6 @@ Packaged demo app on the M4, macOS 26.7.3, Apple silicon, after the five commits
 | `--show-settings`, `--show-models` in light and dark | No restating captions; Backlog row; one AI assistants line per tool with Copy Command or Copy JSON; Models has no intro line and Off-black bars. |
 | `--show-menu` | Headings read `Claude · personal`; states are item symbols; Stale and Unavailable accounts offer Refresh; countdowns read `in 3d`, `Resets in 2h`; Quit has no icon. |
 | `swift test` | Passed in all four targets: 47, 15, 75 and 16 tests. |
+| `b3ded57` on Parker's M1, macOS 27.0.1, Apple silicon: `git diff --check`, `swift test`, `scripts/package_app.sh`, `codesign --verify --strict` | All passed: 47, 15, 75 and 16 tests; the packaged app is valid on disk and satisfies its Designated Requirement. This is the check `push_main.sh` skipped because `/Volumes/Claude` was not mounted on the M4. |
 
 Not verified: the account page and add-account sheet (no demo route; checked by reading the code), VoiceOver, keyboard paths, the minimum window size, macOS 14 runtime, Intel, the status item strip, and Forecast below the fold, which no capture shows.
