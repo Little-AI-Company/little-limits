@@ -11,18 +11,19 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
 
     private let model: ApplicationModel
     private let scroll = NSScrollView()
-    private let attention = InterfaceControls.label("", size: 12)
-    private let creditHelp = InterfaceControls.label("", size: 12)
+    private let attention = InterfaceControls.label("", size: 13)
+    private let attentionSymbol = NSImageView()
     private let usageReadings = AccountReadingView()
     private let creditReadings = AccountReadingView()
     private let recoveryButton = NSButton(title: "Reconnect…", target: nil, action: nil)
+    private let retryButton = NSButton(title: "Refresh", target: nil, action: nil)
     private let keychainAccessButton = NSButton(title: "Allow Keychain Access…", target: nil, action: nil)
     private let consoleButton = NSButton(title: "Connect API Credits…", target: nil, action: nil)
     private let disconnectConsoleButton = NSButton(title: "Disconnect API Credits", target: nil, action: nil)
     private let connectionDetails = InterfaceControls.label("", size: 12)
     private let manualDisclosure = NSButton(title: "", target: nil, action: nil)
     private let manualEditor = NSStackView()
-    private let manualHelp = InterfaceControls.label("Enter the amount shown in billing. This dated record does not update automatically.")
+    private let manualHelp = InterfaceControls.label("Copy the amount from billing. It does not update by itself.")
     private let accountEditor = NSStackView()
     private let emptyState = InterfaceControls.label("", size: 13)
     private let accountLoadError = NSStackView()
@@ -139,12 +140,20 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         disconnectConsoleButton.target = self
         disconnectConsoleButton.action = #selector(disconnectConsole(_:))
         disconnectConsoleButton.toolTip = "Stop automatic API Credits readings while keeping the separate Claude Platform sign-in."
-        let attentionRow = NSStackView(views: [attention, recoveryButton, keychainAccessButton])
+        retryButton.target = self
+        retryButton.action = #selector(refreshSelectedAccount(_:))
+        attentionSymbol.symbolConfiguration = .init(pointSize: 13, weight: .regular)
+        attentionSymbol.setAccessibilityElement(false)
+        attentionSymbol.setContentHuggingPriority(.required, for: .horizontal)
+        attention.textColor = BrandPalette.label
+        let attentionRow = NSStackView(views: [attentionSymbol, attention, recoveryButton, keychainAccessButton, retryButton])
         attentionRow.orientation = .horizontal
-        attentionRow.alignment = .firstBaseline
+        attentionRow.alignment = .centerY
         attentionRow.spacing = 8
+        attentionRow.setCustomSpacing(6, after: attentionSymbol)
+        attentionRow.setCustomSpacing(12, after: attention)
         attentionRow.detachesHiddenViews = true
-        attention.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        attention.setContentHuggingPriority(.required, for: .horizontal)
 
         manualCategory.target = self
         manualCategory.action = #selector(selectCredit(_:))
@@ -186,6 +195,7 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         manualEditor.orientation = .vertical
         manualEditor.alignment = .leading
         manualEditor.spacing = 12
+        manualHelp.textColor = BrandPalette.secondaryLabel
         for view in [manualHelp, form, balanceActions] { manualEditor.addArrangedSubview(view) }
         manualHelp.widthAnchor.constraint(equalTo: manualEditor.widthAnchor).isActive = true
         manualEditor.isHidden = true
@@ -194,10 +204,10 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         manualDisclosure.target = self
         manualDisclosure.action = #selector(toggleManualEditor(_:))
         manualDisclosure.setAccessibilityLabel("Show manual balance editor")
-        let manualHeading = NSStackView(views: [manualDisclosure, InterfaceControls.label("Manual balance", size: 13)])
+        let manualHeading = NSStackView(views: [manualDisclosure, Self.warm(InterfaceControls.label("Manual balance", size: 13))])
         manualHeading.orientation = .horizontal
         manualHeading.spacing = 6
-        let creditsLabel = InterfaceControls.label("Credits", size: 13, weight: .semibold)
+        let creditsLabel = Self.heading("Credits")
         creditsLabel.setContentHuggingPriority(.required, for: .horizontal)
         let creditsHeading = NSStackView(views: [creditsLabel, consoleButton, disconnectConsoleButton])
         creditsHeading.orientation = .horizontal
@@ -205,8 +215,8 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         creditsHeading.spacing = 12
         creditsHeading.detachesHiddenViews = true
         connectionDetails.isSelectable = true
-        let connectionSection = InterfaceControls.stack([InterfaceControls.label("Connection Details", size: 13, weight: .semibold),
-                                                         connectionDetails], spacing: 8)
+        connectionDetails.textColor = BrandPalette.secondaryLabel
+        let connectionSection = InterfaceControls.stack([Self.heading("Connection Details"), connectionDetails], spacing: 8)
         connectionDetails.widthAnchor.constraint(equalTo: connectionSection.widthAnchor).isActive = true
         accountEditor.orientation = .vertical
         accountEditor.alignment = .leading
@@ -214,10 +224,9 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         accountEditor.detachesHiddenViews = true
         let sections: [NSView] = [
             attentionRow,
-            InterfaceControls.label("Usage", size: 13, weight: .semibold), usageReadings,
+            Self.heading("Usage"), usageReadings,
             InterfaceControls.separator(),
             creditsHeading, creditReadings,
-            creditHelp,
             manualHeading, manualEditor,
             InterfaceControls.separator(), connectionSection
         ]
@@ -236,7 +245,10 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         document.translatesAutoresizingMaskIntoConstraints = false
         retryAccountLoadButton.target = self
         retryAccountLoadButton.action = #selector(retryAccountLoad(_:))
-        let loadErrorTitle = InterfaceControls.label("Accounts Could Not Be Loaded", size: 16, weight: .semibold)
+        let loadErrorTitle = Self.heading("Accounts Could Not Be Loaded")
+        accountLoadMessage.textColor = BrandPalette.label
+        emptyState.textColor = BrandPalette.label
+        status.textColor = BrandPalette.secondaryLabel
         accountLoadError.orientation = .vertical
         accountLoadError.alignment = .leading
         accountLoadError.spacing = 12
@@ -433,55 +445,85 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         }
         creditReadings.render(creditRows)
         renderAttention(profile: profile, snapshot: snapshot, now: now)
-        let platformConnected = profile.provider == .claude && model.consoleConnections[id] != nil
-        creditHelp.stringValue = profile.provider == .claude && !platformConnected
-            ? "API Credits use a separate Claude Platform sign-in. Choose Connect API Credits… to read them." : ""
-        creditHelp.isHidden = creditHelp.stringValue.isEmpty
         updateConnectionDetails(profile: profile, snapshot: snapshot)
     }
 
     private func renderAttention(profile: AccountProfile, snapshot: AccountSnapshot?, now: Date) {
         var message = ""
+        var symbol: (name: String, color: NSColor)?
         var recovery: NSButton?
+        let neutral = BrandPalette.secondaryLabel
         if model.isAwaitingCodexSignIn(profile.id) {
             message = Self.codexSignInWait
+            symbol = ("person.crop.circle.badge.clock", neutral)
         } else if let snapshot {
             switch snapshot.state {
             case .authenticationRequired:
+                symbol = ("person.crop.circle.badge.exclamationmark.fill", BrandPalette.destructive)
                 if profile.source == .claudeOAuth, snapshot.needsKeychainPermission {
-                    message = "Keychain access needs permission. Your saved sign-in is preserved."
+                    message = "Keychain access needed"
                     recovery = keychainAccessButton
                 } else {
-                    message = "Sign-in required."
+                    message = "Sign-in required"
                     recovery = recoveryButton
                 }
-                if !snapshot.windows.isEmpty { message += " Readings below are last known." }
-            case .unavailable: message = "Unavailable. Choose Refresh Account to try again."
-            case .stale: message = staleMessage(snapshot.fetchedAt)
+                if !snapshot.windows.isEmpty { message += " · showing last known readings" }
+            case .unavailable:
+                message = "Unavailable"
+                symbol = ("exclamationmark.circle", neutral)
+                recovery = retryButton
+                retryButton.title = "Try Again"
+            case .stale:
+                message = staleMessage(snapshot.fetchedAt)
+                symbol = ("clock", neutral)
+                recovery = retryButton
+                retryButton.title = "Refresh"
             case .available:
                 if snapshot.fetchedAt.map({ !AccountSnapshot.isObservationCurrent($0, now: now) }) == true
                     || snapshot.currentWindows.contains(where: { $0.resetsAt.map { $0 <= now } == true }) {
                     message = staleMessage(snapshot.fetchedAt)
-                } else if snapshot.fetchedAt == nil && !snapshot.windows.isEmpty { message = "Last read time unknown." }
+                    symbol = ("clock", neutral)
+                    recovery = retryButton
+                    retryButton.title = "Refresh"
+                } else if snapshot.fetchedAt == nil && !snapshot.windows.isEmpty {
+                    message = "Last read time unknown"
+                    symbol = ("clock", neutral)
+                }
             }
-        } else { message = "No usage reading yet. Choose Refresh Account to read usage." }
-        if message.isEmpty && model.consoleMessages[profile.id] != nil { message = "API Credits need attention. See Connection Details." }
-        if message.isEmpty && !(model.pendingManualCredits[profile.id] ?? []).isEmpty { message = "Manual balances need confirmation." }
+        } else {
+            message = "No reading yet"
+            symbol = ("clock", neutral)
+            recovery = retryButton
+            retryButton.title = "Refresh"
+        }
+        if message.isEmpty && model.consoleMessages[profile.id] != nil {
+            message = "API Credits need attention"
+            symbol = ("exclamationmark.circle", neutral)
+        }
+        if message.isEmpty && !(model.pendingManualCredits[profile.id] ?? []).isEmpty {
+            message = "Manual balance needs confirmation"
+            symbol = ("exclamationmark.circle", neutral)
+        }
         attention.stringValue = message
         attention.toolTip = model.isAwaitingCodexSignIn(profile.id)
             ? "Finish the sign-in in Terminal. This page updates when it completes."
             : [snapshot?.detail, model.consoleMessages[profile.id]].compactMap { $0 }.joined(separator: "\n")
+        attentionSymbol.image = symbol.flatMap { NSImage(systemSymbolName: $0.name, accessibilityDescription: nil) }
+        attentionSymbol.contentTintColor = symbol?.color
+        attentionSymbol.isHidden = symbol == nil
         recoveryButton.isHidden = recovery !== recoveryButton
         keychainAccessButton.isHidden = recovery !== keychainAccessButton
+        retryButton.isHidden = recovery !== retryButton
+        retryButton.isEnabled = canRefreshAccount
         attention.superview?.isHidden = message.isEmpty
     }
 
     private func staleMessage(_ fetchedAt: Date?) -> String {
-        guard let fetchedAt else { return "Stale. Choose Refresh Account to check usage." }
+        guard let fetchedAt else { return "Stale" }
         let time = Calendar.current.isDateInToday(fetchedAt)
             ? fetchedAt.formatted(date: .omitted, time: .shortened)
             : fetchedAt.formatted(.dateTime.month(.abbreviated).day().hour().minute())
-        return "Stale · last read \(time). Choose Refresh Account to read it again."
+        return "Stale · last read \(time)"
     }
 
     private func setSubtitle(_ subtitle: String) {
@@ -637,6 +679,17 @@ final class AccountDetailViewController: NSViewController, WindowToolbarContribu
         let address = monthlyGrantNeedsLink ? "https://claude.ai/settings/billing"
             : provider == .claude ? "https://platform.claude.com/settings/billing" : "https://platform.openai.com/settings/organization/billing/overview"
         if let url = URL(string: address) { NSWorkspace.shared.open(url) }
+    }
+
+    private static func heading(_ text: String) -> NSTextField {
+        let label = InterfaceControls.label(text, size: 15, weight: .semibold)
+        label.textColor = BrandPalette.label
+        return label
+    }
+
+    private static func warm(_ label: NSTextField) -> NSTextField {
+        label.textColor = BrandPalette.label
+        return label
     }
 
     private func showError(_ message: String) {

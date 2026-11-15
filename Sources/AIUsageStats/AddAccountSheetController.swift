@@ -12,6 +12,7 @@ final class AddAccountSheetController: NSWindowController {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Self.contentWidth + Self.margin * 2, height: 180),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.title = "Add Account"
+        window.backgroundColor = BrandPalette.windowBackground
         window.isReleasedWhenClosed = false
         super.init(window: window)
         providerPicker.addItems(withTitles: Provider.allCases.map(InterfaceFormatting.provider))
@@ -19,8 +20,12 @@ final class AddAccountSheetController: NSWindowController {
         providerPicker.target = self
         providerPicker.action = #selector(selectProvider(_:))
         providerPicker.setAccessibilityLabel("Provider")
-        let title = InterfaceControls.label("Add Account", size: 13, weight: .bold)
-        let providerRow = NSStackView(views: [InterfaceControls.label("Provider:", size: 13), providerPicker])
+        let title = InterfaceControls.label("Add Account", size: 15, weight: .semibold)
+        title.textColor = BrandPalette.label
+        let providerLabel = InterfaceControls.label("Provider:", size: 13)
+        providerLabel.textColor = BrandPalette.label
+        explanation.textColor = BrandPalette.secondaryLabel
+        let providerRow = NSStackView(views: [providerLabel, providerPicker])
         providerRow.orientation = .horizontal
         providerRow.alignment = .firstBaseline
         providerRow.spacing = 8
@@ -28,6 +33,7 @@ final class AddAccountSheetController: NSWindowController {
         cancel.keyEquivalent = "\u{1b}"
         let proceed = NSButton(title: "Continue", target: self, action: #selector(proceed(_:)))
         proceed.keyEquivalent = "\r"
+        proceed.bezelColor = BrandPalette.accentFill
         let buttons = NSStackView()
         buttons.setViews([cancel, proceed], in: .trailing)
         buttons.orientation = .horizontal
@@ -70,8 +76,8 @@ final class AddAccountSheetController: NSWindowController {
 
     private func updateExplanation() {
         explanation.stringValue = selectedProvider == .claude
-            ? "Opens claude.ai in your browser to sign in to this Claude subscription and read its usage. API Credits use a separate Claude Platform sign-in that you can connect later on the account page."
-            : "If the Codex CLI on this Mac is signed in, you can use that login. Otherwise Terminal opens to sign in to a separate Codex login for this account through the official browser flow. Your existing CLI login is never changed."
+            ? "Signs in on claude.ai in your browser. Connect API Credits later on the account page."
+            : "Uses the Codex CLI login on this Mac, or signs in to a separate Codex login in Terminal. Your CLI login is never changed."
         fitWindowToContent()
     }
 

@@ -89,8 +89,10 @@ final class ModelsSidebarCellView: NSTableCellView {
         let image = NSImageView()
         image.image = NSImage(systemSymbolName: "chart.bar.xaxis", accessibilityDescription: nil)
         image.imageScaling = .scaleProportionallyDown
+        image.contentTintColor = BrandPalette.label
         image.setAccessibilityElement(false)
         let label = NSTextField(labelWithString: "Models")
+        label.textColor = BrandPalette.label
         label.lineBreakMode = .byTruncatingTail
         label.setAccessibilityElement(false)
         imageView = image

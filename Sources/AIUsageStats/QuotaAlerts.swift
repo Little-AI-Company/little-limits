@@ -219,7 +219,7 @@ final class QuotaAlerts {
                     + "resets \(LimitsDigestText.moment(nudge.resetsAt, now: now, calendar: calendar))"
             }
         }
-        if let burnItem { lines.append("Burn list: \"\(burnItem.text)\"") }
+        if let burnItem { lines.append("Backlog: \"\(burnItem.text)\"") }
         var userInfo = ["windows": nudges.map(\.windowKey).joined(separator: ","),
                         "accounts": nudges.map(\.account.id.uuidString).joined(separator: ",")]
         if let burnItem { userInfo["burnItem"] = burnItem.text }

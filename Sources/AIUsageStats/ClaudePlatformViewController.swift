@@ -93,12 +93,18 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
         heading.orientation = .horizontal
         heading.alignment = .firstBaseline
         heading.spacing = 16
+        headingTitle.textColor = BrandPalette.label
+        accountContext.textColor = BrandPalette.secondaryLabel
+        instruction.textColor = BrandPalette.label
+        status.textColor = BrandPalette.secondaryLabel
         accountContext.lineBreakMode = .byTruncatingMiddle
         accountContext.maximumNumberOfLines = 2
         organizationControls.orientation = .horizontal
         organizationControls.alignment = .firstBaseline
         organizationControls.spacing = 8
-        organizationControls.addArrangedSubview(InterfaceControls.label("Organization", size: 12))
+        let organizationLabel = InterfaceControls.label("Organization", size: 13)
+        organizationLabel.textColor = BrandPalette.label
+        organizationControls.addArrangedSubview(organizationLabel)
         organizationControls.addArrangedSubview(organization)
         let controls = NSStackView(views: [organizationControls, readButton, connectionActions])
         controls.orientation = .horizontal
@@ -115,9 +121,9 @@ final class ClaudePlatformViewController: NSViewController, WKNavigationDelegate
             label.widthAnchor.constraint(equalTo: chrome.widthAnchor).isActive = true
         }
         NSLayoutConstraint.activate([
-            chrome.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
-            chrome.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
-            chrome.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor, constant: 16),
+            chrome.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 20),
+            chrome.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -20),
+            chrome.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor, constant: 20),
             webView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             webView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             webView.topAnchor.constraint(equalTo: chrome.bottomAnchor, constant: 12),

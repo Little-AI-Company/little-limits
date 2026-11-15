@@ -18,8 +18,12 @@ final class AccountReadingView: NSView {
         grid?.removeFromSuperview()
         let rows = readings.map { reading -> [NSView] in
             let label = InterfaceControls.label(reading.label, size: 13)
-            let value = InterfaceControls.label(reading.value, size: 15, weight: .semibold)
+            let value = InterfaceControls.label(reading.value)
             let timing = InterfaceControls.label(reading.timing, size: 12)
+            label.textColor = BrandPalette.label
+            value.textColor = BrandPalette.label
+            value.font = .monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
+            timing.textColor = BrandPalette.secondaryLabel
             label.widthAnchor.constraint(equalToConstant: 112).isActive = true
             value.widthAnchor.constraint(equalToConstant: 108).isActive = true
             for field in [label, value, timing] {

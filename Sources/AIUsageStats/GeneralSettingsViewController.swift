@@ -20,7 +20,7 @@ final class GeneralSettingsViewController: NSViewController {
     private let burnSetup = InterfaceControls.stack([], spacing: 8)
     private var burnFields: [NSTextField] = []
     private var burnProviders: [NSPopUpButton] = []
-    private var copySources: [NSButton: NSTextField] = [:]
+    private var copySources: [NSButton: (text: String, title: String)] = [:]
 
     init(storesIconChoice: Bool, morningDigest: MorningDigest, quotaAlerts: QuotaAlerts) {
         self.storesIconChoice = storesIconChoice
@@ -36,15 +36,13 @@ final class GeneralSettingsViewController: NSViewController {
         loginButton.target = self
         loginButton.action = #selector(toggleLogin(_:))
         loginButton.setAccessibilityLabel("Launch Little Limits at login")
+        loginStatus.textColor = BrandPalette.secondaryLabel
         let startup = InterfaceControls.stack([loginButton, loginStatus], spacing: 6)
+        startup.detachesHiddenViews = true
         loginStatus.widthAnchor.constraint(equalTo: startup.widthAnchor).isActive = true
-        let iconNote = InterfaceControls.label(
-            "Changes the icon in the Dock and app switcher while a Little Limits window is open, and in About Little Limits. Finder keeps Paper.")
-        let icon = InterfaceControls.stack([iconButton, iconNote], spacing: 6)
-        iconNote.widthAnchor.constraint(equalTo: icon.widthAnchor).isActive = true
         configureIconButton()
-        let form = settingsForm([("Startup:", startup), ("App icon:", icon), ("Morning digest:", digestSetup()),
-                                 ("Alerts:", alertSetup()), ("Burn list:", burnListSetup()), ("AI assistants:", assistantSetup())])
+        let form = settingsForm([("Startup:", startup), ("App icon:", iconButton), ("Morning digest:", digestSetup()),
+                                 ("Alerts:", alertSetup()), ("Backlog:", backlogSetup()), ("AI assistants:", assistantSetup())])
         form.translatesAutoresizingMaskIntoConstraints = false
         let scroll = NSScrollView()
         let document = SettingsDocumentView()
@@ -88,10 +86,10 @@ final class GeneralSettingsViewController: NSViewController {
         first.orientation = .horizontal
         first.alignment = .firstBaseline
         first.spacing = 6
-        let note = InterfaceControls.label(
-            "A notification with what is left on each account and which to use first. If the Mac is asleep at that time, it comes when the Mac wakes, up to 4 hours later.")
-        let setup = InterfaceControls.stack([first, weekdaysButton, note, digestStatus], spacing: 6)
-        for view in [note, digestStatus] { view.widthAnchor.constraint(equalTo: setup.widthAnchor).isActive = true }
+        digestStatus.textColor = BrandPalette.secondaryLabel
+        let setup = InterfaceControls.stack([first, weekdaysButton, digestStatus], spacing: 6)
+        setup.detachesHiddenViews = true
+        digestStatus.widthAnchor.constraint(equalTo: setup.widthAnchor).isActive = true
         return setup
     }
 
@@ -111,15 +109,15 @@ final class GeneralSettingsViewController: NSViewController {
         runDryButton.target = self
         runDryButton.action = #selector(changeAlerts(_:))
         let first = NSStackView(views: [nudgeButton, nudgeThreshold,
-                                        InterfaceControls.label("of a week would reset unused")])
+                                        warm(InterfaceControls.label("of a week would reset unused", size: 13))])
         first.orientation = .horizontal
         first.alignment = .firstBaseline
         first.spacing = 6
         let hour = { (value: Int) in
             Calendar.current.date(bySettingHour: value, minute: 0, second: 0, of: Date())?.formatted(date: .omitted, time: .shortened) ?? "\(value):00"
         }
-        let note = InterfaceControls.label(
-            "Nudges come at most twice per weekly window and four times a week, never between \(hour(QuotaAlerts.quietStartHour)) and \(hour(QuotaAlerts.quietEndHour)). The run-out warning comes once until that quota resets.")
+        let note = warm(InterfaceControls.label(
+            "No nudges from \(hour(QuotaAlerts.quietStartHour)) to \(hour(QuotaAlerts.quietEndHour))."), secondary: true)
         let setup = InterfaceControls.stack([first, runDryButton, note], spacing: 6)
         note.widthAnchor.constraint(equalTo: setup.widthAnchor).isActive = true
         return setup
@@ -135,10 +133,9 @@ final class GeneralSettingsViewController: NSViewController {
         quotaAlerts.update(preferences)
     }
 
-    private func burnListSetup() -> NSView {
+    private func backlogSetup() -> NSView {
         let add = NSButton(title: "Add Task", target: self, action: #selector(addBurnItem(_:)))
-        let note = InterfaceControls.label(
-            "Tasks worth spending leftover quota on. A nudge shows the top one for that provider and can copy it. Little Limits never runs it.")
+        let note = warm(InterfaceControls.label("A nudge offers the top task to copy."), secondary: true)
         burnSetup.addArrangedSubview(add)
         burnSetup.addArrangedSubview(note)
         note.widthAnchor.constraint(equalTo: burnSetup.widthAnchor).isActive = true
@@ -156,16 +153,16 @@ final class GeneralSettingsViewController: NSViewController {
             field.target = self
             field.action = #selector(changeBurnList(_:))
             (field.cell as? NSTextFieldCell)?.sendsActionOnEndEditing = true
-            field.setAccessibilityLabel("Burn list task \(index + 1)")
+            field.setAccessibilityLabel("Backlog task \(index + 1)")
             let provider = NSPopUpButton(frame: .zero, pullsDown: false)
             provider.addItems(withTitles: ["Either", "Claude", "Codex"])
             provider.selectItem(at: item.provider.map { $0 == .claude ? 1 : 2 } ?? 0)
             provider.target = self
             provider.action = #selector(changeBurnList(_:))
-            provider.setAccessibilityLabel("Provider for burn list task \(index + 1)")
+            provider.setAccessibilityLabel("Provider for backlog task \(index + 1)")
             let remove = NSButton(title: "Remove", target: self, action: #selector(removeBurnItem(_:)))
             remove.tag = index
-            remove.setAccessibilityLabel("Remove burn list task \(index + 1)")
+            remove.setAccessibilityLabel("Remove backlog task \(index + 1)")
             let row = NSStackView(views: [field, provider, remove])
             row.orientation = .horizontal
             row.alignment = .firstBaseline
@@ -238,60 +235,69 @@ final class GeneralSettingsViewController: NSViewController {
     }
 
     private func settingsForm(_ rows: [(title: String, content: NSView)]) -> NSGridView {
-        let form = NSGridView(views: rows.map { [InterfaceControls.label($0.title, size: 13), $0.content] })
+        let form = NSGridView(views: rows.map { [warm(InterfaceControls.label($0.title, size: 13)), $0.content] })
         form.columnSpacing = 12
         form.rowSpacing = 20
         form.column(at: 0).width = 96
         form.column(at: 0).xPlacement = .trailing
         form.column(at: 1).xPlacement = .fill
         form.rowAlignment = .firstBaseline
+        form.cell(for: iconButton)?.xPlacement = .leading
         return form
     }
 
     private func assistantSetup() -> NSView {
         let helper = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/little-limits").path
         let quoted = "'" + helper.replacingOccurrences(of: "'", with: "'\\''") + "'"
-        let note = InterfaceControls.label(
-            "Claude Code, Codex and Claude Desktop can read how much of each account is left from Little Limits once you add it with a command below; Little Limits only copies the text and never edits their settings.")
-        let entries = [
+        let rows = [
             copyableCommand(title: "Claude Code", text: "claude mcp add --scope user little-limits -- \(quoted) mcp",
-                            accessibilityName: "Claude Code install command"),
+                            buttonTitle: "Copy Command", accessibilityName: "Claude Code install command"),
             copyableCommand(title: "Codex CLI", text: "codex mcp add little-limits -- \(quoted) mcp",
-                            accessibilityName: "Codex CLI install command"),
-            copyableCommand(title: "Claude Desktop, paste into claude_desktop_config.json",
-                            text: Self.claudeDesktopConfiguration(helper: helper),
-                            accessibilityName: "Claude Desktop configuration"),
-            copyableCommand(title: "Status table in Terminal", text: "\(quoted) status",
-                            accessibilityName: "Terminal status command")
+                            buttonTitle: "Copy Command", accessibilityName: "Codex CLI install command"),
+            copyableCommand(title: "Claude Desktop", text: Self.claudeDesktopConfiguration(helper: helper),
+                            buttonTitle: "Copy JSON", accessibilityName: "Claude Desktop configuration",
+                            help: "Paste into claude_desktop_config.json"),
+            copyableCommand(title: "Terminal", text: "\(quoted) status",
+                            buttonTitle: "Copy Command", accessibilityName: "Terminal status command")
         ]
-        let setup = InterfaceControls.stack([note] + entries, spacing: 10)
-        for view in [note] + entries { view.widthAnchor.constraint(equalTo: setup.widthAnchor).isActive = true }
+        let setup = InterfaceControls.stack([], spacing: 6)
+        for row in rows {
+            let line = NSStackView(views: row)
+            line.orientation = .horizontal
+            line.alignment = .firstBaseline
+            line.distribution = .fill
+            line.spacing = 12
+            setup.addArrangedSubview(line)
+            line.widthAnchor.constraint(equalTo: setup.widthAnchor).isActive = true
+            if let first = rows.first, row[0] !== first[0] {
+                row[0].widthAnchor.constraint(equalTo: first[0].widthAnchor).isActive = true
+                row[2].widthAnchor.constraint(equalTo: first[2].widthAnchor).isActive = true
+            }
+        }
         return setup
     }
 
-    private func copyableCommand(title: String, text: String, accessibilityName: String) -> NSView {
-        let field = NSTextField(wrappingLabelWithString: text)
-        field.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        field.textColor = .labelColor
-        field.isSelectable = true
-        field.lineBreakMode = .byCharWrapping
-        field.setContentCompressionResistancePriority(.required, for: .vertical)
-        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        field.setAccessibilityLabel(accessibilityName)
-        let copy = NSButton(title: "Copy", target: self, action: #selector(copyCommand(_:)))
+    private func copyableCommand(title: String, text: String, buttonTitle: String, accessibilityName: String,
+                                 help: String? = nil) -> [NSView] {
+        let name = warm(InterfaceControls.label(title, size: 13))
+        name.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        name.setContentCompressionResistancePriority(.required, for: .horizontal)
+        let command = NSTextField(labelWithString: text)
+        command.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        command.textColor = BrandPalette.secondaryLabel
+        command.lineBreakMode = .byTruncatingMiddle
+        command.maximumNumberOfLines = 1
+        command.toolTip = help.map { "\($0)\n\n\(text)" } ?? text
+        command.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        command.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        command.setAccessibilityLabel(accessibilityName)
+        let copy = NSButton(title: buttonTitle, target: self, action: #selector(copyCommand(_:)))
+        copy.toolTip = command.toolTip
         copy.setAccessibilityLabel("Copy \(accessibilityName)")
-        copy.setContentHuggingPriority(.required, for: .horizontal)
+        copy.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         copy.setContentCompressionResistancePriority(.required, for: .horizontal)
-        copySources[copy] = field
-        let row = NSStackView(views: [field, copy])
-        row.orientation = .horizontal
-        row.alignment = .firstBaseline
-        row.distribution = .fill
-        row.spacing = 8
-        let entry = InterfaceControls.stack([InterfaceControls.label(title), row], spacing: 4)
-        row.widthAnchor.constraint(equalTo: entry.widthAnchor).isActive = true
-        return entry
+        copySources[copy] = (text, buttonTitle)
+        return [name, command, copy]
     }
 
     private static func claudeDesktopConfiguration(helper: String) -> String {
@@ -305,10 +311,15 @@ final class GeneralSettingsViewController: NSViewController {
     }
 
     @objc private func copyCommand(_ sender: NSButton) {
-        guard let text = copySources[sender]?.stringValue else { return }
+        guard let text = copySources[sender]?.text else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-        for button in copySources.keys { button.title = button === sender ? "Copied" : "Copy" }
+        for (button, source) in copySources { button.title = button === sender ? "Copied" : source.title }
+    }
+
+    private func warm(_ field: NSTextField, secondary: Bool = false) -> NSTextField {
+        field.textColor = secondary ? BrandPalette.secondaryLabel : BrandPalette.label
+        return field
     }
 
     private func configureIconButton() {
@@ -342,11 +353,11 @@ final class GeneralSettingsViewController: NSViewController {
         let state = SMAppService.mainApp.status
         loginButton.state = state == .enabled || state == .requiresApproval ? .on : .off
         switch state {
-        case .enabled: loginStatus.stringValue = "Little Limits starts when you log in."
         case .requiresApproval: loginStatus.stringValue = "Allow Little Limits in System Settings > General > Login Items."
-        case .notFound, .notRegistered: loginStatus.stringValue = "Little Limits starts when you open it."
+        case .enabled, .notFound, .notRegistered: loginStatus.stringValue = ""
         @unknown default: loginStatus.stringValue = "Login item status is unavailable."
         }
+        loginStatus.isHidden = loginStatus.stringValue.isEmpty
     }
 
     @objc private func chooseIcon(_ sender: NSPopUpButton) {

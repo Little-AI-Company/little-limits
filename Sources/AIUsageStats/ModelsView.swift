@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UsageHistory
 import UsageHistoryStore
@@ -6,6 +7,12 @@ struct ModelsView: View {
     let state: ModelsPageState
 
     var body: some View {
+        content
+            .foregroundStyle(Color.brandLabel)
+            .background(Color(nsColor: BrandPalette.contentBackground))
+    }
+
+    @ViewBuilder private var content: some View {
         switch state.content {
         case .loading:
             VStack(spacing: 16) {
@@ -36,9 +43,6 @@ private struct ModelsReportView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                if report.models.contains(where: \.isSmallSample) {
-                    Text("Models marked under \(ModelMetrics.reliableResponseCount.formatted()) have fewer requests than that, so their numbers are noisy.")
-                }
                 ForEach(HistoryProvider.allCases, id: \.self) { provider in
                     let models = report.models.filter { $0.provider == provider }
                     if !models.isEmpty { ProviderSection(provider: provider, models: models) }
@@ -86,7 +90,7 @@ private struct MetricBlock: View {
                         ModelNameText(model: model)
                         MetricBar(fraction: fraction)
                         Text(reading?.text ?? metric.emptyText).monospacedDigit().fixedSize().gridColumnAlignment(.trailing)
-                        Text(reading?.detail ?? "").monospacedDigit().foregroundStyle(.secondary).fixedSize()
+                        Text(reading?.detail ?? "").monospacedDigit().foregroundStyle(Color.brandSecondaryLabel).fixedSize()
                     }
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(InterfaceFormatting.modelDisplayName(model.model))
@@ -96,7 +100,7 @@ private struct MetricBlock: View {
             }
             .font(.callout)
             if let footnote = metric.footnote {
-                Text(footnote).font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(footnote).font(.footnote).foregroundStyle(Color.brandSecondaryLabel).fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -125,9 +129,9 @@ private struct MetricBar: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
-                Rectangle().fill(.quaternary)
+                Rectangle().fill(Color(nsColor: BrandPalette.fill))
                 if let fraction {
-                    Rectangle().fill(Color.primary).frame(width: proxy.size.width * min(max(fraction, 0), 1))
+                    Rectangle().fill(Color(nsColor: BrandPalette.accentFill)).frame(width: proxy.size.width * min(max(fraction, 0), 1))
                 }
             }
         }
@@ -139,10 +143,10 @@ private struct MetricBar: View {
 private struct PurposeBlock: View {
     let models: [ModelMetrics]
     private static let purposes: [(InlineScriptPurpose, String, Color)] = [
-        (.editsFileInPlace, "Edits a file in place", .blue),
-        (.writesFile, "Writes a new file", .teal),
-        (.readsJSON, "Reads JSON", .orange),
-        (.other, "Other", .gray)
+        (.editsFileInPlace, "Edits a file in place", Color(nsColor: BrandPalette.accentFill)),
+        (.writesFile, "Writes a new file", Color(nsColor: BrandPalette.honey)),
+        (.readsJSON, "Reads JSON", Color(nsColor: BrandPalette.secondaryLabel)),
+        (.other, "Other", Color(nsColor: BrandPalette.tertiaryLabel))
     ]
 
     var body: some View {
@@ -161,7 +165,7 @@ private struct PurposeBlock: View {
                     }
                     Text("Scripts").gridColumnAlignment(.trailing)
                 }
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.brandSecondaryLabel)
                 .accessibilityHidden(true)
                 ForEach(models) { model in
                     let total = model.inlinePythonPurposes.values.reduce(0, +)
@@ -181,7 +185,7 @@ private struct PurposeBlock: View {
             }
             .font(.callout)
             Text("Groups come from ordered keyword rules on the script. Shares of inline Python scripts with a known purpose.")
-                .font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                .font(.footnote).foregroundStyle(Color.brandSecondaryLabel).fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -199,7 +203,7 @@ private struct PurposeBlock: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.quaternary)
+            .background(Color(nsColor: BrandPalette.fill))
         }
         .frame(minWidth: 80, maxWidth: .infinity, minHeight: 8, maxHeight: 8)
         .clipShape(RoundedRectangle(cornerRadius: 2))
@@ -334,4 +338,9 @@ private struct MetricDefinition: Identifiable {
     private static func percent(_ value: Double) -> String {
         value.formatted(.percent.precision(.fractionLength(1)))
     }
+}
+
+private extension Color {
+    static let brandLabel = Color(nsColor: BrandPalette.label)
+    static let brandSecondaryLabel = Color(nsColor: BrandPalette.secondaryLabel)
 }

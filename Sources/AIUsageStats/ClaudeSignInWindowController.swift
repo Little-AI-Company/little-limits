@@ -24,17 +24,19 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
                               styleMask: [.titled], backing: .buffered, defer: false)
         let heading = existingProfileID == nil ? "Add Claude Account" : "Reconnect \(label)"
         window.title = heading
+        window.backgroundColor = BrandPalette.windowBackground
         window.isReleasedWhenClosed = false
         super.init(window: window)
         window.delegate = self
         cancelButton.target = self
         cancelButton.action = #selector(cancel(_:))
         cancelButton.keyEquivalent = "\u{1b}"
-        let title = InterfaceControls.label(heading, size: 13, weight: .bold)
+        let title = InterfaceControls.label(heading, size: 15, weight: .semibold)
+        title.textColor = BrandPalette.label
         title.lineBreakMode = .byTruncatingMiddle
         title.maximumNumberOfLines = 1
-        let explanation = InterfaceControls.label("Sign-in opens claude.ai in your browser. API Credits use a separate Claude Platform sign-in at platform.claude.com.")
-        let controls = InterfaceControls.stack([title, explanation, status, cancelButton], spacing: 16)
+        status.textColor = BrandPalette.label
+        let controls = InterfaceControls.stack([title, status, cancelButton], spacing: 16)
         controls.translatesAutoresizingMaskIntoConstraints = false
         if let root = window.contentView {
             root.addSubview(controls)
@@ -44,8 +46,7 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
                 controls.topAnchor.constraint(equalTo: root.topAnchor, constant: 24),
                 controls.bottomAnchor.constraint(lessThanOrEqualTo: root.bottomAnchor, constant: -24),
                 title.widthAnchor.constraint(equalTo: controls.widthAnchor),
-                status.widthAnchor.constraint(equalTo: controls.widthAnchor),
-                explanation.widthAnchor.constraint(equalTo: controls.widthAnchor)
+                status.widthAnchor.constraint(equalTo: controls.widthAnchor)
             ])
         }
         window.initialFirstResponder = cancelButton
@@ -138,6 +139,7 @@ final class ClaudeSignInWindowController: NSWindowController, NSWindowDelegate {
     private func finish(title: String) {
         cancelButton.title = title
         cancelButton.keyEquivalent = "\r"
+        cancelButton.bezelColor = BrandPalette.accentFill
         cancelButton.isEnabled = true
         window?.makeFirstResponder(cancelButton)
     }
