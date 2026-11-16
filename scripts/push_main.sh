@@ -226,8 +226,7 @@ refuse_comments() {
   finish 5 "comments $(git rev-parse HEAD) - : take the new comments out, then run this again"
 }
 
-KILL_AWK="$(
-  cat <<'AWK'
+IFS= read -r -d '' KILL_AWK <<'AWK' || true
 function killed(text,   t, pre, n, parts) {
   t = text
   if (t ~ /^[ \t]*>/ || t ~ /^[ \t-]*quote:/) return ""
@@ -251,7 +250,6 @@ function killed(text,   t, pre, n, parts) {
   return ""
 }
 AWK
-)"
 killed_lines() {
   local c
   git diff -U0 --no-color --no-ext-diff --no-renames origin/main...HEAD |
