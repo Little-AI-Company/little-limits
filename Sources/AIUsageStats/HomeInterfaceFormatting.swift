@@ -390,7 +390,8 @@ enum HomeInterfaceFormatting {
                                      accessibilityLabel: "\(provider.provider.title) \(label) total, \(value)\(detail.isEmpty ? "" : ", \(detail)")",
                                      toolTip: help)
             }
-            let reset = nextResetText(provider.nextReset, names: names, now: now, calendar: calendar)
+            let reset = nextResetText(provider.nextReset, names: names, now: now, calendar: calendar,
+                                      shareOf: provider.weekly.capacityPercent)
             lines.append(HomeTotalLine(label: "Next reset", value: reset.value, detail: reset.detail,
                                        accessibilityLabel: "\(provider.provider.title) next weekly reset, \(reset.value), \(reset.help)",
                                        toolTip: reset.help))
@@ -443,13 +444,13 @@ enum HomeInterfaceFormatting {
         return parts.joined(separator: " ")
     }
 
-    static func nextResetText(_ reset: NextQuotaReset, names: [UUID: String], now: Date, calendar: Calendar)
-        -> (value: String, detail: String, help: String) {
+    static func nextResetText(_ reset: NextQuotaReset, names: [UUID: String], now: Date, calendar: Calendar,
+                              shareOf capacityPercent: Double? = nil) -> (value: String, detail: String, help: String) {
         switch reset {
         case .reset(let reset):
             let accounts = reset.accountIDs.count == 1 ? names[reset.accountIDs[0]] ?? "1 account" : "\(reset.accountIDs.count) accounts"
             let relative = relativeText(reset.resetsAt, now: now)
-            let gain = percentText(reset.gainPercent)
+            let gain = percentText(capacityPercent.map { $0 > 0 ? reset.gainPercent / $0 * 100 : reset.gainPercent } ?? reset.gainPercent)
             return (leadingSchedule(reset.resetsAt, now: now, calendar: calendar), "\(relative), adds \(gain) · \(accounts)",
                     "\(accounts) resets \(relative), \(InterfaceFormatting.exactDate(reset.resetsAt)), adding \(gain) to the weekly total.")
         case .nonePending:
