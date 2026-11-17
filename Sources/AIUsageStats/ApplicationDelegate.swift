@@ -25,6 +25,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private var platformControllers: [UUID: ClaudePlatformViewController] = [:]
     private var claudeSignIn: ClaudeSignInWindowController?
     private var accountsLoaded = false
+    private var hadAccountsWhenLoaded: Bool?
     private var statusItemPlacement: CheckedContinuation<Bool, Never>?
     private var statusItemPlacementTimer: Timer?
     private static let statusItemPlacementDeadline: TimeInterval = 2
@@ -62,6 +63,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             guard let self else { return }
             await model.load()
             accountsLoaded = true
+            hadAccountsWhenLoaded = model.hasAccountLoadFailure ? nil : !model.profiles.isEmpty
             render()
             model.refreshIfNeeded()
             startRefreshTimer()
@@ -98,7 +100,15 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         return false
     }
 
+    private func startAtLoginWithFirstAccount() {
+        guard hadAccountsWhenLoaded == false, !model.isDemo, !model.profiles.isEmpty else { return }
+        hadAccountsWhenLoaded = true
+        guard SMAppService.mainApp.status == .notRegistered else { return }
+        try? SMAppService.mainApp.register()
+    }
+
     private func render() {
+        startAtLoginWithFirstAccount()
         let activeAccountIDs = Set(model.profiles.map(\.id))
         for id in platformControllers.keys.filter({ !activeAccountIDs.contains($0) }) {
             platformControllers.removeValue(forKey: id)?.retire()
