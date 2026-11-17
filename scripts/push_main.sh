@@ -180,30 +180,53 @@ three_rounds() {
   say "STOP: ${1%% *} failed 3 times in this session on this change. Make no fourth try: bring in a person with the check that fails, what each try changed, and why it still fails."
 }
 verified_gate() {
-  local value problem
-  value="$(trailer HEAD Verified | head -1)"
-  [ -n "$value" ] || value="$(git log -1 --format=%B | sed -nE 's/^Verified: *(.+)$/\1/p' | head -1)"
-  if [[ "$value" =~ $VERIFIED_FORM ]]; then
-    [ -n "$(trailer HEAD Verified)" ] || [ "$verify" -eq 1 ] || amend_trailers "Verified" "Verified: $value"
-    return 0
+  local commit value problem parent message stamp bad=() stamps=() i=0 changed=0 mode=""
+  for commit in $(git rev-list --reverse origin/main..HEAD); do
+    value="$(trailer "$commit" Verified | head -1)"
+    [ -n "$value" ] || value="$(git log -1 --format=%B "$commit" | sed -nE 's/^Verified: *(.+)$/\1/p' | head -1)"
+    if [[ "$value" =~ $VERIFIED_FORM ]]; then
+      if [ -n "$(trailer "$commit" Verified)" ] || [ "$verify" -eq 1 ]; then stamps+=(""); else stamps+=("Verified: $value"); fi
+      continue
+    fi
+    stamps+=("-")
+    [ "$GATE" != off ] || continue
+    problem="no Verified: trailer"
+    [ -z "$value" ] || problem="Verified: $value is none of verify <what ran>, code-review, none (<why>)"
+    bad+=("$(git rev-parse --short "$commit") $problem")
+  done
+  if [ "${#bad[@]}" -gt 0 ]; then
+    if [ "$GATE" = enforce ] && [ "$(since_allowed '"event":"blocked"')" -lt 2 ]; then
+      [ "$verify" -eq 1 ] || gate_log blocked "${bad[*]}"
+      finish 5 "unverified $(git rev-parse HEAD) - : ${bad[*]}; add 'Verified: verify <what ran>', 'Verified: code-review' or 'Verified: none (<why>)' as a trailer on each"
+    fi
+    if [ "$verify" -eq 1 ]; then
+      say "the gate would stamp Verified: none (not stamped) on: ${bad[*]}"
+    elif [ "$GATE" = enforce ]; then
+      gate_log allowed "${bad[*]}, after 2 blocks"
+      say "the gate refused 2 pushes in this session; these go through as Verified: none (allowed after 2 blocks): ${bad[*]}"
+      mode="Verified: none (allowed after 2 blocks)"
+    else
+      gate_log would-block "${bad[*]}"
+      say "the gate (observe) would block these: ${bad[*]}; pushing them as Verified: none (not stamped)"
+      mode="Verified: none (not stamped)"
+    fi
   fi
-  [ "$GATE" != off ] || return 0
-  problem="no Verified: trailer"
-  [ -z "$value" ] || problem="Verified: $value is none of verify <what ran>, code-review, none (<why>)"
-  if [ "$GATE" = enforce ] && [ "$(since_allowed '"event":"blocked"')" -lt 2 ]; then
-    [ "$verify" -eq 1 ] || gate_log blocked "$problem"
-    finish 5 "unverified $(git rev-parse HEAD) - : $problem; add 'Verified: verify <what ran>', 'Verified: code-review' or 'Verified: none (<why>)' as a trailer"
-  fi
-  [ "$verify" -eq 1 ] && { say "the gate would stamp Verified: none (not stamped): $problem"; return 0; }
-  if [ "$GATE" = enforce ]; then
-    gate_log allowed "$problem, after 2 blocks"
-    say "the gate refused 2 pushes in this session; this one goes through as Verified: none (allowed after 2 blocks)"
-    amend_trailers "Verified" "Verified: none (allowed after 2 blocks)"
-  else
-    gate_log would-block "$problem"
-    say "the gate (observe) would block this: $problem; pushing as Verified: none (not stamped)"
-    amend_trailers "Verified" "Verified: none (not stamped)"
-  fi
+  for commit in $(git rev-list --reverse origin/main..HEAD); do
+    [ "$i" -gt 0 ] || parent="$(git rev-parse "$commit^")"
+    stamp="${stamps[i]}"
+    i=$((i + 1))
+    [ "$stamp" != "-" ] || stamp="$mode"
+    if [ -z "$stamp" ] && [ "$changed" -eq 0 ]; then
+      parent="$commit"
+      continue
+    fi
+    message="$(git log -1 --format=%B "$commit")"
+    [ -z "$stamp" ] || message="$(printf '%s\n' "$message" | sed -E '/^(Verified): /d' | git interpret-trailers --if-exists add --trailer "$stamp")"
+    parent="$(printf '%s\n' "$message" | GIT_AUTHOR_NAME="$(git log -1 --format=%an "$commit")" GIT_AUTHOR_EMAIL="$(git log -1 --format=%ae "$commit")" \
+      GIT_AUTHOR_DATE="$(git log -1 --format=%aI "$commit")" git commit-tree "$commit^{tree}" -p "$parent")"
+    changed=1
+  done
+  [ "$changed" -eq 0 ] || git reset --quiet --soft "$parent"
 }
 amend_trailers() {
   local drop="$1" args=() t
