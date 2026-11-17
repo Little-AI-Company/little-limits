@@ -105,17 +105,27 @@ public enum UseNowRule {
             guard case .exhausted(let date?) = AccountUsability(snapshot: account.snapshot, now: now), date > now else { return nil }
             return (account, date)
         }.min { $0.date < $1.date }
-        let earned = members.compactMap { account -> Int? in
-            guard let summary = account.snapshot?.credits.first(where: { $0.id == "quota_reset_credits" }),
-                  let amount = summary.amount, amount > 0 else { return nil }
-            return NSDecimalNumber(decimal: amount).intValue
-        }.reduce(0, +)
-        let resetGrants: [CreditBalance] = members.flatMap { account -> [CreditBalance] in
-            (account.snapshot?.credits ?? []).filter { credit in
+        var earned = 0
+        var lastKnownEarned = 0
+        var expiries: [Date] = []
+        for account in members {
+            guard let snapshot = account.snapshot,
+                  let summary = snapshot.credits.first(where: { $0.id == "quota_reset_credits" }),
+                  let amount = summary.amount, amount > 0 else { continue }
+            let grants = snapshot.credits.filter { credit in
                 credit.unit == .resets && credit.id != "quota_reset_credits" && credit.status?.lowercased() == "available"
             }
+            let observed = summary.asOf ?? now
+            let expiredSinceRead = grants.contains { $0.expiresAt.map { $0 > observed && $0 <= now } == true }
+            let count = NSDecimalNumber(decimal: amount).intValue
+            if snapshot.isFresh(at: now), !expiredSinceRead {
+                earned += count
+                expiries += grants.compactMap(\.expiresAt).filter { $0 > now }
+            } else {
+                lastKnownEarned += count
+            }
         }
-        let firstExpiry: Date? = resetGrants.compactMap(\.expiresAt).filter { $0 > now }.min()
+        let firstExpiry = expiries.min()
         var reason = "No current \(provider.title) account has at least \(Int(minimumPercentLeft))% of its week and 5-hour window left."
         if let soonest {
             reason += " \(soonest.account.shortIdentity) is usable \(LimitsDigestText.moment(soonest.date, now: now, calendar: calendar))."
@@ -128,6 +138,9 @@ public enum UseNowRule {
             reason += " \(earned) earned reset\(earned == 1 ? "" : "s") available"
             if let firstExpiry { reason += ", first expires \(LimitsDigestText.moment(firstExpiry, now: now, calendar: calendar))" }
             reason += "."
+        }
+        if lastKnownEarned > 0 {
+            reason += " Last known \(lastKnownEarned) earned reset\(lastKnownEarned == 1 ? "" : "s") from an older reading."
         }
         return UseNowPick(provider: provider, need: need, outcome: .noneUsable, account: nil, shortLabel: nil, runnerUp: nil,
                           usableAt: soonest?.date,
