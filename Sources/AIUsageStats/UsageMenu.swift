@@ -189,7 +189,9 @@ enum UsageMenu {
                                   detail: detail))
         }
         let credits = snapshot?.credits ?? UsageService.unavailableCredits(for: profile.provider)
-        if let earned = earnedResets(credits, now: now) { metrics.append(earned) }
+        if let earned = InterfaceFormatting.earnedResets(credits, isCurrentReading: snapshot?.state == .available, now: now) {
+            metrics.append(Metric(label: "Earned resets", value: earned.value, timing: earned.timing, detail: earned.detail))
+        }
         for credit in credits where !isEarnedReset(credit) && !isPlaceholder(credit) {
             var timing: [String] = []
             if credit.source == .manual { timing.append("Manual") }
@@ -211,24 +213,6 @@ enum UsageMenu {
 
     private static func isPlaceholder(_ credit: CreditBalance) -> Bool {
         credit.amount == nil && !credit.isUnlimited && credit.status == nil && credit.asOf == nil && credit.source != .manual
-    }
-
-    private static func earnedResets(_ credits: [CreditBalance], now: Date) -> Metric? {
-        let summary = credits.first { $0.id == "quota_reset_credits" }
-        let grants = credits.filter { isEarnedReset($0) && $0.id != "quota_reset_credits" }
-        guard summary != nil || !grants.isEmpty else { return nil }
-        let count = summary?.amount.map { NSDecimalNumber(decimal: $0).intValue } ?? grants.count
-        let nextExpiry = grants.compactMap(\.expiresAt).filter { $0 > now }.min()
-        let timing = nextExpiry.map { "Next expires in \(UsageFormatting.countdown(to: $0, now: now))" } ?? ""
-        let grantExpired = grants.contains { $0.expiresAt.map { $0 <= now } == true }
-        let oldObservation = summary?.asOf.map { !AccountSnapshot.isObservationCurrent($0, now: now) } == true
-        let value = grantExpired || oldObservation ? "Last known \(count) available" : "\(count) available"
-        var lines = ["Earned resets: \(value)"]
-        for grant in grants.sorted(by: { ($0.expiresAt ?? .distantFuture) < ($1.expiresAt ?? .distantFuture) }) {
-            lines.append(grant.expiresAt.map { "\(InterfaceFormatting.compactExpiry($0, now: now)) · \(InterfaceFormatting.exactDate($0))" }
-                ?? (grant.doesNotExpire ? "Does not expire" : "Expiration date unavailable"))
-        }
-        return Metric(label: "Earned resets", value: value, timing: timing, detail: lines.joined(separator: "\n"))
     }
 
     private static func accountState(_ snapshot: AccountSnapshot, now: Date) -> AccountState? {
