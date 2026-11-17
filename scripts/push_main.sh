@@ -12,6 +12,7 @@ say() { echo "push-main: $*" >&2; }
 finish() {
   local code="$1"
   shift
+  if { [ "$code" -eq 2 ] || [ "$code" -eq 5 ]; } && [ -n "${GATE_LOG:-}" ]; then three_rounds "$1"; fi
   echo "PUSH: $*"
   exit "$code"
 }
@@ -26,6 +27,13 @@ in every small repository and is written in little-worker-hq.
   scripts/push_main.sh --skip-checks "<why>"   push without the check; the reason goes in Tested:
   scripts/push_main.sh --revert <sha> [--reason "<why>"]   revert a commit on main and push that
   scripts/push_main.sh --verify                check HEAD, change and push nothing (also --dry-run)
+
+Every commit carries one Verified: trailer: "verify <what ran>", "code-review"
+or "none (<why>)". GATE in scripts/push_main.conf is off, observe (log what it
+would block to push-gate.jsonl in the git directory) or enforce (refuse a
+commit without one; after 2 refusals in a session the next push goes
+through). A check that fails 3 times on the same commit in a session prints
+STOP: bring in a person.
 
 The last line on standard output is "PUSH: <state> <sha>". Exit codes:
   0 pushed or checked   1 usage or git error   2 the check failed, main unchanged
@@ -80,11 +88,14 @@ COMMENT_SKIP='^(node_modules|vendor)/'
 KILL_FILES='\.(md|mdx|markdown|txt|ya?ml)$'
 KILL_SKIP='(^|/)(node_modules|vendor|fixtures)/'
 NOTICES=()
+GATE=observe
 M4_DIR=""
 CLONE_URL=""
 [ -f "$CONF" ] || finish 1 "no-conf - : $CONF is missing; it sets CHECK"
 . "$CONF"
 CHECK="${PUSH_MAIN_CHECK:-$CHECK}"
+GATE="${PUSH_MAIN_GATE:-$GATE}"
+[[ "$GATE" =~ ^(off|observe|enforce)$ ]] || finish 1 "usage - : GATE is $GATE; it is off, observe or enforce"
 [ -n "$CHECK" ] || finish 1 "no-conf - : $CONF sets no CHECK"
 CHECK_LABEL="${CHECK_LABEL:-$CHECK}"
 M4_DIR="${M4_DIR:-/Volumes/Claude/$(basename "$ROOT")-push}"
@@ -144,6 +155,56 @@ close_findings() {
     done
   done
 }
+GATE_LOG="$(git rev-parse --path-format=absolute --git-common-dir)/push-gate.jsonl"
+VERIFIED_FORM='^(verify .+|code-review|none [(].+[)])$'
+session_id() {
+  local s
+  s="$(trailer HEAD Claude-Session 2>/dev/null | head -1)"
+  printf '%s' "${s:-${CLAUDE_CODE_SESSION_ID:-$(git log -1 --format=%ae 2>/dev/null)-$(date -u +%F)}}"
+}
+gate_log() {
+  printf '{"at":"%s","repo":"%s","sha":"%s","session":"%s","mode":"%s","event":"%s","detail":"%s"}\n' \
+    "$(date -u +%FT%TZ)" "$(json_text "$(basename "$origin_url")")" "$(git rev-parse HEAD 2>/dev/null)" "$(json_text "$(session_id)")" \
+    "$GATE" "$1" "$(json_text "$2")" >>"$GATE_LOG" 2>/dev/null || true
+}
+since_allowed() {
+  grep -F "\"session\":\"$(json_text "$(session_id)")\"" "$GATE_LOG" 2>/dev/null |
+    awk -v want="$1" 'index($0, "\"event\":\"allowed\"") { n = 0 } index($0, want) { n++ } END { print n + 0 }'
+}
+three_rounds() {
+  local key
+  [[ "$1" =~ ^(red|comments|killed|secret|no-customer-note) ]] || return 0
+  key="${1%% *} on $(git log -1 --format=%s 2>/dev/null)"
+  gate_log failed "$key"
+  [ "$(since_allowed "\"event\":\"failed\",\"detail\":\"$(json_text "$key")\"")" -ge 3 ] || return 0
+  say "STOP: ${1%% *} failed 3 times in this session on this change. Make no fourth try: bring in a person with the check that fails, what each try changed, and why it still fails."
+}
+verified_gate() {
+  local value problem
+  value="$(trailer HEAD Verified | head -1)"
+  [ -n "$value" ] || value="$(git log -1 --format=%B | sed -nE 's/^Verified: *(.+)$/\1/p' | head -1)"
+  if [[ "$value" =~ $VERIFIED_FORM ]]; then
+    [ -n "$(trailer HEAD Verified)" ] || [ "$verify" -eq 1 ] || amend_trailers "Verified" "Verified: $value"
+    return 0
+  fi
+  [ "$GATE" != off ] || return 0
+  problem="no Verified: trailer"
+  [ -z "$value" ] || problem="Verified: $value is none of verify <what ran>, code-review, none (<why>)"
+  if [ "$GATE" = enforce ] && [ "$(since_allowed '"event":"blocked"')" -lt 2 ]; then
+    [ "$verify" -eq 1 ] || gate_log blocked "$problem"
+    finish 5 "unverified $(git rev-parse HEAD) - : $problem; add 'Verified: verify <what ran>', 'Verified: code-review' or 'Verified: none (<why>)' as a trailer"
+  fi
+  [ "$verify" -eq 1 ] && { say "the gate would stamp Verified: none (not stamped): $problem"; return 0; }
+  if [ "$GATE" = enforce ]; then
+    gate_log allowed "$problem, after 2 blocks"
+    say "the gate refused 2 pushes in this session; this one goes through as Verified: none (allowed after 2 blocks)"
+    amend_trailers "Verified" "Verified: none (allowed after 2 blocks)"
+  else
+    gate_log would-block "$problem"
+    say "the gate (observe) would block this: $problem; pushing as Verified: none (not stamped)"
+    amend_trailers "Verified" "Verified: none (not stamped)"
+  fi
+}
 amend_trailers() {
   local drop="$1" args=() t
   shift
@@ -160,7 +221,7 @@ if [ -n "$revert" ]; then
     git revert --abort >/dev/null 2>&1 || true
     finish 3 "conflict $target - : the revert does not apply on origin/main"
   }
-  amend_trailers "Customer-note" "Customer-note: none (reverts ${target:0:12}${reason:+: $reason})"
+  amend_trailers "Customer-note|Verified" "Customer-note: none (reverts ${target:0:12}${reason:+: $reason})" "Verified: none (revert)"
   say "reverted ${target:0:12} as $(git rev-parse --short=12 HEAD)"
   skip="${skip:-revert of ${target:0:12}}"
 fi
@@ -413,6 +474,8 @@ run_check() {
 for ((i = 0; i + 1 < ${#NOTICES[@]}; i += 2)); do
   ! git diff --name-only origin/main...HEAD | grep -Eq "${NOTICES[i]}" || say "${NOTICES[i + 1]}"
 done
+
+[ -n "$revert" ] || verified_gate
 
 if [ "$verify" -eq 1 ]; then
   run_check
