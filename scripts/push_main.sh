@@ -169,7 +169,7 @@ gate_log() {
 }
 since_allowed() {
   grep -F "\"session\":\"$(json_text "$(session_id)")\"" "$GATE_LOG" 2>/dev/null |
-    awk -v want="$1" 'index($0, "\"event\":\"allowed\"") { n = 0 } index($0, want) { n++ } END { print n + 0 }'
+    WANT="$1" awk 'index($0, "\"event\":\"allowed\"") { n = 0 } index($0, ENVIRON["WANT"]) { n++ } END { print n + 0 }'
 }
 three_rounds() {
   local key
