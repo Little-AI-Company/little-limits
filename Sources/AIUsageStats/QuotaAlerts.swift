@@ -140,14 +140,13 @@ final class QuotaAlerts {
            ledger.sentAt.filter({ now.timeIntervalSince($0) < 7 * 86_400 }).count < Self.nudgesPerWeek {
             let nudges = Self.nudges(overview: overview, drains: drains, threshold: Double(threshold), ledger: ledger,
                                      now: now, calendar: calendar)
-            if !nudges.isEmpty {
+            if !nudges.isEmpty, await postNudges(nudges, now: now, calendar: calendar) {
                 for nudge in nudges {
                     var record = ledger.windows[nudge.windowKey] ?? Ledger.WindowRecord(kinds: [], resetsAt: nudge.resetsAt)
                     record.kinds.append(nudge.kind)
                     ledger.windows[nudge.windowKey] = record
                 }
                 ledger.sentAt.append(now)
-                postNudges(nudges, now: now, calendar: calendar)
             }
         }
         if preferences.warnsRunDry {
@@ -205,7 +204,7 @@ final class QuotaAlerts {
         }
     }
 
-    private func postNudges(_ nudges: [Nudge], now: Date, calendar: Calendar) {
+    private func postNudges(_ nudges: [Nudge], now: Date, calendar: Calendar) async -> Bool {
         let burnItem = burnItem(for: nudges[0].account.profile.provider)
         let title: String
         var lines: [String]
@@ -225,12 +224,10 @@ final class QuotaAlerts {
                         "accounts": nudges.map(\.account.id.uuidString).joined(separator: ",")]
         if let burnItem { userInfo["burnItem"] = burnItem.text }
         Self.logger.notice("Nudge for \(nudges.count) account window(s)")
-        Task {
-            await notifications.post(identifier: "nudge-\(nudges.map(\.windowKey).joined(separator: "+"))-\(nudges[0].kind.rawValue)",
-                                     title: title, body: lines.joined(separator: "\n"),
-                                     category: burnItem == nil ? LocalNotifications.nudgeCategory : LocalNotifications.nudgeWithBurnItemCategory,
-                                     userInfo: userInfo)
-        }
+        return await notifications.post(identifier: "nudge-\(nudges.map(\.windowKey).joined(separator: "+"))-\(nudges[0].kind.rawValue)",
+                                        title: title, body: lines.joined(separator: "\n"),
+                                        category: burnItem == nil ? LocalNotifications.nudgeCategory : LocalNotifications.nudgeWithBurnItemCategory,
+                                        userInfo: userInfo)
     }
 
     private func postRunDry(_ alert: RunDry, now: Date, calendar: Calendar) async -> Bool {
