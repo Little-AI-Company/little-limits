@@ -219,8 +219,7 @@ final class GeneralSettingsViewController: NSViewController {
         weekdaysButton.isEnabled = preferences.isEnabled
         digestTime.isEnabled = preferences.isEnabled
         let calendar = Calendar.current
-        digestTime.dateValue = calendar.date(byAdding: .minute, value: preferences.minutesAfterMidnight,
-                                             to: calendar.startOfDay(for: Date())) ?? Date()
+        digestTime.dateValue = preferences.time(on: Date(), calendar: calendar) ?? Date()
         digestStatus.stringValue = preferences.isEnabled && morningDigest.permission == .denied
             ? "Notifications are off for Little Limits. Turn them on in System Settings > Notifications." : ""
         digestStatus.isHidden = digestStatus.stringValue.isEmpty

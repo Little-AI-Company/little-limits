@@ -7,6 +7,10 @@ final class MorningDigest {
         var isEnabled = false
         var minutesAfterMidnight = 8 * 60
         var weekdaysOnly = false
+
+        func time(on date: Date, calendar: Calendar) -> Date? {
+            calendar.date(bySettingHour: minutesAfterMidnight / 60, minute: minutesAfterMidnight % 60, second: 0, of: date)
+        }
     }
 
     static let catchUpWindow: TimeInterval = 4 * 3_600
@@ -99,7 +103,7 @@ final class MorningDigest {
 
     private func dueTime(on date: Date, calendar: Calendar) -> Date? {
         if preferences.weekdaysOnly, calendar.isDateInWeekend(date) { return nil }
-        return calendar.date(byAdding: .minute, value: preferences.minutesAfterMidnight, to: calendar.startOfDay(for: date))
+        return preferences.time(on: date, calendar: calendar)
     }
 
     private func nextDue(after now: Date, calendar: Calendar) -> Date? {
