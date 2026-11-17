@@ -55,7 +55,6 @@ create_icon_if_outdated() {
         scripts/create_app_icon.sh "$master" "$small_master" "$output_icon"
     fi
 }
-create_icon_if_outdated assets/app-icon.png assets/branding/app-icon/paper-small.png Resources/AppIcon.icns
 create_icon_if_outdated assets/branding/app-icon/night.png assets/branding/app-icon/night-small.png Resources/AppIconNight.icns
 
 mkdir -p "$output_directory"
@@ -67,7 +66,10 @@ install -m 755 "$binary_directory/AIUsageStats" "$application/Contents/MacOS/AIU
 install -m 755 "$binary_directory/UsageCapture" "$application/Contents/MacOS/UsageCapture"
 install -m 755 "$binary_directory/little-limits" "$application/Contents/Helpers/little-limits"
 cp Resources/Info.plist "$application/Contents/Info.plist"
-cp Resources/AppIcon.icns Resources/AppIconNight.icns "$application/Contents/Resources/"
+xcrun actool "$repository_directory/Resources/AppIcon.icon" --compile "$application/Contents/Resources" \
+    --output-partial-info-plist "$temporary_directory/AppIcon.plist" --app-icon AppIcon --include-all-app-icons \
+    --target-device mac --minimum-deployment-target 14.0 --platform macosx >/dev/null
+cp Resources/AppIconNight.icns "$application/Contents/Resources/"
 cp LICENSE "$application/Contents/Resources/LICENSE.txt"
 cp -R "$binary_directory/AIUsageStats_AIUsageStats.bundle" "$application/Contents/Resources/AIUsageStats_AIUsageStats.bundle"
 plutil -replace CFBundleShortVersionString -string "$version" "$application/Contents/Info.plist"

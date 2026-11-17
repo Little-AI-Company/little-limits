@@ -1,6 +1,6 @@
 # Repository assets
 
-- `app-icon.png`: 1024 x 1024 PNG. The Paper app icon on the macOS icon grid, and the master for the bundle icon's 64 to 1024 px slots. It is a copy of `branding/app-icon/paper.png`.
+- `app-icon.png`: 1024 x 1024 PNG. The Paper app icon cut to the macOS icon shape, for pages that show the icon. It is a copy of `branding/app-icon/paper.png`. The bundle icon itself is compiled from `Resources/AppIcon.icon`.
 - `branding/`: the Little Limits brand: icons, banner, lockups, social image, and the concepts they were chosen from. See [branding/README.md](branding/README.md).
 - `screenshots/`: captures of the packaged app for the README and website.
 - `design/`: interface concepts generated before Swift implementation. They are not running UI.

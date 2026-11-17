@@ -19,8 +19,6 @@ printf '%s' '<svg xmlns="http://www.w3.org/2000/svg" width="824" height="824"><r
 rsvg-convert -b black "$temporary/body.svg" -o "$temporary/body-mask.png"
 magick "$artwork" -resize 824x824! \( "$temporary/body-mask.png" -alpha off \) \
   -compose CopyOpacity -composite $rgba "$temporary/body.png"
-magick -size 1024x1024 xc:none "$temporary/body.png" -geometry +100+100 -compose Over -composite $rgba "$temporary/placed.png"
-magick "$temporary/placed.png" -alpha extract -background black -alpha shape -channel A -evaluate multiply 0.30 +channel \
-  -blur 0x10 -page +0+10 -background none -flatten $rgba "$temporary/shadow.png"
-magick "$temporary/shadow.png" "$temporary/placed.png" -compose Over -composite -strip $rgba -define png:compression-level=9 "$output"
+magick -size 1024x1024 xc:none "$temporary/body.png" -geometry +100+100 -compose Over -composite -strip $rgba \
+  -define png:compression-level=9 "$output"
 magick "$output" -resize 256x256 -strip $rgba -define png:compression-level=9 "$preview"

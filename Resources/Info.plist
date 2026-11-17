@@ -8,6 +8,8 @@
     <string>AIUsageStats</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>com.parkerrex.ai-usage-stats</string>
     <key>CFBundleName</key>

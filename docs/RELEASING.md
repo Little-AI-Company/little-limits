@@ -43,21 +43,23 @@ SwiftPM's default build system records SDK 14.0 in the binary, which makes curre
 
 The bundle icon is Paper. Night is an alternate that the running app shows when the person picks it in Settings; see [NATIVE-DESIGN.md](NATIVE-DESIGN.md). macOS has no alternate-icon API for Mac apps, and a custom Finder icon on the bundle breaks its code signature. So Night replaces Paper only in the running app (the Dock and app switcher while a window is open, and About Little Limits). Finder and Launchpad keep Paper. The About panel shows the bundle icon unless it is given one, so the app passes the icon chosen in Settings.
 
-Every master is a 1024 px PNG already placed on the macOS icon grid by `scripts/compose_icon_master.sh` from the full-bleed artwork in `assets/branding/app-icon/artwork/`. The grid is a 1024 px transparent canvas with an 824 px rounded-square body inset 100 px, a 185.4 px corner radius, and a drop shadow 10 px down with a 10 px blur at 30 percent black. See [assets/branding/README.md](../assets/branding/README.md) for how the artwork was made.
+The bundle icon is `Resources/AppIcon.icon`, an Icon Composer file with three full-bleed 1024 px layers: `limits.png` for light, `limits-dark.png` for dark and `limits-tinted.png` (a gray copy of the dark art) for tinted. The fill is butter #F6ECC6 in light and #2B2A28 in dark, with no glass, no shadow and no translucency, so macOS draws the art to its own rounded-square edge at every size. Packaging compiles it with `xcrun actool` into `Contents/Resources/Assets.car` and a fallback `Contents/Resources/AppIcon.icns`; `Info.plist` names it in both `CFBundleIconName` and `CFBundleIconFile`. On macOS 26 and later a plain `.icns` with a baked margin is drawn shrunk on a plate, which left dead white space round the icon in Cmd-Tab; the compiled icon fills the shape. See [assets/branding/README.md](../assets/branding/README.md) for how the artwork was made.
+
+Night is not masked by the system, because the app sets it as `NSApp.applicationIconImage`. So `Resources/AppIconNight.icns` is built from masters that are already cut to the macOS icon shape by `scripts/compose_icon_master.sh`: an 824 px rounded square with a 185.4 px corner radius, centred in a 1024 px transparent canvas, with no shadow.
 
 | Output | 64 to 1024 px slots | 16 and 32 px slots |
 | --- | --- | --- |
-| `Resources/AppIcon.icns` (bundle icon, `CFBundleIconFile`) | `assets/app-icon.png` (Paper) | `assets/branding/app-icon/paper-small.png` |
 | `Resources/AppIconNight.icns` | `assets/branding/app-icon/night.png` | `assets/branding/app-icon/night-small.png` |
 
-`scripts/create_app_icon.sh <master.png> <small_master.png> <output.icns>` resizes each slot with `sips` into an `AppIcon.iconset` and runs `iconutil`. The small master is a simplified drawing with three ticks, a thick needle, and larger eyes, which stays readable where the detailed master blurs; it fills `icon_16x16`, `icon_16x16@2x`, and `icon_32x32`. Packaging rebuilds an `.icns` when it is missing or older than one of its masters, then copies both into `Contents/Resources`. The output is byte-for-byte reproducible from the same masters. To inspect a packaged icon:
+`scripts/create_app_icon.sh <master.png> <small_master.png> <output.icns>` resizes each slot with `sips` into an `AppIcon.iconset` and runs `iconutil`. The small master is a simplified head with three bold ticks and a thick needle, which stays readable where the detailed master blurs; it fills `icon_16x16`, `icon_16x16@2x`, and `icon_32x32`. Packaging rebuilds `AppIconNight.icns` when it is missing or older than one of its masters. To inspect the packaged icons:
 
 ```sh
 iconutil -c iconset -o /tmp/AppIcon.iconset "dist/Little Limits.app/Contents/Resources/AppIcon.icns"
 sips -g pixelWidth /tmp/AppIcon.iconset/*.png
+assetutil --info "dist/Little Limits.app/Contents/Resources/Assets.car"
 ```
 
-The website favicons, touch icon, header lockups, and social image are copies of the same artwork; [website/README.md](../website/README.md) lists their sources.
+The website favicons and touch icon are copies of the same artwork. The header lockups and social image still show the November 2 character. [website/README.md](../website/README.md) lists their sources.
 
 ## Provider menu icons
 
