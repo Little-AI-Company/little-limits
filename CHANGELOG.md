@@ -4,6 +4,38 @@ What changed in each public release of Little Limits, newest first. The same ent
 
 To add a release, follow the [changelog skill](.agents/skills/changelog/SKILL.md).
 
+## 0.5.0 (2026-11-17)
+
+Home, the menu, the window and Settings are easier to read, in the same look as Little Worker. Earned resets now say when they expire and whether they are still current, and the morning digest, nudges and warnings arrive when they should.
+
+### New
+
+- **little-limits command:** `little-limits status` and the tools Claude Code, Codex and Claude Desktop use now list every earned reset with when it expires and show your Codex credits. `status --json` marks a reading that is out of date.
+- **Homebrew:** Installing or upgrading Little Limits with Homebrew puts the `little-limits` command in Terminal.
+
+### Improved
+
+- **Home:** Totals and **Next reset** say plainly how much is left and when it comes back. **Next reset** says how much the weekly total will rise, such as adds 25% when one of two accounts resets. Each account that needs attention has its own button, and the reset calendar sits right under the accounts.
+- **Window:** The sidebar matches Little Worker's look, names each account the way Home does, and shows a symbol for every account state.
+- **Menu:** Accounts have the same names as in the window, and each account's state is a symbol. An out of date or unavailable account offers **Refresh**. Countdowns drop empty units, such as "in 3d". Codex credits read as a whole number with grouping. When Little Limits will not start after a restart, the menu says so and links to **Launch at login**.
+- **Launch at login:** Adding your first account turns on **Launch at login**, so readings keep coming after a restart. You can turn it off in **Settings**.
+- **Settings:** Settings is shorter and easier to scan. Each AI assistant has its own **Copy Command** button, and an account that needs attention shows the one button that fixes it.
+- **Earned resets:** The morning digest and the **Use now** advice say when each earned reset expires.
+- **Claude sign-in:** When renewing a Claude sign-in fails, the account says which step failed and why.
+
+### Fixed
+
+- **Home:** Deleting one of two accounts for the same assistant keeps Little Limits open.
+- **Earned resets:** After a refresh fails or a reset expires, the menu, the morning digest and the `little-limits` command call earned resets last known. The next expiry counts only resets you can still use, and the advice on which account to use first offers only resets from a current reading. Claude limit resets read **Not read yet** until they are read.
+- **Codex credits:** A balance below one credit shows its fraction, such as 0.4 credits.
+- **little-limits command:** When the account it picks goes out of date, the command and its tools pick the next usable account. API credit totals leave out promotional grants that do not say which product they are for, and list them as scope unavailable. The morning digest counts API credits the same way.
+- **Morning digest:** It arrives at its set time on the days clocks change. When macOS could not show it, Little Limits tries again later that morning. Changing or turning off the digest while one is on its way stops that one too.
+- **Nudges and warnings:** A nudge or run-out warning that could not be shown, for example while notifications were off, shows on a later refresh once notifications are allowed.
+
+### Changed
+
+- **Settings:** The burn list is now called **Backlog**.
+
 ## 0.4.0 (2026-11-02)
 
 Little Limits can now tell you when to use your quota, not only how much is left: state words for each limit, a morning digest, nudges before weekly quota resets unused, and a warning before an account runs out. Claude Code, Codex and Claude Desktop can also ask Little Limits where each account stands.
