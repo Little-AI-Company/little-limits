@@ -134,7 +134,11 @@ public enum LimitsDigestText {
     }
 
     public static func creditCount(_ amount: Decimal) -> String {
-        amount.formatted(.number.precision(.fractionLength(0)).locale(Locale(identifier: "en_US")))
+        amount.formatted(.number.precision(creditPrecision(amount)).locale(Locale(identifier: "en_US")))
+    }
+
+    public static func creditPrecision(_ amount: Decimal) -> NumberFormatStyleConfiguration.Precision {
+        amount != 0 && abs(amount) < 1 ? .significantDigits(1...2) : .fractionLength(0)
     }
 
     public static func apiCreditLines(_ accounts: [LimitsDigest.Account], now: Date, calendar: Calendar) -> [String] {
