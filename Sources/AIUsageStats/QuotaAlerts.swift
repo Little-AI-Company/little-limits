@@ -129,12 +129,12 @@ final class QuotaAlerts {
         let database = model.historyDatabase
         Task {
             let drains = await Self.drains(overview: overview, database: database, now: now)
-            deliver(overview: overview, drains: drains, now: now, calendar: calendar)
+            await deliver(overview: overview, drains: drains, now: now, calendar: calendar)
             isEvaluating = false
         }
     }
 
-    private func deliver(overview: UsageOverview, drains: [UUID: Drain], now: Date, calendar: Calendar) {
+    private func deliver(overview: UsageOverview, drains: [UUID: Drain], now: Date, calendar: Calendar) async {
         prune(overview: overview, now: now)
         if let threshold = preferences.nudgeThreshold, !Self.isQuiet(now, calendar: calendar),
            ledger.sentAt.filter({ now.timeIntervalSince($0) < 7 * 86_400 }).count < Self.nudgesPerWeek {
@@ -152,8 +152,9 @@ final class QuotaAlerts {
         }
         if preferences.warnsRunDry {
             for alert in Self.runDryAlerts(overview: overview, drains: drains, ledger: ledger, now: now) {
-                ledger.runDryEpisodes[alert.episodeKey] = alert.percentLeft
-                postRunDry(alert, now: now, calendar: calendar)
+                if await postRunDry(alert, now: now, calendar: calendar) {
+                    ledger.runDryEpisodes[alert.episodeKey] = alert.percentLeft
+                }
             }
         }
         saveLedger()
@@ -232,7 +233,7 @@ final class QuotaAlerts {
         }
     }
 
-    private func postRunDry(_ alert: RunDry, now: Date, calendar: Calendar) {
+    private func postRunDry(_ alert: RunDry, now: Date, calendar: Calendar) async -> Bool {
         let title = alert.runsOutAt.map { "\(Self.name(alert.account)) runs out around \(LimitsDigestText.moment($0, now: now, calendar: calendar))" }
             ?? "\(Self.name(alert.account)): \(alert.windowName) \(RemainingPercentText.format(alert.percentLeft)) left"
         var body = "\(alert.windowName.prefix(1).uppercased() + alert.windowName.dropFirst()) \(RemainingPercentText.format(alert.percentLeft)) left"
@@ -241,7 +242,7 @@ final class QuotaAlerts {
             + (alert.alternativeResetsSooner ? " and resets sooner" : "")
             + ": switch to \(alert.alternative.shortIdentity) today."
         Self.logger.notice("Run-dry alert for one account window")
-        Task { await notifications.post(identifier: "run-dry-\(alert.episodeKey)", title: title, body: body) }
+        return await notifications.post(identifier: "run-dry-\(alert.episodeKey)", title: title, body: body)
     }
 
     static func nudges(overview: UsageOverview, drains: [UUID: Drain], threshold: Double, ledger: Ledger,
