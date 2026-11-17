@@ -13,15 +13,16 @@ These rules apply to every agent and every person here. Parker set them on 2026-
 - Leave style to the formatter and linter. Do not reflow, reorder or rename lines the change does not need.
 - To learn how a dependency behaves, read its source (`.build/checkouts/` after `swift package resolve`, or a clone under `/tmp`), not only its docs.
 - Scratch files go in `/tmp` or `.build/`, never beside the code.
-- Never edit a policy, baseline, threshold or allowance to silence a failing check.
+- Never edit a policy, baseline, threshold or allowance to silence a failing check, and never change the check that judges your change: a change to `scripts/push_main.sh`, `scripts/push_main.conf` or `.github/workflows/ci.yml` lands alone and judges the next commit.
+- A check still red after three rounds of fixes stops the work: bring in Parker or the code's owner with what failed, what you tried and why.
 
 ### Tests
 
-- Never write a new unit test or integration test unless the person explicitly asked for that test. You may write a new end-to-end or system-level test: the packaged `.app` opened and the changed control exercised, as the [Verification](#verification) table says.
+- Never write a new unit test or integration test unless the person explicitly asked for that test. You may write a new end-to-end or system-level test: the packaged `.app` opened and the changed control exercised, as the [Verification](#verification) table says. Parker also allows two kinds by name (2026-11-17): a property test (round trip, run twice equals once, an invariant, a fast path equal to a plain one), which is not an exhaustive permutation; and a differential test, only for a migration or a rewrite, with the old system as the oracle and a list of approved differences.
 - Integration tests stay only where they were asked for: the `UsageHistory` parsers against redacted real logs, `UsageCore` account separation, and `UsageHistoryStore` database compatibility.
 - When a change breaks an existing test, fix it, or delete it when an end-to-end check or the compiler already covers what it checked. Delete a test that no longer protects anything.
 - A test checks behaviour through the code's real interface. It never reads source, docs or config text to look for words, and never asserts wiring, call order or that the code mirrors the implementation.
-- A test never waits on a timer or a sleep. It waits on the event, a completion signal or a test clock. A flaky test is fixed or deleted, never retried or given a longer timeout.
+- A test never waits on a timer or a sleep. It waits on the event, a completion signal or a test clock. A flaky test gets its root cause fixed, or is deleted with the why in the commit; never skipped, retried or given a longer timeout.
 - Doubles only at a process, network, clock, filesystem or keychain boundary. A fake fails on a call the test did not configure.
 - Never write these tests, even when a test was asked for, unless the person named that kind. They fail on a refactor and pass through a real regression:
   - Snapshot or golden-file tests of generated output.
@@ -30,6 +31,7 @@ These rules apply to every agent and every person here. Parker set them on 2026-
   - Declaration checks: that a type, constant, export, enum case, route, flag or config key exists or equals its own literal.
   - Wrapper tests that repeat what a stronger request, API, feature, end-to-end or owner-level test already covers.
 - A test earns its place only when it can catch a product regression that no other check catches. The kinds that do: security, state machines, parsers and decoders, persistence and migrations, compatibility of stored data and APIs, billing and money, and boundary contracts. When cutting tests, judge each one against that bar, never against a target count.
+- Tests, checks and `.md` guidance only grow unless pruned. On the first Monday of each month Chomp, owner of the checks on `main`, deletes each one that caught nothing in 90 days and is not the only guard on security, auth, money, migrations or data loss.
 - Pass `now`, the calendar, the locale, and the time zone as inputs. CI runs in UTC with a 12-hour US clock; a test that depends on the Mac's settings passes locally and fails there.
 - CI does not open the app. For layout, focus, and menu-bar behavior, the packaged app is the check.
 
