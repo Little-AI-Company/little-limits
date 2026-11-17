@@ -19,6 +19,8 @@ final class HomeTotalsView: NSView {
         guard lines != self.lines else { return }
         self.lines = lines
         grid?.removeFromSuperview()
+        grid = nil
+        guard !lines.isEmpty else { return }
         let rows = lines.map { line -> [NSView] in
             let provider = providerView(line.provider)
             let label = HomeText.label(line.label, size: 13)
