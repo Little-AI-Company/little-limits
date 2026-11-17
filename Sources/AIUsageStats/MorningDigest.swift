@@ -80,11 +80,18 @@ final class MorningDigest {
 
     private func post(due: Date, now: Date, calendar: Calendar) {
         isPosting = true
+        let scheduled = preferences
         let day = Self.dayKey(now, calendar: calendar)
         let missed = now.timeIntervalSince(due) > 10 * 60 ? due : nil
         Task {
             await model.refreshAndWait(timeout: Self.refreshTimeout)
-            guard preferences.isEnabled else {
+            if preferences == scheduled, notifications.permission != .allowed { _ = await notifications.requestPermission() }
+            guard preferences == scheduled else {
+                isPosting = false
+                check()
+                return
+            }
+            guard notifications.permission == .allowed else {
                 isPosting = false
                 return
             }
