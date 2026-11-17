@@ -26,8 +26,60 @@ public enum UseNowRule {
     public static let minimumPercentLeft: Double = 10
     public static let stepAsideSessionPercent: Double = 25
 
+    private struct Member {
+        let identity: String
+        let shortIdentity: String
+        let isCurrent: Bool
+        let usability: AccountUsability
+        let weeklyLeft: Double?
+        let sessionLeft: Double?
+        let weeklyResetsAt: Date?
+        let earned: Int
+        let earnedIsCurrent: Bool
+        let earnedExpiries: [Date]
+
+        init(_ account: UsageOverviewAccount, now: Date) {
+            let snapshot = account.snapshot
+            let windows = snapshot?.currentWindows ?? []
+            let weekly = windows.first { $0.role == .weekly }
+            identity = account.identity
+            shortIdentity = account.shortIdentity
+            isCurrent = snapshot?.isCurrent(at: now) == true
+            usability = AccountUsability(snapshot: snapshot, now: now)
+            weeklyLeft = weekly?.utilizationPercent.map { 100 - $0 }
+            sessionLeft = windows.first { $0.role == .session }?.utilizationPercent.map { 100 - $0 }
+            weeklyResetsAt = weekly?.resetsAt
+            let credits = snapshot?.credits ?? []
+            let summary = credits.first { $0.id == "quota_reset_credits" }
+            let grants = credits.filter { credit in
+                credit.unit == .resets && credit.id != "quota_reset_credits" && credit.status?.lowercased() == "available"
+            }
+            let observed = summary?.asOf ?? now
+            let expiredSinceRead = grants.contains { $0.expiresAt.map { $0 > observed && $0 <= now } == true }
+            earned = summary?.amount.map { $0 > 0 ? NSDecimalNumber(decimal: $0).intValue : 0 } ?? 0
+            earnedIsCurrent = isCurrent && !expiredSinceRead
+            earnedExpiries = grants.compactMap(\.expiresAt).filter { $0 > now }
+        }
+
+        init(_ account: LimitsDigest.Account, now: Date) {
+            let quota = account.windows.filter { $0.role == .session || $0.role == .weekly }
+            let weekly = account.windows.first { $0.role == .weekly }
+            identity = account.label
+            shortIdentity = account.shortLabel
+            isCurrent = account.state == .current
+            usability = isCurrent ? AccountUsability(readings: quota.map { (percentLeft: $0.percentLeft, resetsAt: $0.resetsAt) }) : .unknown
+            weeklyLeft = weekly?.percentLeft
+            sessionLeft = account.windows.first { $0.role == .session }?.percentLeft
+            weeklyResetsAt = weekly?.resetsAt
+            let resets = account.earnedResets
+            earned = resets.status == .supported ? max(0, resets.count ?? 0) : 0
+            earnedIsCurrent = account.hasCurrentEarnedResets
+            earnedExpiries = (resets.expiresAt ?? resets.nextExpiresAt.map { [$0] } ?? []).filter { $0 > now }
+        }
+    }
+
     private struct Candidate {
-        let account: UsageOverviewAccount
+        let member: Member
         let offset: Int
         let weeklyLeft: Double
         let sessionLeft: Double
@@ -37,7 +89,17 @@ public enum UseNowRule {
 
     public static func pick(provider: Provider, accounts: [UsageOverviewAccount], now: Date, calendar: Calendar,
                             need: UseNowNeed = .weekly) -> UseNowPick {
-        let members = accounts.filter { $0.profile.provider == provider }
+        pick(provider: provider, members: accounts.filter { $0.profile.provider == provider }.map { Member($0, now: now) },
+             now: now, calendar: calendar, need: need)
+    }
+
+    static func pick(provider: Provider, digestAccounts: [LimitsDigest.Account], now: Date, calendar: Calendar,
+                     need: UseNowNeed) -> UseNowPick {
+        pick(provider: provider, members: digestAccounts.filter { $0.provider == provider }.map { Member($0, now: now) },
+             now: now, calendar: calendar, need: need)
+    }
+
+    private static func pick(provider: Provider, members: [Member], now: Date, calendar: Calendar, need: UseNowNeed) -> UseNowPick {
         let name = provider.title
         guard !members.isEmpty else {
             return UseNowPick(provider: provider, need: need, outcome: .noAccounts, account: nil, shortLabel: nil, runnerUp: nil,
@@ -53,11 +115,11 @@ public enum UseNowRule {
             steppedAside = chosen
             chosen = replacement
         }
-        let runnerUp = steppedAside ?? ranked.first { $0.account.id != chosen.account.id }
+        let runnerUp = steppedAside ?? ranked.first { $0.offset != chosen.offset }
         let reason: String
         if let steppedAside {
-            reason = "\(steppedAside.account.shortIdentity) goes first for the week, but its 5-hour window has "
-                + "\(percent(steppedAside.sessionLeft)) left, so use \(chosen.account.shortIdentity) "
+            reason = "\(steppedAside.member.shortIdentity) goes first for the week, but its 5-hour window has "
+                + "\(percent(steppedAside.sessionLeft)) left, so use \(chosen.member.shortIdentity) "
                 + "(\(percent(chosen.sessionLeft)) of its 5-hour left) for the next session."
         } else if candidates.count == 1 {
             reason = "\(percent(chosen.weeklyLeft)) of the week left. The only current \(name) account with room."
@@ -68,22 +130,18 @@ public enum UseNowRule {
         } else {
             reason = "\(percent(chosen.weeklyLeft)) of the week left, the most of any current \(name) account. Its reset time is unknown."
         }
-        return UseNowPick(provider: provider, need: need, outcome: .picked, account: LimitsDigest.sanitizedLabel(chosen.account.identity),
-                          shortLabel: LimitsDigest.sanitizedLabel(chosen.account.shortIdentity),
-                          runnerUp: runnerUp.map { LimitsDigest.sanitizedLabel($0.account.shortIdentity) },
+        return UseNowPick(provider: provider, need: need, outcome: .picked, account: LimitsDigest.sanitizedLabel(chosen.member.identity),
+                          shortLabel: LimitsDigest.sanitizedLabel(chosen.member.shortIdentity),
+                          runnerUp: runnerUp.map { LimitsDigest.sanitizedLabel($0.member.shortIdentity) },
                           usableAt: nil, reason: reason)
     }
 
-    private static func candidate(_ account: UsageOverviewAccount, offset: Int, now: Date) -> Candidate? {
-        guard let snapshot = account.snapshot, snapshot.isCurrent(at: now),
-              AccountUsability(snapshot: snapshot, now: now) == .usable else { return nil }
-        let windows = snapshot.currentWindows
-        guard let weekly = windows.first(where: { $0.role == .weekly }), let weeklyUsed = weekly.utilizationPercent else { return nil }
-        let weeklyLeft = 100 - weeklyUsed
-        let sessionLeft = windows.first { $0.role == .session }?.utilizationPercent.map { 100 - $0 } ?? 100
+    private static func candidate(_ member: Member, offset: Int, now: Date) -> Candidate? {
+        guard member.isCurrent, member.usability == .usable, let weeklyLeft = member.weeklyLeft else { return nil }
+        let sessionLeft = member.sessionLeft ?? 100
         guard weeklyLeft >= minimumPercentLeft, sessionLeft >= minimumPercentLeft else { return nil }
-        let hours = weekly.resetsAt.flatMap { $0 > now ? $0.timeIntervalSince(now) / 3_600 : nil }
-        return Candidate(account: account, offset: offset, weeklyLeft: weeklyLeft, sessionLeft: sessionLeft,
+        let hours = member.weeklyResetsAt.flatMap { $0 > now ? $0.timeIntervalSince(now) / 3_600 : nil }
+        return Candidate(member: member, offset: offset, weeklyLeft: weeklyLeft, sessionLeft: sessionLeft,
                          hoursToWeeklyReset: hours)
     }
 
@@ -100,37 +158,20 @@ public enum UseNowRule {
         return lhs.offset < rhs.offset
     }
 
-    private static func noneUsable(provider: Provider, need: UseNowNeed, members: [UsageOverviewAccount], now: Date, calendar: Calendar) -> UseNowPick {
-        let soonest = members.compactMap { account -> (account: UsageOverviewAccount, date: Date)? in
-            guard case .exhausted(let date?) = AccountUsability(snapshot: account.snapshot, now: now), date > now else { return nil }
-            return (account, date)
+    private static func noneUsable(provider: Provider, need: UseNowNeed, members: [Member], now: Date, calendar: Calendar) -> UseNowPick {
+        let soonest = members.compactMap { member -> (member: Member, date: Date)? in
+            guard case .exhausted(let date?) = member.usability, date > now else { return nil }
+            return (member, date)
         }.min { $0.date < $1.date }
-        var earned = 0
-        var lastKnownEarned = 0
-        var expiries: [Date] = []
-        for account in members {
-            guard let snapshot = account.snapshot,
-                  let summary = snapshot.credits.first(where: { $0.id == "quota_reset_credits" }),
-                  let amount = summary.amount, amount > 0 else { continue }
-            let grants = snapshot.credits.filter { credit in
-                credit.unit == .resets && credit.id != "quota_reset_credits" && credit.status?.lowercased() == "available"
-            }
-            let observed = summary.asOf ?? now
-            let expiredSinceRead = grants.contains { $0.expiresAt.map { $0 > observed && $0 <= now } == true }
-            let count = NSDecimalNumber(decimal: amount).intValue
-            if snapshot.isFresh(at: now), !expiredSinceRead {
-                earned += count
-                expiries += grants.compactMap(\.expiresAt).filter { $0 > now }
-            } else {
-                lastKnownEarned += count
-            }
-        }
-        let firstExpiry = expiries.min()
+        let current = members.filter { $0.earnedIsCurrent }
+        let earned = current.map(\.earned).reduce(0, +)
+        let lastKnownEarned = members.filter { !$0.earnedIsCurrent }.map(\.earned).reduce(0, +)
+        let firstExpiry = current.filter { $0.earned > 0 }.flatMap(\.earnedExpiries).min()
         var reason = "No current \(provider.title) account has at least \(Int(minimumPercentLeft))% of its week and 5-hour window left."
         if let soonest {
-            reason += " \(soonest.account.shortIdentity) is usable \(LimitsDigestText.moment(soonest.date, now: now, calendar: calendar))."
+            reason += " \(soonest.member.shortIdentity) is usable \(LimitsDigestText.moment(soonest.date, now: now, calendar: calendar))."
         }
-        let notCurrent = members.filter { $0.snapshot?.isCurrent(at: now) != true }.count
+        let notCurrent = members.filter { !$0.isCurrent }.count
         if notCurrent > 0 {
             reason += " \(notCurrent) account\(notCurrent == 1 ? " has" : "s have") no current reading."
         }

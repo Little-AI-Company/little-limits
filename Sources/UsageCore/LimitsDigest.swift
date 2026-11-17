@@ -166,22 +166,17 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
     }
 
     public func revalidated(at now: Date) -> LimitsDigest {
-        let expired = accounts.filter { $0.isExpired(at: now) }
         let accounts = accounts.map { account in
             account.isExpired(at: now) ? account.lastKnown(now: now) : account.withUsableCredits(now: now)
         }
-        let isExpired = { (provider: Provider, shortLabel: String?) in
-            expired.contains { $0.provider == provider && $0.shortLabel == shortLabel }
-        }
+        let calendar = LimitsDigestText.calendar(for: self)
         let useNow = useNow.map { pick -> UseNowPick in
-            guard pick.outcome == .picked, isExpired(pick.provider, pick.shortLabel) else {
-                guard isExpired(pick.provider, pick.runnerUp) else { return pick }
-                return UseNowPick(provider: pick.provider, need: pick.need, outcome: pick.outcome, account: pick.account,
-                                  shortLabel: pick.shortLabel, runnerUp: nil, usableAt: pick.usableAt, reason: pick.reason)
-            }
-            return UseNowPick(provider: pick.provider, need: pick.need, outcome: .noneUsable, account: nil, shortLabel: nil,
-                              runnerUp: nil, usableAt: nil,
-                              reason: "The reading of \(pick.shortLabel ?? "that account") is no longer current. Open Little Limits to read again: \(openCommand)")
+            let fresh = UseNowRule.pick(provider: pick.provider, digestAccounts: accounts, now: now, calendar: calendar, need: pick.need)
+            guard fresh.outcome == .noneUsable,
+                  accounts.contains(where: { $0.provider == pick.provider && $0.state != .current }) else { return fresh }
+            return UseNowPick(provider: fresh.provider, need: fresh.need, outcome: fresh.outcome, account: nil, shortLabel: nil,
+                              runnerUp: nil, usableAt: fresh.usableAt,
+                              reason: fresh.reason + " Open Little Limits to read again: \(openCommand)")
         }
         return LimitsDigest(version: version, asOf: asOf, timeZone: timeZone, accounts: accounts, useNow: useNow,
                             appVersion: appVersion, appPath: appPath)

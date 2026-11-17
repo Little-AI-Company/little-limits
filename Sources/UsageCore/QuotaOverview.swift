@@ -197,14 +197,18 @@ public enum AccountUsability: Equatable, Sendable {
         guard let snapshot, snapshot.isFresh(at: now) else { self = .unknown; return }
         let windows = snapshot.currentWindows.filter { $0.role == .session || $0.role == .weekly }
         guard !windows.contains(where: { $0.resetsAt.map { $0 <= now } == true }) else { self = .unknown; return }
-        let unmeasured = windows.contains { $0.utilizationPercent?.isFinite != true }
-        let exhausted = windows.filter { $0.utilizationPercent.map { $0 >= 100 } == true }
+        self.init(readings: windows.map { (percentLeft: $0.utilizationPercent.map { 100 - $0 }, resetsAt: $0.resetsAt) })
+    }
+
+    init(readings: [(percentLeft: Double?, resetsAt: Date?)]) {
+        let unmeasured = readings.contains { $0.percentLeft?.isFinite != true }
+        let exhausted = readings.filter { $0.percentLeft.map { $0 <= 0 } == true }
         if !exhausted.isEmpty {
             let resets = exhausted.compactMap(\.resetsAt)
             self = .exhausted(usableAt: unmeasured || resets.count != exhausted.count ? nil : resets.max())
             return
         }
-        self = windows.isEmpty || unmeasured ? .unknown : .usable
+        self = readings.isEmpty || unmeasured ? .unknown : .usable
     }
 }
 
