@@ -60,6 +60,7 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
         public let nextExpiresAt: Date?
         public let observedAt: Date?
         public let expiresAt: [Date]?
+        public let lastKnown: Bool?
 
         public func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
@@ -68,6 +69,15 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
             try container.encode(nextExpiresAt, forKey: .nextExpiresAt)
             try container.encode(observedAt, forKey: .observedAt)
             try container.encode(expiresAt, forKey: .expiresAt)
+            try container.encode(lastKnown, forKey: .lastKnown)
+        }
+
+        fileprivate func revalidated(at now: Date) -> EarnedResets {
+            let recorded = expiresAt ?? nextExpiresAt.map { [$0] } ?? []
+            guard status == .supported, recorded.contains(where: { $0 <= now }) else { return self }
+            let remaining = recorded.filter { $0 > now }
+            return EarnedResets(status: status, count: count, nextExpiresAt: remaining.first, observedAt: observedAt,
+                                expiresAt: expiresAt == nil ? nil : remaining, lastKnown: true)
         }
     }
 
@@ -276,16 +286,19 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
     private static func earnedResets(_ account: UsageOverviewAccount, now: Date) -> EarnedResets {
         let credits = account.snapshot?.credits.filter { $0.unit == .resets } ?? []
         guard !credits.isEmpty else {
-            return EarnedResets(status: .unknown, count: nil, nextExpiresAt: nil, observedAt: nil, expiresAt: nil)
+            return EarnedResets(status: .unknown, count: nil, nextExpiresAt: nil, observedAt: nil, expiresAt: nil, lastKnown: nil)
         }
         guard let summary = credits.first(where: { $0.id == "quota_reset_credits" }), let amount = summary.amount,
               amount >= 0 else {
-            return EarnedResets(status: .unknown, count: nil, nextExpiresAt: nil, observedAt: nil, expiresAt: nil)
+            return EarnedResets(status: .unknown, count: nil, nextExpiresAt: nil, observedAt: nil, expiresAt: nil, lastKnown: nil)
         }
-        let expiries = credits.filter { $0.id != "quota_reset_credits" && $0.status?.lowercased() == "available" }
-            .compactMap(\.expiresAt).filter { $0 > now }.sorted()
+        let available = credits.filter { $0.id != "quota_reset_credits" && $0.status?.lowercased() == "available" }
+        let expiries = available.compactMap(\.expiresAt).filter { $0 > now }.sorted()
+        let observed = summary.asOf ?? now
+        let expiredSinceRead = available.contains { $0.expiresAt.map { $0 > observed && $0 <= now } == true }
         return EarnedResets(status: .supported, count: NSDecimalNumber(decimal: amount).intValue,
-                            nextExpiresAt: expiries.first, observedAt: summary.asOf, expiresAt: expiries)
+                            nextExpiresAt: expiries.first, observedAt: summary.asOf, expiresAt: expiries,
+                            lastKnown: expiredSinceRead)
     }
 
     private static func providerCredits(_ credits: [CreditBalance]) -> ProviderCredits? {
@@ -325,6 +338,8 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
 }
 
 extension LimitsDigest.Account {
+    public var hasCurrentEarnedResets: Bool { state == .current && earnedResets.lastKnown != true }
+
     fileprivate func isExpired(at now: Date) -> Bool {
         guard state == .current else { return false }
         guard let observedAt, AccountSnapshot.isObservationCurrent(observedAt, now: now) else { return true }
@@ -338,13 +353,15 @@ extension LimitsDigest.Account {
                                 resetsDisplay: window.resetsDisplay, level: nil)
         }
         return LimitsDigest.Account(label: label, shortLabel: shortLabel, provider: provider, plan: plan, state: .stale,
-                                    observedAt: observedAt, weeklyPercentLeft: nil, windows: windows, earnedResets: earnedResets,
+                                    observedAt: observedAt, weeklyPercentLeft: nil, windows: windows,
+                                    earnedResets: earnedResets.revalidated(at: now),
                                     apiCredits: apiCredits, apiUsable: LimitsDigest.apiUsable(apiCredits, now: now), credits: credits)
     }
 
     fileprivate func withUsableCredits(now: Date) -> LimitsDigest.Account {
         LimitsDigest.Account(label: label, shortLabel: shortLabel, provider: provider, plan: plan, state: state,
-                             observedAt: observedAt, weeklyPercentLeft: weeklyPercentLeft, windows: windows, earnedResets: earnedResets,
+                             observedAt: observedAt, weeklyPercentLeft: weeklyPercentLeft, windows: windows,
+                             earnedResets: earnedResets.revalidated(at: now),
                              apiCredits: apiCredits, apiUsable: LimitsDigest.apiUsable(apiCredits, now: now), credits: credits)
     }
 }

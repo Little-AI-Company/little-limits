@@ -105,7 +105,7 @@ public enum LimitsDigestText {
                 let count = earned.count ?? 0
                 var text = "\(account.shortLabel) (Codex) \(count) left"
                 if count > 0, let expiries = expiriesText(earned, now: now, calendar: calendar) { text += ", \(expiries)" }
-                if account.state != .current { text = "\(account.shortLabel) (Codex) last known \(count) left" }
+                if !account.hasCurrentEarnedResets { text = "\(account.shortLabel) (Codex) last known \(count) left" }
                 parts.append(text)
             case .unknown, .notSupported:
                 parts.append("\(account.shortLabel) (Codex) unknown")
@@ -256,7 +256,11 @@ extension LimitsDigestText {
         }
         for account in digest.accounts where account.provider == .codex && account.earnedResets.status == .supported {
             guard let count = account.earnedResets.count, count > 0 else { continue }
-            var text = "\(account.provider.title) \(account.shortLabel): \(count) earned reset\(count == 1 ? "" : "s")"
+            let qualifier = account.hasCurrentEarnedResets ? "" : "last known "
+            var text = "\(account.provider.title) \(account.shortLabel): \(qualifier)\(count) earned reset\(count == 1 ? "" : "s")"
+            if !account.hasCurrentEarnedResets, let observed = account.earnedResets.observedAt {
+                text += " (as of \(moment(observed, now: now, calendar: calendar)))"
+            }
             if let expiries = expiriesText(account.earnedResets, now: now, calendar: calendar) { text += ", \(expiries)" }
             lines.append(text)
         }
