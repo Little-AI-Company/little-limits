@@ -80,7 +80,7 @@ public enum DemoFixtures {
                           expiresAt: credit.expiresAt, source: credit.source, asOf: previousReading,
                           detail: credit.detail, isUnlimited: credit.isUnlimited, status: credit.status,
                           doesNotExpire: credit.doesNotExpire, currencyCode: credit.currencyCode,
-                          originalAmount: credit.originalAmount)
+                          originalAmount: credit.originalAmount, supportsAPI: credit.supportsAPI)
         }
         return [
             AccountSnapshot(profileID: personal.profileID, fetchedAt: now, windows: personal.windows,

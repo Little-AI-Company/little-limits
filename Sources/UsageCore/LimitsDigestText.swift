@@ -159,7 +159,8 @@ public enum LimitsDigestText {
         switch credit.kind {
         case .purchased: text = "\(amount) purchased"
         case .monthlyGrant: text = "Current monthly grant: \(amount) left"
-        case .promotional: text = "Promotional grant: \(amount) left"
+        case .promotional:
+            text = credit.apiEligible == true ? "Promotional grant: \(amount) left" : "Promotional grant, scope unavailable: \(amount) left"
         case .other: text = "\(credit.title): \(amount)"
         }
         if let expires = credit.expiresAt {

@@ -104,6 +104,7 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
         public let source: CreditSource
         public let status: String?
         public let experimental: Bool
+        public let apiEligible: Bool?
     }
 
     public struct CurrencyAmount: Codable, Sendable, Equatable {
@@ -314,7 +315,8 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
             return APICredit(title: sanitizedLabel(credit.title), kind: kind, amount: credit.amount,
                              currency: credit.unit == .usd ? "USD" : credit.currencyCode,
                              asOf: credit.asOf, expiresAt: credit.expiresAt, source: credit.source,
-                             status: credit.status.map(sanitizedLabel), experimental: credit.source == .provider)
+                             status: credit.status.map(sanitizedLabel), experimental: credit.source == .provider,
+                             apiEligible: credit.supportsAPI)
         }
     }
 
@@ -322,6 +324,7 @@ public struct LimitsDigest: Codable, Sendable, Equatable {
         var totals: [String: Decimal] = [:]
         var order: [String] = []
         for credit in credits where credit.kind != .other && credit.status != "Stale" {
+            if credit.kind == .promotional, credit.apiEligible != true { continue }
             if credit.source != .manual, let asOf = credit.asOf, asOf > now || now.timeIntervalSince(asOf) > outdatedAge { continue }
             guard let amount = credit.amount, let currency = credit.currency,
                   credit.expiresAt.map({ $0 > now }) ?? true else { continue }

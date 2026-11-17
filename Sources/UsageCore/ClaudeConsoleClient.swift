@@ -204,7 +204,7 @@ public struct ClaudeConsoleBalance: Sendable, Equatable {
                               : grant.supportsAPI == true ? "Promotional API grant" : "Promotional grant (scope unavailable)",
                           amount: grant.remainingAmount, unit: .currency, expiresAt: grant.expiresAt,
                           asOf: observedAt, detail: monthlyName.map { "\($0). Matched to the Claude Platform invoice by original amount, grant date, and expiry. \(grant.scopeDescription)" } ?? grant.scopeDescription,
-                          currencyCode: grant.currency, originalAmount: grant.grantedAmount)
+                          currencyCode: grant.currency, originalAmount: grant.grantedAmount, supportsAPI: grant.supportsAPI)
         }
         let monthlyStatus = monthlyGrantNames.isEmpty ? linkState.map { [$0.monthlyCredit(observedAt: observedAt)] } ?? [] : []
         return purchased + promotional + monthlyStatus

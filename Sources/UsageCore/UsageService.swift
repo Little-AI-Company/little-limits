@@ -516,7 +516,8 @@ public actor UsageService {
                                                  expiresAt: credit.expiresAt, source: credit.source, asOf: credit.asOf,
                                                  detail: credit.status == "Stale" ? credit.detail : [credit.detail, explanation, "Last verified monthly reading retained; refresh monthly details to confirm the current balance."].compactMap { $0 }.joined(separator: " "),
                                                  isUnlimited: credit.isUnlimited, status: "Stale", doesNotExpire: credit.doesNotExpire,
-                                                 currencyCode: credit.currencyCode, originalAmount: credit.originalAmount))
+                                                 currencyCode: credit.currencyCode, originalAmount: credit.originalAmount,
+                                                 supportsAPI: credit.supportsAPI))
                 }
             }
             if !credits.contains(where: { $0.id.hasPrefix("monthly_grant_") }) {
