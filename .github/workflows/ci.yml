@@ -15,7 +15,7 @@ concurrency:
 jobs:
   macos:
     name: macOS
-    runs-on: xcode-27
+    runs-on: [self-hosted, m4]
     timeout-minutes: 30
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
@@ -36,7 +36,7 @@ jobs:
 
   linux:
     name: Linux
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, box]
     timeout-minutes: 15
     container: swift:6.4.0-noble
     steps:
