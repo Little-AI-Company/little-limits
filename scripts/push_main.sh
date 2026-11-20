@@ -383,7 +383,7 @@ capped() {
   local rc=0
   rm -f "$tmp/timed-out"
   set -m
-  bash -c "$1" >>"$tmp/check.log" 2>&1 &
+  nice -n 10 bash -c "$1" >>"$tmp/check.log" 2>&1 &
   CAPPED_PID=$!
   (
     sleep "$CAP"
