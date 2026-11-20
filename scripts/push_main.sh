@@ -170,6 +170,8 @@ close_findings() {
   done
 }
 GATE_LOG="$(git rev-parse --path-format=absolute --git-common-dir)/push-gate.jsonl"
+TIME_LOG="${GATE_LOG%/*}/push-times.jsonl"
+RUN_STARTED=0
 VERIFIED_FORM='^(verify .+|code-review|none [(].+[)])$'
 session_id() {
   local s
@@ -180,6 +182,13 @@ gate_log() {
   printf '{"at":"%s","repo":"%s","sha":"%s","session":"%s","mode":"%s","event":"%s","detail":"%s"}\n' \
     "$(date -u +%FT%TZ)" "$(json_text "$(basename "$origin_url")")" "$(git rev-parse HEAD 2>/dev/null)" "$(json_text "$(session_id)")" \
     "$GATE" "$1" "$(json_text "$2")" >>"$GATE_LOG" 2>/dev/null || true
+}
+time_log() {
+  local steps
+  steps="$(sed -nE 's/^(pass|FAIL) (.+) \(([0-9]+)s\).*/\2 \3/p' "$tmp/check.log" | paste -sd, -)"
+  printf '{"at":"%s","repo":"%s","sha":"%s","session":"%s","check":"%s","exit":%s,"where":"%s","prepare":%s,"wait":%s,"run":%s,"steps":"%s"}\n' \
+    "$(date -u +%FT%TZ)" "$(json_text "$(basename "$origin_url")")" "$(git rev-parse HEAD 2>/dev/null)" "$(json_text "$(session_id)")" \
+    "$(json_text "$1")" "$2" "$(json_text "$3")" "$4" "$5" "$6" "$(json_text "$steps")" >>"$TIME_LOG" 2>/dev/null || true
 }
 since_allowed() {
   grep -F "\"session\":\"$(json_text "$(session_id)")\"" "$GATE_LOG" 2>/dev/null |
@@ -485,6 +494,7 @@ release_check_lock() {
 capped() {
   local rc=0
   take_check_lock
+  RUN_STARTED=$SECONDS
   rm -f "$tmp/timed-out"
   set -m
   if [ "$HOLDING_CHECK_LOCK" -eq 1 ]; then
@@ -515,6 +525,7 @@ capped() {
 
 on_m4() {
   local sha job out misses=0 code="" start=$SECONDS
+  RUN_STARTED=$SECONDS
   sha="$(git rev-parse HEAD)"
   job="$M4_DIR.jobs/${sha:0:12}-$$"
   git bundle create "$tmp/head.bundle" origin/main..HEAD >/dev/null 2>&1
@@ -565,7 +576,7 @@ REMOTE
 }
 
 run_check() {
-  local tree code=0 start=$SECONDS cmd="$CHECK" label="$CHECK_LABEL" where=here
+  local tree code=0 start=$SECONDS prepared cmd="$CHECK" label="$CHECK_LABEL" where=here
   tree="$(git rev-parse --short=12 'HEAD^{tree}')"
   : >"$tmp/check.log"
   if [ -n "$skip" ]; then
@@ -576,6 +587,7 @@ run_check() {
   refuse_comments
   refuse_killed
   scan_secrets
+  prepared=$SECONDS
   if [ -n "$CHECK_PATHS" ] && ! git diff --name-only origin/main...HEAD | grep -Eq "$CHECK_PATHS"; then
     TESTED="Tested: $label skipped (nothing it reads changed) tree $tree"
     return 0
@@ -591,6 +603,7 @@ run_check() {
   else
     finish 5 "no-mac $(git rev-parse HEAD) - : no Mac here and no ssh $M4_HOST; run it from a Mac, or pass --skip-checks \"<why>\""
   fi
+  time_log "$label" "$code" "${where:-M4}" "$((prepared - start))" "$((RUN_STARTED - prepared))" "$((SECONDS - RUN_STARTED))"
   case "$code" in
     0) TESTED="Tested: $label pass (${where:-M4}, $((SECONDS - start))s) tree $tree" ;;
     124)
