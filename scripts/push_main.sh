@@ -7,6 +7,8 @@ CAP="${PUSH_MAIN_CHECK_TIMEOUT:-600}"
 POLL="${PUSH_MAIN_POLL:-15}"
 RETRIES=10
 M4_HOST="${PUSH_MAIN_M4:-m4}"
+CHECK_LOCK="${PUSH_MAIN_CHECK_LOCK:-/tmp/push-main-check.lock}"
+CHECK_LOCK_WAIT="${PUSH_MAIN_CHECK_LOCK_WAIT:-300}"
 
 say() { echo "push-main: $*" >&2; }
 finish() {
@@ -108,7 +110,9 @@ cd "$ROOT"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/push-main.XXXXXX")"
 CAPPED_PID=""
 WATCHDOG_PID=""
+HOLDING_CHECK_LOCK=0
 cleanup() {
+  [ "$HOLDING_CHECK_LOCK" -eq 0 ] || rm -rf "$CHECK_LOCK"
   [ -z "$CAPPED_PID" ] || kill -TERM -- "-$CAPPED_PID" 2>/dev/null || true
   [ -z "$WATCHDOG_PID" ] || kill -KILL -- "-$WATCHDOG_PID" 2>/dev/null || true
   rm -rf "$tmp"
@@ -379,11 +383,38 @@ scan_secrets() {
   [ "$code" -eq 0 ] || say "gitleaks could not run (exit $code); the secret scan is skipped"
 }
 
+take_check_lock() {
+  local waited=0 holder
+  [ -z "${PUSH_MAIN_INSIDE_CHECK:-}" ] || return 0
+  until mkdir "$CHECK_LOCK" 2>/dev/null; do
+    holder="$(cat "$CHECK_LOCK/pid" 2>/dev/null || true)"
+    if { [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; } || [ -n "$(find "$CHECK_LOCK" -maxdepth 0 -mmin +$((CAP / 60 + 5)) 2>/dev/null)" ]; then
+      rm -rf "$CHECK_LOCK"
+      continue
+    fi
+    if [ "$waited" -ge "$CHECK_LOCK_WAIT" ]; then
+      say "another push check still runs on this machine after ${CHECK_LOCK_WAIT}s; running this one beside it"
+      return 0
+    fi
+    [ "$waited" -gt 0 ] || say "another push check runs on this machine (pid ${holder:-unknown}); waiting for it, ${CHECK_LOCK_WAIT}s at most"
+    sleep 2
+    waited=$((waited + 2))
+  done
+  echo $$ >"$CHECK_LOCK/pid"
+  HOLDING_CHECK_LOCK=1
+}
+
+release_check_lock() {
+  [ "$HOLDING_CHECK_LOCK" -eq 0 ] || rm -rf "$CHECK_LOCK"
+  HOLDING_CHECK_LOCK=0
+}
+
 capped() {
   local rc=0
+  take_check_lock
   rm -f "$tmp/timed-out"
   set -m
-  nice -n 10 bash -c "$1" >>"$tmp/check.log" 2>&1 &
+  PUSH_MAIN_INSIDE_CHECK=1 nice -n 10 bash -c "$1" >>"$tmp/check.log" 2>&1 &
   CAPPED_PID=$!
   (
     sleep "$CAP"
@@ -398,6 +429,7 @@ capped() {
   kill -KILL -- "-$WATCHDOG_PID" 2>/dev/null || true
   wait "$WATCHDOG_PID" 2>/dev/null || true
   CAPPED_PID="" WATCHDOG_PID=""
+  release_check_lock
   [ ! -e "$tmp/timed-out" ] || rc=124
   return "$rc"
 }
