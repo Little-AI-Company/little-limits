@@ -144,7 +144,7 @@ beat_items() {
       beaten="$beaten$item "
       note="$(json_text "$(printf 'pushed %s %s' "$(git rev-parse --short "$commit")" "$(git log -1 --format=%s "$commit")" | cut -c1-280)")"
       answer="$(curl -fsS --max-time 5 "${HQ_URL:-https://hq.thelittleworker.com}/mcp" -H "authorization: Bearer $token" -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' \
-        -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"beat_item\",\"arguments\":{\"item\":\"$(json_text "$item")\",\"note\":\"$note\"}}}" 2>/dev/null)" || answer=""
+        -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"beat_item\",\"arguments\":{\"item\":\"$(json_text "$item")\",\"note\":\"$note\",\"commit\":\"$commit\",\"repository\":\"$(json_text "$(basename "$origin_url")")\"}}}" 2>/dev/null)" || answer=""
       case "$answer" in
         *"$item is live:"*) say "beat $item on HQ" ;;
         *) say "HQ took no beat for $item (no claim from this token, or HQ did not answer); the push stands" ;;
