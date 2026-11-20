@@ -132,6 +132,10 @@ trap 'exit 130' INT TERM
 
 [ -z "$(git status --porcelain)" ] || finish 5 "dirty - : commit or stash first"
 git fetch --quiet origin main || finish 1 "fetch-failed - : git fetch origin main"
+if [ -f hk.pkl ] && command -v hk >/dev/null 2>&1 &&
+  ! grep -qs hk "$(git rev-parse --git-common-dir)/hooks/pre-commit"; then
+  hk install >/dev/null 2>&1 && say "installed the hk pre-commit hook: each commit lints its staged files"
+fi
 
 trailer() { git log -1 --format="%(trailers:key=$2,valueonly,unfold)" "$1" | sed '/^$/d'; }
 json_text() { printf '%s' "$1" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g'; }
