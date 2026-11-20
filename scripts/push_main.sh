@@ -9,6 +9,10 @@ RETRIES=10
 M4_HOST="${PUSH_MAIN_M4:-m4}"
 CHECK_LOCK="${PUSH_MAIN_CHECK_LOCK:-/tmp/push-main-check.lock}"
 CHECK_LOCK_WAIT="${PUSH_MAIN_CHECK_LOCK_WAIT:-300}"
+CHECK_LOCK_MARKER="little-worker-hq push lock v1"
+CHECK_LOCK_RECORD_PATTERN="^$CHECK_LOCK_MARKER"$'\npid ([0-9]+)\nstarted ([A-Za-z0-9 :]+)\ngroup (none|[0-9]+)$'
+# shellcheck disable=SC2016
+CHECK_GATE='until [ "$(sed -n 4p "$1" 2>/dev/null)" = "group $$" ]; do kill -0 "$2" 2>/dev/null || exit 125; sleep 0.1; done; exec bash -c "$3"'
 
 say() { echo "push-main: $*" >&2; }
 finish() {
@@ -111,10 +115,16 @@ tmp="$(mktemp -d "${TMPDIR:-/tmp}/push-main.XXXXXX")"
 CAPPED_PID=""
 WATCHDOG_PID=""
 HOLDING_CHECK_LOCK=0
+CHECK_LOCK_STARTED=""
+RECLAIM_REFUSAL=""
 cleanup() {
-  [ "$HOLDING_CHECK_LOCK" -eq 0 ] || rm -rf "$CHECK_LOCK"
-  [ -z "$CAPPED_PID" ] || kill -TERM -- "-$CAPPED_PID" 2>/dev/null || true
+  if [ -n "$CAPPED_PID" ]; then
+    kill -TERM -- "-$CAPPED_PID" 2>/dev/null && sleep 2
+    kill -KILL -- "-$CAPPED_PID" 2>/dev/null || true
+    wait "$CAPPED_PID" 2>/dev/null || true
+  fi
   [ -z "$WATCHDOG_PID" ] || kill -KILL -- "-$WATCHDOG_PID" 2>/dev/null || true
+  [ "$HOLDING_CHECK_LOCK" -eq 0 ] || release_check_lock
   rm -rf "$tmp"
 }
 trap cleanup EXIT
@@ -383,30 +393,93 @@ scan_secrets() {
   [ "$code" -eq 0 ] || say "gitleaks could not run (exit $code); the secret scan is skipped"
 }
 
+process_started() { LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null | xargs; }
+
+check_lock_record() { printf '%s\npid %s\nstarted %s\ngroup %s\n' "$CHECK_LOCK_MARKER" "$$" "$CHECK_LOCK_STARTED" "$1"; }
+
+read_check_lock_file() {
+  [ -f "$CHECK_LOCK/$1" ] && [ ! -L "$CHECK_LOCK/$1" ] || return 1
+  head -c 512 "$CHECK_LOCK/$1" 2>/dev/null
+}
+
+check_lock_owner_stopped() {
+  [[ "$1" =~ $CHECK_LOCK_RECORD_PATTERN ]] || return 1
+  local group="${BASH_REMATCH[3]}"
+  [ "$(process_started "${BASH_REMATCH[1]}")" != "${BASH_REMATCH[2]}" ] || return 1
+  [ "$group" = none ] || ! ps -A -o pgid= | awk -v group="$group" '$1 == group { found = 1 } END { exit !found }'
+}
+
+legacy_check_lock_stopped() { [[ "$1" =~ ^[0-9]+$ ]] && ! ps -p "$1" >/dev/null 2>&1; }
+
+reclaim_check_lock() {
+  RECLAIM_REFUSAL=""
+  mkdir "$CHECK_LOCK.reclaim" 2>/dev/null || {
+    RECLAIM_REFUSAL="$CHECK_LOCK.reclaim exists; remove it if no push runs here"
+    return 1
+  }
+  if [ "$(read_check_lock_file "$1" || true)" != "$2" ]; then
+    :
+  elif [ "$(ls -A "$CHECK_LOCK" 2>/dev/null)" != "$1" ]; then
+    RECLAIM_REFUSAL="it holds files this script did not write"
+  elif rm -f "$CHECK_LOCK/$1" 2>/dev/null && rmdir "$CHECK_LOCK" 2>/dev/null; then
+    rmdir "$CHECK_LOCK.reclaim"
+    return 0
+  else
+    RECLAIM_REFUSAL="removing it failed"
+  fi
+  rmdir "$CHECK_LOCK.reclaim"
+  return 1
+}
+
 take_check_lock() {
-  local waited=0 holder
+  local waited=0 owner legacy holder entry record refused=""
   [ -z "${PUSH_MAIN_INSIDE_CHECK:-}" ] || return 0
+  CHECK_LOCK_STARTED="$(process_started $$)"
   until mkdir "$CHECK_LOCK" 2>/dev/null; do
-    holder="$(cat "$CHECK_LOCK/pid" 2>/dev/null || true)"
-    if { [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; } || [ -n "$(find "$CHECK_LOCK" -maxdepth 0 -mmin +$((CAP / 60 + 5)) 2>/dev/null)" ]; then
-      rm -rf "$CHECK_LOCK"
-      continue
+    owner="$(read_check_lock_file owner || true)"
+    legacy="$(read_check_lock_file pid || true)"
+    holder="" entry="" record=""
+    if [[ "$owner" =~ $CHECK_LOCK_RECORD_PATTERN ]]; then
+      holder="${BASH_REMATCH[1]}"
+      ! check_lock_owner_stopped "$owner" || entry=owner record="$owner"
+    elif [[ "$legacy" =~ ^[0-9]+$ ]]; then
+      holder="$legacy"
+      ! legacy_check_lock_stopped "$legacy" || entry=pid record="$legacy"
+    fi
+    if [ -n "$entry" ]; then
+      if reclaim_check_lock "$entry" "$record"; then
+        say "took over $CHECK_LOCK from pid $holder, which stopped"
+        continue
+      fi
+      if [ -n "$RECLAIM_REFUSAL" ] && [ "$RECLAIM_REFUSAL" != "$refused" ]; then
+        say "cannot take over $CHECK_LOCK from stopped pid $holder: $RECLAIM_REFUSAL; waiting ${CHECK_LOCK_WAIT}s at most, then running this check beside it"
+        refused="$RECLAIM_REFUSAL"
+      fi
     fi
     if [ "$waited" -ge "$CHECK_LOCK_WAIT" ]; then
-      say "another push check still runs on this machine after ${CHECK_LOCK_WAIT}s; running this one beside it"
+      say "the push check lock $CHECK_LOCK is still held after ${CHECK_LOCK_WAIT}s; running this check beside it"
       return 0
     fi
-    [ "$waited" -gt 0 ] || say "another push check runs on this machine (pid ${holder:-unknown}); waiting for it, ${CHECK_LOCK_WAIT}s at most"
+    if [ "$waited" -gt 0 ] || [ -n "$refused" ]; then
+      :
+    elif [ -n "$holder" ]; then
+      say "another push check runs on this machine (pid $holder); waiting for it, ${CHECK_LOCK_WAIT}s at most"
+    else
+      say "$CHECK_LOCK exists and names no push owner; waiting ${CHECK_LOCK_WAIT}s at most, then running this check beside it"
+    fi
     sleep 2
     waited=$((waited + 2))
   done
-  echo $$ >"$CHECK_LOCK/pid"
+  check_lock_record none >"$CHECK_LOCK/owner"
   HOLDING_CHECK_LOCK=1
 }
 
 release_check_lock() {
-  [ "$HOLDING_CHECK_LOCK" -eq 0 ] || rm -rf "$CHECK_LOCK"
+  [ "$HOLDING_CHECK_LOCK" -eq 1 ] || return 0
   HOLDING_CHECK_LOCK=0
+  [[ "$(read_check_lock_file owner || true)" =~ $CHECK_LOCK_RECORD_PATTERN ]] && [ "${BASH_REMATCH[1]}" = "$$" ] && [ "${BASH_REMATCH[2]}" = "$CHECK_LOCK_STARTED" ] || return 0
+  rm -f "$CHECK_LOCK/owner"
+  rmdir "$CHECK_LOCK" 2>/dev/null || true
 }
 
 capped() {
@@ -414,8 +487,14 @@ capped() {
   take_check_lock
   rm -f "$tmp/timed-out"
   set -m
-  PUSH_MAIN_INSIDE_CHECK=1 nice -n 10 bash -c "$1" >>"$tmp/check.log" 2>&1 &
-  CAPPED_PID=$!
+  if [ "$HOLDING_CHECK_LOCK" -eq 1 ]; then
+    PUSH_MAIN_INSIDE_CHECK=1 nice -n 10 bash -c "$CHECK_GATE" check-gate "$CHECK_LOCK/owner" "$$" "$1" >>"$tmp/check.log" 2>&1 &
+    CAPPED_PID=$!
+    check_lock_record "$CAPPED_PID" >"$CHECK_LOCK/owner"
+  else
+    PUSH_MAIN_INSIDE_CHECK=1 nice -n 10 bash -c "$1" >>"$tmp/check.log" 2>&1 &
+    CAPPED_PID=$!
+  fi
   (
     sleep "$CAP"
     : >"$tmp/timed-out"
